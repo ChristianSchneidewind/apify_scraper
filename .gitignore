@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+.venv/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local runtime data
+storage/
+Screenshots/
+*.log
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local agent / tooling state
+.agents/
+.pi/
+skills-lock.json
+
+# Misc
+.python-version

@@ -1,0 +1,8 @@
+{
+  "actorSpecification": 1,
+  "name": "instagram-comment-scraper-python",
+  "version": "1.0",
+  "title": "Instagram Comment Scraper (Python)",
+  "description": "Scrape Instagram comments and full-page screenshots with a red outline.",
+  "dockerfile": "./Dockerfile"
+}

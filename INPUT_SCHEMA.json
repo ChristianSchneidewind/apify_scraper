@@ -1,0 +1,91 @@
+{
+  "title": "Instagram Comment Scraper (Python)",
+  "description": "Scrape comments and full-page screenshots with a red outline around each comment.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "urls": {
+      "title": "Post URLs",
+      "type": "array",
+      "editor": "requestListSources",
+      "description": "List of public Instagram post URLs.",
+      "items": {
+        "type": "string",
+        "editor": "textfield"
+      }
+    },
+    "maxComments": {
+      "title": "Max comments",
+      "type": "integer",
+      "description": "Optional limit. Set 0 to scrape all comments.",
+      "default": 0
+    },
+    "screenshotTimeoutSecs": {
+      "title": "Screenshot timeout (seconds)",
+      "type": "integer",
+      "description": "Max time per full-page screenshot.",
+      "default": 60
+    },
+    "loginEnabled": {
+      "title": "Enable login",
+      "type": "boolean",
+      "description": "Enable Instagram login (recommended for more comments).",
+      "default": false
+    },
+    "loginUsername": {
+      "title": "Login username",
+      "type": "string",
+      "description": "Instagram username. Prefer env INSTAGRAM_USERNAME.",
+      "editor": "textfield"
+    },
+    "loginPassword": {
+      "title": "Login password",
+      "type": "string",
+      "description": "Instagram password. Prefer env INSTAGRAM_PASSWORD.",
+      "editor": "textfield"
+    },
+    "loginStateKey": {
+      "title": "Login state key",
+      "type": "string",
+      "description": "Key in KV store for saved Playwright storage state.",
+      "default": "LOGIN_STATE"
+    },
+    "saveLoginState": {
+      "title": "Save login state",
+      "type": "boolean",
+      "description": "Persist Playwright storage state after login.",
+      "default": true
+    },
+    "headful": {
+      "title": "Headful browser",
+      "type": "boolean",
+      "description": "Run browser in headful mode (useful for debugging).",
+      "default": false
+    },
+    "slowMoMs": {
+      "title": "Slow motion (ms)",
+      "type": "integer",
+      "description": "Delay Playwright operations by N ms.",
+      "default": 0
+    },
+    "maxUiRounds": {
+      "title": "Max UI rounds",
+      "type": "integer",
+      "description": "Max load-more/scroll rounds for UI mode.",
+      "default": 120
+    },
+    "uiIdleRounds": {
+      "title": "UI idle rounds",
+      "type": "integer",
+      "description": "Stop after this many rounds without new comments.",
+      "default": 15
+    },
+    "loadTimeoutSecs": {
+      "title": "Load timeout (seconds)",
+      "type": "integer",
+      "description": "Max time for loading all comments.",
+      "default": 180
+    }
+  },
+  "required": ["urls"]
+}
