@@ -41,22 +41,32 @@ async def set_screenshot_banner(page, video_url: str, utc_time: str):
             el.id = id;
             document.body.appendChild(el);
           }
+
           el.textContent = `${videoUrl}\n${utcTime}`;
-          el.style.position = 'fixed';
-          el.style.left = '12px';
-          el.style.bottom = '12px';
-          el.style.zIndex = '2147483647';
-          el.style.padding = '8px 10px';
-          el.style.background = 'rgba(0,0,0,0.75)';
+          el.style.display = 'block';
+          el.style.position = 'relative';
+          el.style.left = '0';
+          el.style.bottom = '0';
+          el.style.zIndex = '1';
+          el.style.width = '100%';
+          el.style.boxSizing = 'border-box';
+          el.style.margin = '0';
+          el.style.marginTop = '8px';
+          el.style.padding = '10px 12px';
+          el.style.background = 'rgba(0,0,0,0.92)';
           el.style.color = '#fff';
           el.style.fontSize = '12px';
           el.style.fontFamily = 'monospace';
           el.style.lineHeight = '1.35';
           el.style.whiteSpace = 'pre-line';
-          el.style.borderRadius = '6px';
-          el.style.maxWidth = '70vw';
+          el.style.borderRadius = '0';
+          el.style.maxWidth = 'none';
           el.style.wordBreak = 'break-all';
           el.style.pointerEvents = 'none';
+
+          if (document.body.lastElementChild !== el) {
+            document.body.appendChild(el);
+          }
         }
         """,
         {"videoUrl": video_url, "utcTime": utc_time},
@@ -271,7 +281,7 @@ async def scroll_comment_container(page, rounds=3):
         scrolled = await page.evaluate(
             """
             () => {
-              const isReel = /\\/reels?\\//.test(location.pathname);
+              const isReel = /\/reels?\//.test(location.pathname);
 
               const dialogCandidates = Array.from(document.querySelectorAll('div[role="dialog"] div, div[role="dialog"] ul, div[role="dialog"] section'))
                 .filter((el) => el.querySelectorAll('time').length > 0)
@@ -305,7 +315,7 @@ async def auto_scroll(page, rounds):
         scrolled = await page.evaluate(
             """
             () => {
-              const isReel = /\\/reels?\\//.test(location.pathname);
+              const isReel = /\/reels?\//.test(location.pathname);
 
               const dialogWithTimes = Array.from(document.querySelectorAll('div[role="dialog"] ul, div[role="dialog"] section, div[role="dialog"] div'))
                 .filter((el) => el.querySelectorAll('time').length > 0)
@@ -349,7 +359,7 @@ async def load_all_comments(page, max_rounds, idle_rounds):
 
         await expand_comments(page, 20)
         await scroll_comment_container(page, 5)
-        await auto_scroll(page, 4)
+        await auto_scroll(page, 8)
         await page.wait_for_timeout(1500)
 
         current_count = await page.eval_on_selector_all("time", "nodes => nodes.length")

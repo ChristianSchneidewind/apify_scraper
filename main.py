@@ -58,9 +58,12 @@ async def main():
         manual_debug_pause_secs = int(input_data.get("manualDebugPauseSecs", 180))
         force_single_concurrency = bool(input_data.get("forceSingleConcurrency", True))
         reset_run_state = bool(input_data.get("resetRunState", False))
+        no_new_rounds_before_rescan = int(input_data.get("noNewRoundsBeforeRescan", 5))
+        max_rescan_passes = int(input_data.get("maxRescanPasses", 3))
 
         dataset = await Actor.open_dataset()
         kv_store = await Actor.open_key_value_store()
+        meta_store = await Actor.open_key_value_store(name="video_meta")
 
         SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
         run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -255,7 +258,7 @@ async def main():
                 )
             except Exception as exc:
                 Actor.log.warning(f"load_all_comments timeout or error: {exc}")
-            await auto_scroll(page, 4)
+            await auto_scroll(page, 8)
             await page.wait_for_timeout(1500)
             await dismiss_login_wall(page)
 
@@ -281,10 +284,19 @@ async def main():
             run_folder = f"{post_slug}/{run_id}"
             checkpoint_key = f"RUN_STATE::{post_slug}"
             legacy_checkpoint_key = f"RUN_STATE::comment-{post_slug}"
+            video_meta_key = f"VIDEO_META::{post_slug}"
             if reset_run_state:
                 await kv_store.set_value(checkpoint_key, None)
                 await kv_store.set_value(legacy_checkpoint_key, None)
+                await meta_store.set_value(video_meta_key, None)
             checkpoint = await kv_store.get_value(checkpoint_key) or await kv_store.get_value(legacy_checkpoint_key) or {}
+
+            video_meta = await meta_store.get_value(video_meta_key) or {
+                "postSlug": post_slug,
+                "sourceUrl": context.request.url,
+                "firstSeenAt": datetime.now(timezone.utc).isoformat(),
+                "totalCaptured": 0,
+            }
 
             count = int(checkpoint.get("count", 0) or 0)
             seen_strict = set(checkpoint.get("seen_strict", []))
@@ -292,13 +304,16 @@ async def main():
             seen_visual = set(checkpoint.get("seen_visual", []))
             seen_comment_uid = set(checkpoint.get("seen_comment_uid", []))
             idle = 0
+            stale_rounds = 0
+            rescan_passes = 0
             last_screenshot_hash = checkpoint.get("last_screenshot_hash")
 
             if count > 0:
                 Actor.log.info(f"Resuming from checkpoint for {context.request.url}: count={count}")
 
             for round_idx in range(max_ui_rounds):
-                await expand_comments(page, 12)
+                comment_container = await get_comment_container(page)
+                await expand_comments(page, 30)
                 row_handles = await get_dialog_comment_rows(page)
                 time_handles = await page.query_selector_all('div[role="dialog"] time, article time, li time, time')
                 Actor.log.info(f"Round {round_idx + 1}: {len(row_handles)} comment rows, {len(time_handles)} time nodes")
@@ -362,8 +377,7 @@ async def main():
                         """,
                         element_handle,
                     )
-                    if visual_key and visual_key in seen_visual:
-                        return False
+                    # visual_key is kept for diagnostics/checkpointing only (not hard dedup)
 
                     seen_strict.add(strict_key)
                     seen_loose.add(loose_key)
@@ -454,8 +468,41 @@ async def main():
 
                 if new_in_round == 0:
                     idle += 1
+                    stale_rounds += 1
                 else:
                     idle = 0
+                    stale_rounds = 0
+
+                if stale_rounds >= no_new_rounds_before_rescan and rescan_passes < max_rescan_passes:
+                    Actor.log.info(
+                        f"No new comments for {stale_rounds} rounds. Starting rescan pass {rescan_passes + 1}/{max_rescan_passes}."
+                    )
+                    try:
+                        await asyncio.wait_for(load_all_comments(page, 60, 8), timeout=240)
+                    except Exception as exc:
+                        Actor.log.warning(f"rescan load_all_comments warning: {exc}")
+
+                    comment_container = await get_comment_container(page)
+                    try:
+                        await page.evaluate(
+                            """
+                            (container) => {
+                              if (container) container.scrollTop = 0;
+                              window.scrollTo(0, 0);
+                            }
+                            """,
+                            comment_container,
+                        )
+                        await page.wait_for_timeout(1500)
+                    except Exception:
+                        pass
+                    await open_comments_panel(page)
+                    await dismiss_login_wall(page)
+                    await expand_comments(page, 40)
+                    stale_rounds = 0
+                    idle = 0
+                    rescan_passes += 1
+                    continue
 
                 if idle >= ui_idle_rounds:
                     break
@@ -464,7 +511,7 @@ async def main():
                     """
                     (container) => {
                       if (!container) {
-                        const isReel = /\\/reels?\\//.test(location.pathname);
+                        const isReel = /\/reels?\//.test(location.pathname);
                         if (isReel) return false;
                         const before = window.scrollY;
                         window.scrollBy(0, window.innerHeight * 0.8);
@@ -514,6 +561,7 @@ async def main():
                 )
 
             Actor.log.info(f"Captured {count} comments for {context.request.url}")
+            finished_at = datetime.now(timezone.utc).isoformat()
             await kv_store.set_value(
                 checkpoint_key,
                 {
@@ -524,11 +572,24 @@ async def main():
                     "seen_comment_uid": list(seen_comment_uid),
                     "last_screenshot_hash": last_screenshot_hash,
                     "completed": True,
-                    "updatedAt": datetime.now(timezone.utc).isoformat(),
+                    "updatedAt": finished_at,
                     "sourceUrl": context.request.url,
                 },
                 content_type="application/json",
             )
+
+            video_meta.update(
+                {
+                    "sourceUrl": context.request.url,
+                    "checkpointKey": checkpoint_key,
+                    "lastRunId": run_id,
+                    "lastRunAt": finished_at,
+                    "lastRunCount": count,
+                    "totalCaptured": max(int(video_meta.get("totalCaptured", 0) or 0), count),
+                    "screenshotBaseDir": str((SCREENSHOTS_DIR / post_slug).resolve()),
+                }
+            )
+            await meta_store.set_value(video_meta_key, video_meta, content_type="application/json")
 
         try:
             await crawler.run(urls)
