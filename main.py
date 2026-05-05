@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from src.auth import dismiss_login_wall, ensure_logged_in, handle_cookie_banner
 from src.comments import extract_comment_from_item, extract_comment_from_time, get_dialog_comment_rows
 from src.constants import SCREENSHOTS_DIR, VIEWPORT_HEIGHT, VIEWPORT_WIDTH
-from src.screenshots import dump_skip_debug, highlight, make_key, save_screenshot
+from src.screenshots import dump_skip_debug, highlight, make_key, make_post_slug, save_screenshot
 from src.ui import (
     auto_scroll,
     expand_comments,
@@ -62,9 +62,10 @@ async def main():
         kv_store = await Actor.open_key_value_store()
 
         SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+        run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
         if reset_run_state:
-            for file in SCREENSHOTS_DIR.glob("*.png"):
+            for file in SCREENSHOTS_DIR.rglob("*.png"):
                 file.unlink(missing_ok=True)
 
             dataset_dir = Path.cwd() / "storage" / "datasets" / "default"
@@ -272,10 +273,14 @@ async def main():
             except Exception:
                 pass
 
-            checkpoint_key = f"RUN_STATE::{make_key(context.request.url, 0).replace('-0.png', '')}"
+            post_slug = make_post_slug(context.request.url)
+            run_folder = f"{post_slug}/{run_id}"
+            checkpoint_key = f"RUN_STATE::{post_slug}"
+            legacy_checkpoint_key = f"RUN_STATE::comment-{post_slug}"
             if reset_run_state:
                 await kv_store.set_value(checkpoint_key, None)
-            checkpoint = await kv_store.get_value(checkpoint_key) or {}
+                await kv_store.set_value(legacy_checkpoint_key, None)
+            checkpoint = await kv_store.get_value(checkpoint_key) or await kv_store.get_value(legacy_checkpoint_key) or {}
 
             count = int(checkpoint.get("count", 0) or 0)
             seen_strict = set(checkpoint.get("seen_strict", []))
@@ -391,7 +396,7 @@ async def main():
                             Actor.log.warning(f"Duplicate screenshot detected for comment {count}; skipping image save.")
                         else:
                             await kv_store.set_value(screenshot_key, buffer, content_type="image/png")
-                            screenshot_path = await save_screenshot(buffer, screenshot_key)
+                            screenshot_path = await save_screenshot(buffer, screenshot_key, subdir=run_folder)
                             last_screenshot_hash = current_hash
                     except Exception as exc:
                         Actor.log.warning(f"Screenshot failed for comment {count}: {exc}")

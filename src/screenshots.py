@@ -93,14 +93,29 @@ async def highlight(page, element_handle, comment_data):
     return bool(ok)
 
 
+def make_post_slug(url):
+    return re.sub(r"[^a-zA-Z0-9]+", "-", re.sub(r"^https?://", "", url)).strip("-").lower()
+
+
 def make_key(url, index):
-    slug = re.sub(r"[^a-zA-Z0-9]+", "-", re.sub(r"^https?://", "", url)).strip("-").lower()
+    slug = make_post_slug(url)
     return f"comment-{slug}-{index}.png"
 
 
-async def save_screenshot(buffer, filename):
-    SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
-    file_path = SCREENSHOTS_DIR / filename
+async def save_screenshot(buffer, filename, subdir=None):
+    target_dir = SCREENSHOTS_DIR / subdir if subdir else SCREENSHOTS_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    file_path = target_dir / filename
+    if file_path.exists():
+        stem = file_path.stem
+        suffix = file_path.suffix
+        n = 1
+        while True:
+            candidate = target_dir / f"{stem}-{n}{suffix}"
+            if not candidate.exists():
+                file_path = candidate
+                break
+            n += 1
     file_path.write_bytes(buffer)
     return str(file_path)
 
