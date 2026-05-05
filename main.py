@@ -41,7 +41,7 @@ async def main():
         ui_idle_rounds = input_data.get("uiIdleRounds", 15)
         load_timeout_secs = input_data.get("loadTimeoutSecs", 180)
         screenshot_timeout_ms = int(input_data.get("screenshotTimeoutSecs", 60) * 1000)
-        request_handler_timeout_secs = int(input_data.get("requestHandlerTimeoutSecs", 900))
+        request_handler_timeout_secs = int(input_data.get("requestHandlerTimeoutSecs", 7200))
         login_enabled = input_data.get("loginEnabled", False)
         login_username = input_data.get("loginUsername") or os.getenv("INSTAGRAM_USERNAME")
         login_password = input_data.get("loginPassword") or os.getenv("INSTAGRAM_PASSWORD")
@@ -55,18 +55,22 @@ async def main():
         manual_debug_mode = bool(input_data.get("manualDebugMode", False))
         manual_debug_only = bool(input_data.get("manualDebugOnly", False))
         manual_debug_pause_secs = int(input_data.get("manualDebugPauseSecs", 180))
+        force_single_concurrency = bool(input_data.get("forceSingleConcurrency", True))
+        reset_run_state = bool(input_data.get("resetRunState", False))
 
         dataset = await Actor.open_dataset()
         kv_store = await Actor.open_key_value_store()
 
         SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
-        for file in SCREENSHOTS_DIR.glob("*.png"):
-            file.unlink(missing_ok=True)
 
-        dataset_dir = Path.cwd() / "storage" / "datasets" / "default"
-        if dataset_dir.exists():
-            for file in dataset_dir.glob("*.json"):
+        if reset_run_state:
+            for file in SCREENSHOTS_DIR.glob("*.png"):
                 file.unlink(missing_ok=True)
+
+            dataset_dir = Path.cwd() / "storage" / "datasets" / "default"
+            if dataset_dir.exists():
+                for file in dataset_dir.glob("*.json"):
+                    file.unlink(missing_ok=True)
 
         stored_state = await kv_store.get_value(login_state_key) if login_enabled else None
         browser_new_context_options = {
@@ -82,6 +86,8 @@ async def main():
         crawler = PlaywrightCrawler(
             max_requests_per_crawl=len(urls),
             max_request_retries=0,
+            min_concurrency=1 if force_single_concurrency else 1,
+            max_concurrency=1 if force_single_concurrency else 3,
             headless=not headful,
             browser_type="chromium",
             browser_launch_options={
@@ -266,13 +272,21 @@ async def main():
             except Exception:
                 pass
 
-            count = 0
-            seen_strict = set()
-            seen_loose = set()
-            seen_visual = set()
-            seen_comment_uid = set()
+            checkpoint_key = f"RUN_STATE::{make_key(context.request.url, 0).replace('-0.png', '')}"
+            if reset_run_state:
+                await kv_store.set_value(checkpoint_key, None)
+            checkpoint = await kv_store.get_value(checkpoint_key) or {}
+
+            count = int(checkpoint.get("count", 0) or 0)
+            seen_strict = set(checkpoint.get("seen_strict", []))
+            seen_loose = set(checkpoint.get("seen_loose", []))
+            seen_visual = set(checkpoint.get("seen_visual", []))
+            seen_comment_uid = set(checkpoint.get("seen_comment_uid", []))
             idle = 0
-            last_screenshot_hash = None
+            last_screenshot_hash = checkpoint.get("last_screenshot_hash")
+
+            if count > 0:
+                Actor.log.info(f"Resuming from checkpoint for {context.request.url}: count={count}")
 
             for round_idx in range(max_ui_rounds):
                 await expand_comments(page, 12)
@@ -396,6 +410,21 @@ async def main():
                             "screenshotPath": screenshot_path,
                         }
                     )
+
+                    await kv_store.set_value(
+                        checkpoint_key,
+                        {
+                            "count": count,
+                            "seen_strict": list(seen_strict),
+                            "seen_loose": list(seen_loose),
+                            "seen_visual": list(seen_visual),
+                            "seen_comment_uid": list(seen_comment_uid),
+                            "last_screenshot_hash": last_screenshot_hash,
+                            "updatedAt": datetime.now(timezone.utc).isoformat(),
+                            "sourceUrl": context.request.url,
+                        },
+                        content_type="application/json",
+                    )
                     return True
 
                 for row_handle in row_handles:
@@ -476,6 +505,21 @@ async def main():
                 )
 
             Actor.log.info(f"Captured {count} comments for {context.request.url}")
+            await kv_store.set_value(
+                checkpoint_key,
+                {
+                    "count": count,
+                    "seen_strict": list(seen_strict),
+                    "seen_loose": list(seen_loose),
+                    "seen_visual": list(seen_visual),
+                    "seen_comment_uid": list(seen_comment_uid),
+                    "last_screenshot_hash": last_screenshot_hash,
+                    "completed": True,
+                    "updatedAt": datetime.now(timezone.utc).isoformat(),
+                    "sourceUrl": context.request.url,
+                },
+                content_type="application/json",
+            )
 
         try:
             await crawler.run(urls)
