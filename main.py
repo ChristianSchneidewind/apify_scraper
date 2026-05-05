@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from apify import Actor
+from crawlee import ConcurrencySettings
 from crawlee.crawlers import PlaywrightCrawler, PlaywrightCrawlingContext
 from dotenv import load_dotenv
 
@@ -87,8 +88,11 @@ async def main():
         crawler = PlaywrightCrawler(
             max_requests_per_crawl=len(urls),
             max_request_retries=0,
-            min_concurrency=1 if force_single_concurrency else 1,
-            max_concurrency=1 if force_single_concurrency else 3,
+            concurrency_settings=ConcurrencySettings(
+                min_concurrency=1,
+                max_concurrency=1 if force_single_concurrency else 3,
+                desired_concurrency=1 if force_single_concurrency else None,
+            ),
             headless=not headful,
             browser_type="chromium",
             browser_launch_options={
