@@ -1,5 +1,7 @@
 import json
 import re
+import secrets
+import time
 
 from .constants import SCREENSHOTS_DIR
 
@@ -97,9 +99,14 @@ def make_post_slug(url):
     return re.sub(r"[^a-zA-Z0-9]+", "-", re.sub(r"^https?://", "", url)).strip("-").lower()
 
 
-def make_key(url, index):
-    slug = make_post_slug(url)
-    return f"comment-{slug}-{index}.png"
+def make_uuid7():
+    ts_ms = int(time.time() * 1000) & ((1 << 48) - 1)
+    rand_a = secrets.randbits(12)
+    rand_b = secrets.randbits(62)
+
+    value = (ts_ms << 80) | (0x7 << 76) | (rand_a << 64) | (0b10 << 62) | rand_b
+    hex_str = f"{value:032x}"
+    return f"{hex_str[0:8]}-{hex_str[8:12]}-{hex_str[12:16]}-{hex_str[16:20]}-{hex_str[20:32]}"
 
 
 async def save_screenshot(buffer, filename, subdir=None):
@@ -117,6 +124,15 @@ async def save_screenshot(buffer, filename, subdir=None):
                 break
             n += 1
     file_path.write_bytes(buffer)
+    return str(file_path)
+
+
+def save_comment_metadata(metadata, screenshot_filename, subdir=None):
+    target_dir = SCREENSHOTS_DIR / subdir if subdir else SCREENSHOTS_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    stem = screenshot_filename.rsplit('.', 1)[0]
+    file_path = target_dir / f"{stem}.json"
+    file_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     return str(file_path)
 
 

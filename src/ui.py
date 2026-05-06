@@ -44,17 +44,17 @@ async def set_screenshot_banner(page, video_url: str, utc_time: str):
 
           el.textContent = `${videoUrl}\n${utcTime}`;
           el.style.display = 'block';
-          el.style.position = 'relative';
+          el.style.position = 'fixed';
           el.style.left = '0';
+          el.style.right = '0';
           el.style.bottom = '0';
-          el.style.zIndex = '1';
-          el.style.width = '100%';
+          el.style.zIndex = '2147483647';
+          el.style.width = '100vw';
           el.style.boxSizing = 'border-box';
           el.style.margin = '0';
-          el.style.marginTop = '8px';
           el.style.padding = '10px 12px';
-          el.style.background = 'rgba(0,0,0,0.92)';
-          el.style.color = '#fff';
+          el.style.background = '#fff';
+          el.style.color = '#000';
           el.style.fontSize = '12px';
           el.style.fontFamily = 'monospace';
           el.style.lineHeight = '1.35';
@@ -63,10 +63,6 @@ async def set_screenshot_banner(page, video_url: str, utc_time: str):
           el.style.maxWidth = 'none';
           el.style.wordBreak = 'break-all';
           el.style.pointerEvents = 'none';
-
-          if (document.body.lastElementChild !== el) {
-            document.body.appendChild(el);
-          }
         }
         """,
         {"videoUrl": video_url, "utcTime": utc_time},

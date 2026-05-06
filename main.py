@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from src.auth import dismiss_login_wall, ensure_logged_in, handle_cookie_banner
 from src.comments import extract_comment_from_item, extract_comment_from_time, get_dialog_comment_rows
 from src.constants import SCREENSHOTS_DIR, VIEWPORT_HEIGHT, VIEWPORT_WIDTH
-from src.screenshots import dump_skip_debug, highlight, make_key, make_post_slug, save_screenshot
+from src.screenshots import dump_skip_debug, highlight, make_post_slug, make_uuid7, save_comment_metadata, save_screenshot
 from src.ui import (
     auto_scroll,
     expand_comments,
@@ -402,11 +402,13 @@ async def main():
                     await highlight(page, element_handle, data)
                     await freeze_animated_media(page)
 
-                    screenshot_key = make_key(context.request.url, count)
+                    screenshot_uuid = make_uuid7()
+                    screenshot_key = f"{screenshot_uuid}.png"
                     Actor.log.info(f"Taking screenshot {count} for {context.request.url}")
                     screenshot_path = None
+                    metadata_path = None
+                    screenshot_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
                     try:
-                        screenshot_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
                         await set_screenshot_banner(page, page.url, screenshot_utc)
                         buffer = await page.screenshot(full_page=True, timeout=screenshot_timeout_ms)
                         current_hash = hashlib.sha256(buffer).hexdigest()
@@ -415,6 +417,18 @@ async def main():
                         else:
                             await kv_store.set_value(screenshot_key, buffer, content_type="image/png")
                             screenshot_path = await save_screenshot(buffer, screenshot_key, subdir=run_folder)
+                            metadata_payload = {
+                                "id": screenshot_uuid,
+                                "index": count,
+                                "sourceUrl": context.request.url,
+                                "capturedAtUtc": screenshot_utc,
+                                "username": data["username"],
+                                "text": data["text"],
+                                "isGifOnly": bool(data.get("isGifOnly")),
+                                "datetime": data.get("datetime"),
+                                "timeText": data.get("timeText"),
+                            }
+                            metadata_path = save_comment_metadata(metadata_payload, screenshot_key, subdir=run_folder)
                             last_screenshot_hash = current_hash
                     except Exception as exc:
                         Actor.log.warning(f"Screenshot failed for comment {count}: {exc}")
@@ -422,6 +436,7 @@ async def main():
 
                     await dataset.push_data(
                         {
+                            "id": screenshot_uuid if screenshot_path else None,
                             "username": data["username"],
                             "text": data["text"],
                             "isGifOnly": bool(data.get("isGifOnly")),
@@ -431,6 +446,7 @@ async def main():
                             "sourceUrl": context.request.url,
                             "screenshotKey": screenshot_key if screenshot_path else None,
                             "screenshotPath": screenshot_path,
+                            "metadataPath": metadata_path,
                         }
                     )
 
