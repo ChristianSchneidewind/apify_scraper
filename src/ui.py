@@ -152,7 +152,7 @@ async def open_comments_panel(page):
         """
         () => {
           const norm = (s) => (s || '').toLowerCase();
-          const candidates = Array.from(document.querySelectorAll('button, a, div[role="button"], svg'));
+          const candidates = Array.from(document.querySelectorAll('button, a, div[role="button"], svg, span'));
           for (const el of candidates) {
             const label = norm(el.getAttribute('aria-label'));
             const text = norm(el.textContent);
@@ -160,7 +160,8 @@ async def open_comments_panel(page):
             const isComment =
               label.includes('comment') || label.includes('kommentar') || label.includes('komment') ||
               text.includes('comment') || text.includes('kommentar') || text.includes('komment') ||
-              href.includes('/comments/');
+              href.includes('/comments/') ||
+              ((text.includes('view all') || text.includes('alle')) && (text.includes('comment') || text.includes('kommentar')));
             if (!isComment) continue;
 
             const clickable = el.closest('button, a, div[role="button"]') || el;
@@ -181,6 +182,11 @@ async def open_comments_panel(page):
         'svg[aria-label="Comment"]',
         'svg[aria-label*="Komment"]',
         'a[href*="/comments/"]',
+        'a:has-text("View all")',
+        'a:has-text("View all comments")',
+        'a:has-text("Alle")',
+        'a:has-text("comments")',
+        'a:has-text("Kommentare")',
         'button:has-text("View comments")',
         'button:has-text("comments")',
         'button:has-text("Kommentare")',
@@ -277,7 +283,7 @@ async def scroll_comment_container(page, rounds=3):
         scrolled = await page.evaluate(
             """
             () => {
-              const isReel = /\/reels?\//.test(location.pathname);
+              const isReel = /\\/reels?\\//.test(location.pathname);
 
               const dialogCandidates = Array.from(document.querySelectorAll('div[role="dialog"] div, div[role="dialog"] ul, div[role="dialog"] section'))
                 .filter((el) => el.querySelectorAll('time').length > 0)
@@ -311,7 +317,7 @@ async def auto_scroll(page, rounds):
         scrolled = await page.evaluate(
             """
             () => {
-              const isReel = /\/reels?\//.test(location.pathname);
+              const isReel = /\\/reels?\\//.test(location.pathname);
 
               const dialogWithTimes = Array.from(document.querySelectorAll('div[role="dialog"] ul, div[role="dialog"] section, div[role="dialog"] div'))
                 .filter((el) => el.querySelectorAll('time').length > 0)
@@ -371,8 +377,13 @@ async def get_comment_container(page):
     return await page.evaluate_handle(
         """
         () => {
+          const dialogList = document.querySelector('div[role="dialog"] ul');
+          if (dialogList && (dialogList.scrollHeight - dialogList.clientHeight) > 40) {
+            return dialogList;
+          }
+
           const candidates = Array.from(document.querySelectorAll('ul, section, div'))
-            .filter((el) => el.querySelectorAll('time').length > 2)
+            .filter((el) => el.querySelectorAll('li time').length > 2 || el.querySelectorAll('time').length > 2)
             .filter((el) => (el.scrollHeight - el.clientHeight) > 50);
           if (!candidates.length) return null;
           candidates.sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight));

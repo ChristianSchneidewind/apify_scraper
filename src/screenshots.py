@@ -8,12 +8,12 @@ from .constants import SCREENSHOTS_DIR
 
 async def highlight(page, element_handle, comment_data):
     if not element_handle:
-        return False
+        return {"ok": False, "reason": "no_element_handle"}
 
-    ok = await page.evaluate(
+    result = await page.evaluate(
         """
         (payload) => {
-          const { el, username, text, isGifOnly } = payload;
+          const { el, username, text, isGifOnly, commentPermalink, userProfilePath } = payload;
           document.querySelectorAll('[data-apify-highlight="1"]').forEach((prev) => {
             prev.style.outline = '';
             prev.style.outlineOffset = '';
@@ -46,43 +46,212 @@ async def highlight(page, element_handle, comment_data):
             return !!node.querySelector('img[alt*="profile" i], img[alt*="profil" i], img[class*="avatar" i], a[href^="/"] img');
           };
 
-          // 1) Prefer nearest explicit row container (usually includes avatar + text).
-          let row = el?.closest?.('li, [role="listitem"], article') || el;
+          const isPostPage = /\\/p\\//.test(location.pathname);
 
-          // 2) Expand to a better ancestor that still looks like a single comment row.
-          let current = row;
-          for (let i = 0; i < 6 && current; i += 1) {
-            const r = current.getBoundingClientRect();
-            if (matchesRow(current) && hasAvatar(current) && r.width >= 160 && r.height >= 24 && r.height <= 420) {
-              row = current;
+          const isProfileHref = (h) => {
+            if (!h || !h.startsWith('/')) return false;
+            if (h.startsWith('/p/') || h.startsWith('/reel/') || h.startsWith('/reels/')) return false;
+            if (h.startsWith('/explore/') || h.startsWith('/accounts/') || h.startsWith('/direct/')) return false;
+            if (h.startsWith('/stories/') || h.startsWith('/locations/')) return false;
+            if (h.includes('/c/')) return false;
+            return /^\\/[A-Za-z0-9._]+\\/?($|\\?)/.test(h);
+          };
+
+          const containsProfileLink = (node) => !!node && Array.from(node.querySelectorAll('a[href]'))
+            .some((a) => isProfileHref(a.getAttribute('href') || ''));
+
+          const isTightPostRow = (node) => {
+            if (!node || !node.getBoundingClientRect) return false;
+            const r = node.getBoundingClientRect();
+            if (!(r.width >= 220 && r.height >= 28 && r.height <= 520)) return false;
+            const perm = node.querySelectorAll?.('a[href*="/c/"]') || [];
+            if (perm.length !== 1) return false;
+            if (!containsProfileLink(node)) return false;
+            if (!node.querySelector?.('time')) return false;
+            return true;
+          };
+
+          // Fallback search: when the original element handle is detached (IG
+          // virtualises comment rows after scrolling) or has lost its DOM
+          // identity, locate a fresh row by matching the comment permalink /
+          // profile path / username + text.
+          const elAttached = !!el && document.body && document.body.contains(el);
+          let detachedFallbackUsed = false;
+          let workingEl = el;
+          if (!elAttached) {
+            let candidate = null;
+            if (commentPermalink) {
+              const anchor = document.querySelector(`a[href="${commentPermalink}"]`);
+              if (anchor) candidate = anchor;
             }
-            current = current.parentElement;
+            if (!candidate && userProfilePath) {
+              const anchors = Array.from(document.querySelectorAll(`a[href="${userProfilePath}"]`));
+              for (const a of anchors) {
+                const surroundings = (a.closest('article, div, li, [role="listitem"]')?.innerText || '').toLowerCase();
+                if (!isGifOnly && fullText && surroundings.includes(fullText)) {
+                  candidate = a;
+                  break;
+                }
+                if (isGifOnly && user && surroundings.includes(user)) {
+                  candidate = a;
+                  break;
+                }
+              }
+              if (!candidate && anchors.length) candidate = anchors[0];
+            }
+            if (candidate) {
+              workingEl = candidate;
+              detachedFallbackUsed = true;
+            } else {
+              return { ok: false, reason: 'detached_no_fallback', isPostPage };
+            }
           }
 
-          // 3) Fallback: if we still don't match, find closest valid ancestor.
-          if (!matchesRow(row)) {
-            current = el;
-            for (let i = 0; i < 8 && current; i += 1) {
+          let row = null;
+          if (isPostPage) {
+            if (isTightPostRow(workingEl)) {
+              row = workingEl;
+            }
+            if (!row) {
+              const liAncestor = workingEl?.closest?.('li, [role="listitem"]');
+              if (liAncestor && isTightPostRow(liAncestor)) {
+                row = liAncestor;
+              }
+            }
+            if (!row) {
+              let cur = workingEl?.parentElement;
+              for (let i = 0; i < 24 && cur; i += 1) {
+                if (isTightPostRow(cur)) {
+                  row = cur;
+                  break;
+                }
+                cur = cur.parentElement;
+              }
+            }
+            if (!row && workingEl) {
+              const descendants = workingEl.querySelectorAll?.('a[href*="/c/"]') || [];
+              for (const anchor of descendants) {
+                let cur = anchor.parentElement;
+                for (let i = 0; i < 18 && cur && cur !== workingEl.parentElement; i += 1) {
+                  if (isTightPostRow(cur)) {
+                    row = cur;
+                    break;
+                  }
+                  cur = cur.parentElement;
+                }
+                if (row) break;
+              }
+            }
+            if (!row) row = workingEl;
+          }
+          if (!row) {
+            row = workingEl?.closest?.('li, [role="listitem"], article') || workingEl;
+          }
+
+          // 2) For reels keep flexible ancestor search; for posts keep locked row.
+          if (!isPostPage) {
+            let current = row;
+            for (let i = 0; i < 6 && current; i += 1) {
               const r = current.getBoundingClientRect();
-              if (matchesRow(current) && r.width >= 160 && r.height >= 24 && r.height <= 420) {
+              if (matchesRow(current) && hasAvatar(current) && r.width >= 160 && r.height >= 24 && r.height <= 420) {
                 row = current;
+              }
+              current = current.parentElement;
+            }
+
+            if (!matchesRow(row)) {
+              current = workingEl;
+              for (let i = 0; i < 8 && current; i += 1) {
+                const r = current.getBoundingClientRect();
+                if (matchesRow(current) && r.width >= 160 && r.height >= 24 && r.height <= 420) {
+                  row = current;
+                  break;
+                }
+                current = current.parentElement;
+              }
+            }
+          }
+
+          const finalTarget = row || workingEl;
+          const rect = finalTarget.getBoundingClientRect();
+          const validSize = rect.width >= 120 && rect.height >= 20 && rect.height <= (isPostPage ? 900 : 420);
+          if (!validSize) {
+            return {
+              ok: false,
+              reason: 'invalid_size',
+              isPostPage,
+              detachedFallbackUsed,
+              rect: { w: Math.round(rect.width), h: Math.round(rect.height) },
+            };
+          }
+
+          if (isPostPage) {
+            const hasTime =
+              !!finalTarget.querySelector?.('time') ||
+              !!workingEl?.querySelector?.('time') ||
+              !!(workingEl && (() => {
+                let n = workingEl;
+                for (let i = 0; i < 18 && n; i += 1) {
+                  if (n.querySelector?.('time')) return true;
+                  n = n.parentElement;
+                }
+                return false;
+              })());
+            if (!hasTime) return { ok: false, reason: 'no_time', isPostPage, detachedFallbackUsed };
+            if (!containsProfileLink(finalTarget)) {
+              return { ok: false, reason: 'no_profile_link', isPostPage, detachedFallbackUsed };
+            }
+          } else if (!matchesRow(finalTarget)) {
+            return { ok: false, reason: 'row_does_not_match_text', isPostPage, detachedFallbackUsed };
+          }
+
+          const hasProfilePicture = (root) => {
+            if (!root || !root.querySelector) return false;
+            const imgs = Array.from(root.querySelectorAll('img'));
+            return imgs.some((img) => {
+              const alt = (img.getAttribute('alt') || '').toLowerCase();
+              const cls = String(img.getAttribute('class') || '').toLowerCase();
+              const r = img.getBoundingClientRect?.() || { width: 0, height: 0 };
+              const looksAvatar =
+                alt.includes('profile picture') ||
+                alt.includes('profilbild') ||
+                alt.includes("'s profile") ||
+                cls.includes('avatar');
+              const sizeOk = r.width >= 24 && r.width <= 80 && r.height >= 24 && r.height <= 80;
+              return looksAvatar || sizeOk;
+            });
+          };
+
+          let highlightTarget = finalTarget;
+          if (!hasProfilePicture(highlightTarget)) {
+            const baseRect = finalTarget.getBoundingClientRect();
+            let current = finalTarget.parentElement;
+            for (let i = 0; i < 6 && current; i += 1) {
+              const r = current.getBoundingClientRect();
+              const perms = current.querySelectorAll?.('a[href*="/c/"]') || [];
+              if (perms.length > 1) break;
+              if (r.height > baseRect.height + 240) break;
+              if (r.width > baseRect.width + 200) break;
+              if (hasProfilePicture(current)) {
+                highlightTarget = current;
                 break;
               }
               current = current.parentElement;
             }
           }
 
-          const finalTarget = row || el;
-          const rect = finalTarget.getBoundingClientRect();
-          const validSize = rect.width >= 160 && rect.height >= 24 && rect.height <= 420;
-          if (!validSize) return false;
-
-          finalTarget.setAttribute('data-apify-highlight', '1');
-          finalTarget.style.outline = '3px solid red';
-          finalTarget.style.outlineOffset = '2px';
-          finalTarget.style.boxShadow = '0 0 0 3px red inset';
-          finalTarget.style.backgroundClip = 'padding-box';
-          return true;
+          highlightTarget.setAttribute('data-apify-highlight', '1');
+          highlightTarget.style.outline = '3px solid red';
+          highlightTarget.style.outlineOffset = '2px';
+          highlightTarget.style.boxShadow = '0 0 0 3px red inset';
+          highlightTarget.style.backgroundClip = 'padding-box';
+          return {
+            ok: true,
+            reason: 'highlighted',
+            isPostPage,
+            detachedFallbackUsed,
+            expandedForAvatar: highlightTarget !== finalTarget,
+          };
         }
         """,
         {
@@ -90,9 +259,13 @@ async def highlight(page, element_handle, comment_data):
             "username": comment_data.get("username"),
             "text": comment_data.get("text"),
             "isGifOnly": bool(comment_data.get("isGifOnly")),
+            "commentPermalink": comment_data.get("commentPermalink"),
+            "userProfilePath": comment_data.get("userProfilePath"),
         },
     )
-    return bool(ok)
+    if not isinstance(result, dict):
+        return {"ok": bool(result), "reason": "legacy_bool"}
+    return result
 
 
 def make_post_slug(url):
