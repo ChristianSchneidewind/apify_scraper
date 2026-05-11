@@ -19,6 +19,9 @@ Screenshots/
 
 # Memory
 scripts/
+.cursor/
+Makefile
+
 # Secrets / env
 .env
 .env.*
