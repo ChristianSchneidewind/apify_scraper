@@ -17,6 +17,8 @@ storage/
 Screenshots/
 *.log
 
+# Memory
+scripts/
 # Secrets / env
 .env
 .env.*

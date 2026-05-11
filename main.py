@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import os
+import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from crawlee.crawlers import PlaywrightCrawler, PlaywrightCrawlingContext
 from dotenv import load_dotenv
 
 from src.auth import dismiss_login_wall, ensure_logged_in, handle_cookie_banner
-from src.comments import extract_comment_from_item, extract_comment_from_time, get_dialog_comment_rows
+from src.comments import extract_comment_from_item, extract_comment_from_time, get_dialog_comment_rows, get_post_comment_rows
 from src.constants import SCREENSHOTS_DIR, VIEWPORT_HEIGHT, VIEWPORT_WIDTH
 from src.screenshots import dump_skip_debug, highlight, make_post_slug, make_uuid7, save_comment_metadata, save_screenshot
 from src.ui import (
@@ -57,7 +58,6 @@ async def main():
         manual_debug_only = bool(input_data.get("manualDebugOnly", False))
         manual_debug_pause_secs = int(input_data.get("manualDebugPauseSecs", 180))
         force_single_concurrency = bool(input_data.get("forceSingleConcurrency", True))
-        reset_run_state = bool(input_data.get("resetRunState", False))
         no_new_rounds_before_rescan = int(input_data.get("noNewRoundsBeforeRescan", 5))
         max_rescan_passes = int(input_data.get("maxRescanPasses", 3))
 
@@ -67,15 +67,6 @@ async def main():
 
         SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
         run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-
-        if reset_run_state:
-            for file in SCREENSHOTS_DIR.rglob("*.png"):
-                file.unlink(missing_ok=True)
-
-            dataset_dir = Path.cwd() / "storage" / "datasets" / "default"
-            if dataset_dir.exists():
-                for file in dataset_dir.glob("*.json"):
-                    file.unlink(missing_ok=True)
 
         stored_state = await kv_store.get_value(login_state_key) if login_enabled else None
         browser_new_context_options = {
@@ -120,6 +111,18 @@ async def main():
             if debug_network:
                 def _short(s, n=300):
                     return (s[:n] + "…") if s and len(s) > n else s
+
+                def _schedule_debug_task(coro):
+                    task = asyncio.create_task(coro)
+
+                    def _log_task_result(t: asyncio.Task) -> None:
+                        if t.cancelled():
+                            return
+                        exc = t.exception()
+                        if exc:
+                            Actor.log.warning(f"[COMMENTS-DEBUG] background task failed: {exc}")
+
+                    task.add_done_callback(_log_task_result)
 
                 saved_comment_responses = {"count": 0}
                 comment_query_names = {
@@ -207,8 +210,8 @@ async def main():
                     except Exception as exc:
                         Actor.log.warning(f"[COMMENTS-DEBUG] response save failed: {exc}")
 
-                page.on("request", lambda r: asyncio.create_task(on_request(r)))
-                page.on("response", lambda r: asyncio.create_task(on_response(r)))
+                page.on("request", lambda r: _schedule_debug_task(on_request(r)))
+                page.on("response", lambda r: _schedule_debug_task(on_response(r)))
 
             nonlocal cookies_loaded, stored_state_data
 
@@ -282,14 +285,7 @@ async def main():
 
             post_slug = make_post_slug(context.request.url)
             run_folder = f"{post_slug}/{run_id}"
-            checkpoint_key = f"RUN_STATE::{post_slug}"
-            legacy_checkpoint_key = f"RUN_STATE::comment-{post_slug}"
             video_meta_key = f"VIDEO_META::{post_slug}"
-            if reset_run_state:
-                await kv_store.set_value(checkpoint_key, None)
-                await kv_store.set_value(legacy_checkpoint_key, None)
-                await meta_store.set_value(video_meta_key, None)
-            checkpoint = await kv_store.get_value(checkpoint_key) or await kv_store.get_value(legacy_checkpoint_key) or {}
 
             video_meta = await meta_store.get_value(video_meta_key) or {
                 "postSlug": post_slug,
@@ -298,25 +294,34 @@ async def main():
                 "totalCaptured": 0,
             }
 
-            count = int(checkpoint.get("count", 0) or 0)
-            seen_strict = set(checkpoint.get("seen_strict", []))
-            seen_loose = set(checkpoint.get("seen_loose", []))
-            seen_visual = set(checkpoint.get("seen_visual", []))
-            seen_comment_uid = set(checkpoint.get("seen_comment_uid", []))
+            # Jeder Lauf startet frisch: keine Persistenz von Kommentar-Hashes
+            # zwischen Läufen. Die seen_* Sets verhindern nur innerhalb des
+            # aktuellen Laufs doppelte Screenshots desselben Kommentars.
+            count = 0
+            seen_strict: set[str] = set()
+            seen_loose: set[str] = set()
+            seen_visual: set[str] = set()
+            seen_comment_uid: set[str] = set()
             idle = 0
             stale_rounds = 0
             rescan_passes = 0
-            last_screenshot_hash = checkpoint.get("last_screenshot_hash")
-
-            if count > 0:
-                Actor.log.info(f"Resuming from checkpoint for {context.request.url}: count={count}")
+            last_screenshot_hash: str | None = None
 
             for round_idx in range(max_ui_rounds):
                 comment_container = await get_comment_container(page)
                 await expand_comments(page, 30)
-                row_handles = await get_dialog_comment_rows(page)
-                time_handles = await page.query_selector_all('div[role="dialog"] time, article time, li time, time')
-                Actor.log.info(f"Round {round_idx + 1}: {len(row_handles)} comment rows, {len(time_handles)} time nodes")
+                is_post_page = "/p/" in context.request.url
+                row_handles = await (get_post_comment_rows(page) if is_post_page else get_dialog_comment_rows(page))
+                # Earlier post-page selectors missed IG's current markup where
+                # comment <time> nodes no longer live under `main article` / `li`.
+                # Use the broad selector for both layouts; the actual scraping uses
+                # row_handles, this counter is purely diagnostic.
+                time_sel = 'div[role="dialog"] time, article time, li time, time'
+                time_handles = await page.query_selector_all(time_sel)
+                Actor.log.info(
+                    f"Round {round_idx + 1}: {len(row_handles)} comment rows, "
+                    f"{len(time_handles)} time nodes (post_page={is_post_page})"
+                )
 
                 new_in_round = 0
 
@@ -377,7 +382,7 @@ async def main():
                         """,
                         element_handle,
                     )
-                    # visual_key is kept for diagnostics/checkpointing only (not hard dedup)
+                    # visual_key is kept for diagnostics only (not hard dedup)
 
                     seen_strict.add(strict_key)
                     seen_loose.add(loose_key)
@@ -399,7 +404,45 @@ async def main():
 
                     await force_light_mode(page)
                     await hide_visual_overlays(page)
-                    await highlight(page, element_handle, data)
+                    highlight_result = {"ok": False, "reason": "not_attempted"}
+                    for _hl in range(3):
+                        highlight_result = await highlight(page, element_handle, data)
+                        if highlight_result.get("ok"):
+                            break
+                        await page.wait_for_timeout(200)
+                        try:
+                            await scroll_to_element(page, element_handle, comment_container)
+                        except Exception:
+                            pass
+                        await page.wait_for_timeout(250)
+                    if not highlight_result.get("ok"):
+                        reason = highlight_result.get("reason", "unknown")
+                        extra = ""
+                        rect = highlight_result.get("rect")
+                        if rect:
+                            extra = f" rect={rect}"
+                        if highlight_result.get("detachedFallbackUsed"):
+                            extra += " (fallback used)"
+                        Actor.log.warning(
+                            f"Highlight fehlgeschlagen für Kommentar #{count} ({data.get('username')}) "
+                            f"reason={reason}{extra}; Screenshot wird übersprungen."
+                        )
+                        try:
+                            await dump_skip_debug(
+                                page, kv_store, count, {**data, "highlightResult": highlight_result},
+                                screenshot_timeout_ms,
+                            )
+                        except Exception as dbg_exc:
+                            Actor.log.warning(f"dump_skip_debug failed: {dbg_exc}")
+                        count -= 1
+                        new_in_round -= 1
+                        seen_strict.discard(strict_key)
+                        seen_loose.discard(loose_key)
+                        if comment_uid:
+                            seen_comment_uid.discard(comment_uid)
+                        if visual_key:
+                            seen_visual.discard(visual_key)
+                        return False
                     await freeze_animated_media(page)
 
                     screenshot_uuid = make_uuid7()
@@ -410,7 +453,15 @@ async def main():
                     screenshot_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
                     try:
                         await set_screenshot_banner(page, page.url, screenshot_utc)
-                        buffer = await page.screenshot(full_page=True, timeout=screenshot_timeout_ms)
+                        # Viewport-only: full_page=True würde Playwright zwingen, das
+                        # Viewport auf die ganze Dokumenthöhe zu vergrössern. Instagram
+                        # reflowt dann (Post-Bild wird grösser) und der virtualisierte
+                        # Kommentar-Container unmountet alle Kommentare ausser den
+                        # obersten ~3 – egal welche Zeile wir markiert haben.
+                        # scroll_to_element() hat den markierten Kommentar bereits
+                        # zentriert, der Banner ist fixed, also reicht ein
+                        # viewport screenshot.
+                        buffer = await page.screenshot(full_page=False, timeout=screenshot_timeout_ms)
                         current_hash = hashlib.sha256(buffer).hexdigest()
                         if current_hash == last_screenshot_hash:
                             Actor.log.warning(f"Duplicate screenshot detected for comment {count}; skipping image save.")
@@ -448,21 +499,6 @@ async def main():
                             "screenshotPath": screenshot_path,
                             "metadataPath": metadata_path,
                         }
-                    )
-
-                    await kv_store.set_value(
-                        checkpoint_key,
-                        {
-                            "count": count,
-                            "seen_strict": list(seen_strict),
-                            "seen_loose": list(seen_loose),
-                            "seen_visual": list(seen_visual),
-                            "seen_comment_uid": list(seen_comment_uid),
-                            "last_screenshot_hash": last_screenshot_hash,
-                            "updatedAt": datetime.now(timezone.utc).isoformat(),
-                            "sourceUrl": context.request.url,
-                        },
-                        content_type="application/json",
                     )
                     return True
 
@@ -527,7 +563,7 @@ async def main():
                     """
                     (container) => {
                       if (!container) {
-                        const isReel = /\/reels?\//.test(location.pathname);
+                        const isReel = /\\/reels?\\//.test(location.pathname);
                         if (isReel) return false;
                         const before = window.scrollY;
                         window.scrollBy(0, window.innerHeight * 0.8);
@@ -547,10 +583,11 @@ async def main():
                 await page.wait_for_timeout(1200)
 
             if count == 0:
-                debug_key = f"debug-{int(asyncio.get_event_loop().time()*1000)}.png"
+                debug_stamp = int(time.time_ns() // 1_000_000)
+                debug_key = f"debug-{debug_stamp}.png"
                 debug_buffer = await page.screenshot(full_page=True, timeout=screenshot_timeout_ms)
                 await kv_store.set_value(debug_key, debug_buffer, content_type="image/png")
-                html_key = f"debug-{int(asyncio.get_event_loop().time()*1000)}.html"
+                html_key = f"debug-{debug_stamp}-page.html"
                 html = await page.content()
                 await kv_store.set_value(html_key, html, content_type="text/html")
 
@@ -569,7 +606,7 @@ async def main():
                     })
                     """,
                 )
-                sample_key = f"debug-{int(asyncio.get_event_loop().time()*1000)}.json"
+                sample_key = f"debug-{debug_stamp}-samples.json"
                 await kv_store.set_value(sample_key, json.dumps({"timeSamples": time_samples, "containerSamples": container_samples}, indent=2), content_type="application/json")
 
                 Actor.log.warning(
@@ -578,26 +615,10 @@ async def main():
 
             Actor.log.info(f"Captured {count} comments for {context.request.url}")
             finished_at = datetime.now(timezone.utc).isoformat()
-            await kv_store.set_value(
-                checkpoint_key,
-                {
-                    "count": count,
-                    "seen_strict": list(seen_strict),
-                    "seen_loose": list(seen_loose),
-                    "seen_visual": list(seen_visual),
-                    "seen_comment_uid": list(seen_comment_uid),
-                    "last_screenshot_hash": last_screenshot_hash,
-                    "completed": True,
-                    "updatedAt": finished_at,
-                    "sourceUrl": context.request.url,
-                },
-                content_type="application/json",
-            )
 
             video_meta.update(
                 {
                     "sourceUrl": context.request.url,
-                    "checkpointKey": checkpoint_key,
                     "lastRunId": run_id,
                     "lastRunAt": finished_at,
                     "lastRunCount": count,
