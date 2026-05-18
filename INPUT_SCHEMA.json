@@ -60,7 +60,25 @@
       "title": "Headful browser",
       "type": "boolean",
       "description": "Run browser in headful mode (useful for debugging).",
-      "default": false
+      "default": true
+    },
+    "windowPosX": {
+      "title": "Window position X",
+      "type": "integer",
+      "description": "Horizontal start position of the browser window (headful mode).",
+      "default": 0
+    },
+    "windowPosY": {
+      "title": "Window position Y",
+      "type": "integer",
+      "description": "Vertical start position of the browser window (headful mode).",
+      "default": 0
+    },
+    "maximizeWindow": {
+      "title": "Maximize window",
+      "type": "boolean",
+      "description": "Use full monitor window size in headful mode.",
+      "default": true
     },
     "slowMoMs": {
       "title": "Slow motion (ms)",
@@ -72,19 +90,37 @@
       "title": "Max UI rounds",
       "type": "integer",
       "description": "Max load-more/scroll rounds for UI mode.",
-      "default": 120
+      "default": 40
     },
     "uiIdleRounds": {
       "title": "UI idle rounds",
       "type": "integer",
       "description": "Stop after this many rounds without new comments.",
-      "default": 15
+      "default": 6
+    },
+    "viewportWidth": {
+      "title": "Viewport width",
+      "type": "integer",
+      "description": "Browser viewport width for screenshots.",
+      "default": 1080
+    },
+    "viewportHeight": {
+      "title": "Viewport height",
+      "type": "integer",
+      "description": "Browser viewport height for screenshots.",
+      "default": 1800
+    },
+    "logEveryNScreenshots": {
+      "title": "Log every N screenshots",
+      "type": "integer",
+      "description": "Reduce log noise: write screenshot log only every Nth image (plus first 5).",
+      "default": 25
     },
     "loadTimeoutSecs": {
       "title": "Load timeout (seconds)",
       "type": "integer",
       "description": "Max time for loading all comments.",
-      "default": 180
+      "default": 120
     }
   },
   "required": ["urls"]

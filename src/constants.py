@@ -1,8 +1,8 @@
 from pathlib import Path
 
 SCREENSHOTS_DIR = Path.cwd() / "Screenshots"
-VIEWPORT_WIDTH = 768
-VIEWPORT_HEIGHT = 1024
+VIEWPORT_WIDTH = 1080
+VIEWPORT_HEIGHT = 1800
 
 LOAD_MORE_TEXTS = [
     "View more comments",
