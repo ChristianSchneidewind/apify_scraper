@@ -253,7 +253,7 @@ async def expand_comments(page, max_clicks):
             """
             (texts) => {
               let count = 0;
-              const candidates = Array.from(document.querySelectorAll('button, [role="button"], a'));
+              const candidates = Array.from(document.querySelectorAll('button, [role="button"], a, span[role="button"]'));
               for (const el of candidates) {
                 const text = (el.innerText || '').trim();
                 if (!text) continue;
@@ -261,8 +261,15 @@ async def expand_comments(page, max_clicks):
                 const isReplyAction = lower === 'reply' || lower === 'antworten';
                 const looksLikeReplies = (lower.includes('repl') || lower.includes('antwort')) && /\\d/.test(text);
                 const looksLikeView = lower.includes('view') || lower.includes('anzeigen') || lower.includes('ansehen') || lower.includes('more');
+                const looksLikeCollapsedLongText =
+                  lower === 'more' ||
+                  lower === 'mehr' ||
+                  lower.includes('read more') ||
+                  lower.includes('see more') ||
+                  lower.includes('weiterlesen') ||
+                  lower.includes('mehr anzeigen');
                 if (isReplyAction) continue;
-                if (texts.some((item) => text.includes(item)) || (looksLikeReplies && looksLikeView)) {
+                if (texts.some((item) => text.includes(item)) || (looksLikeReplies && looksLikeView) || looksLikeCollapsedLongText) {
                   el.click();
                   count += 1;
                 }
@@ -276,6 +283,78 @@ async def expand_comments(page, max_clicks):
             break
         clicks += clicked
         await page.wait_for_timeout(1200)
+
+
+async def expand_all_reply_threads(page, max_clicks=80):
+    return await page.evaluate(
+        """
+        (maxClicks) => {
+          const nodes = Array.from(document.querySelectorAll('button, [role="button"], a, span[role="button"]'));
+          let clicked = 0;
+          for (const node of nodes) {
+            if (clicked >= maxClicks) break;
+            const text = (node.innerText || node.textContent || '').trim().toLowerCase();
+            if (!text) continue;
+
+            const isReplyExpand =
+              (text.includes('repl') || text.includes('antwort')) &&
+              (text.includes('view') || text.includes('show') || text.includes('anzeigen') || text.includes('ansehen') || text.includes('more') || /\\d/.test(text));
+
+            if (!isReplyExpand) continue;
+            try {
+              node.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              clicked += 1;
+            } catch (e) {}
+          }
+          return clicked;
+        }
+        """,
+        max_clicks,
+    )
+
+
+async def expand_comment_row_text(page, element_handle, max_clicks=8):
+    if not element_handle:
+        return 0
+
+    return await page.evaluate(
+        """
+        ({ el, maxClicks }) => {
+          if (!el) return 0;
+          const row = el.closest('li, [role="listitem"], article, div') || el;
+          const candidates = Array.from(row.querySelectorAll('button, [role="button"], a, span[role="button"]'));
+
+          let clicked = 0;
+          for (const node of candidates) {
+            if (clicked >= maxClicks) break;
+            const text = (node.innerText || node.textContent || '').trim().toLowerCase();
+            if (!text) continue;
+
+            const looksLikeLongTextExpand =
+              text === 'more' ||
+              text === 'mehr' ||
+              text.includes('read more') ||
+              text.includes('see more') ||
+              text.includes('weiterlesen') ||
+              text.includes('mehr anzeigen') ||
+              text.includes('view more');
+
+            const looksLikeReplies =
+              (text.includes('repl') || text.includes('antwort')) &&
+              (text.includes('view') || text.includes('show') || text.includes('anzeigen') || text.includes('ansehen') || /\\d/.test(text));
+
+            if (!looksLikeLongTextExpand && !looksLikeReplies) continue;
+
+            try {
+              node.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              clicked += 1;
+            } catch (e) {}
+          }
+          return clicked;
+        }
+        """,
+        {"el": element_handle, "maxClicks": max_clicks},
+    )
 
 
 async def scroll_comment_container(page, rounds=3):
@@ -424,6 +503,53 @@ async def scroll_to_element(page, element_handle, container_handle=None):
 
           el.scrollIntoView({ block: 'center', inline: 'nearest' });
           window.scrollBy(0, -120);
+        }
+        """,
+        element_handle,
+    )
+
+
+async def fit_element_in_viewport(page, element_handle):
+    if not element_handle:
+        return
+
+    await page.evaluate(
+        """
+        (el) => {
+          if (!el) return;
+
+          const banner = document.getElementById('apify-screenshot-banner');
+          const bannerH = banner ? banner.getBoundingClientRect().height : 0;
+          const margin = 24;
+
+          const moveParent = (node, delta) => {
+            let current = node?.parentElement;
+            while (current) {
+              if (current.scrollHeight - current.clientHeight > 20) {
+                current.scrollTop += delta;
+                return true;
+              }
+              current = current.parentElement;
+            }
+            window.scrollBy(0, delta);
+            return false;
+          };
+
+          for (let i = 0; i < 6; i += 1) {
+            const r = el.getBoundingClientRect();
+            const minTop = margin;
+            const maxBottom = window.innerHeight - bannerH - margin;
+
+            if (r.top >= minTop && r.bottom <= maxBottom) break;
+
+            if (r.top < minTop) {
+              moveParent(el, r.top - minTop - 8);
+            } else if (r.bottom > maxBottom) {
+              moveParent(el, r.bottom - maxBottom + 8);
+            }
+          }
+
+          el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         }
         """,
         element_handle,
