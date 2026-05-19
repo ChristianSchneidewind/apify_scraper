@@ -3,7 +3,14 @@ from datetime import datetime, timezone
 
 from apify import Actor
 
-from .screenshots import dump_skip_debug, highlight, make_uuid7, save_comment_metadata, save_screenshot
+from .screenshots import (
+    capture_comment_multipart_3plus,
+    dump_skip_debug,
+    highlight,
+    make_uuid7,
+    save_comment_metadata,
+    save_screenshot,
+)
 from .ui import (
     expand_comment_row_text,
     expand_comments,
@@ -146,6 +153,18 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
             if isinstance(comment_permalink, str) and comment_permalink.startswith("/")
             else comment_permalink
         )
+        # Instagram deep-link to a specific comment is more reliable via ?comment_id=
+        comment_id = None
+        if isinstance(comment_permalink, str):
+            m = __import__("re").search(r"/c/(\d+)", comment_permalink)
+            if m:
+                comment_id = m.group(1)
+        if comment_id:
+            base_post_url = (context.request.url or "").split("?")[0]
+            if "/reels/" in base_post_url:
+                base_post_url = base_post_url.replace("/reels/", "/reel/")
+            sep = "&" if "?" in base_post_url else "?"
+            comment_url = f"{base_post_url}{sep}comment_id={comment_id}"
 
         try:
             # For very long comments, aggressively remove text clamping and
@@ -311,6 +330,12 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
                 Actor.log.info(
                     f"Multipart plan for #{state['count']}: mode={mode}, parts={total_parts}"
                 )
+
+            use_3plus_route = total_parts >= 3
+            planned_parts_3plus = total_parts
+            if use_3plus_route:
+                Actor.log.info(f"Routing comment #{state['count']} directly to dedicated 3+ multipart handler ({planned_parts_3plus} parts).")
+                scroll_parts = []
 
             prev_row_top = None
             prev_row_bottom = None
@@ -510,9 +535,36 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
                 state["last_screenshot_hash"] = current_hash
 
             # Fallback for tall comments: use rendered geometry, not text length.
-            need_long_comment_fallback = False
-            parts_target = 2
-            if len(screenshot_keys) <= 1:
+            need_long_comment_fallback = bool(use_3plus_route)
+            parts_target = planned_parts_3plus if use_3plus_route else 2
+
+            if use_3plus_route:
+                try:
+                    Actor.log.info(f"[3+PART] CALL for #{state['count']} uuid={screenshot_uuid[:8]} parts_target={parts_target}")
+                    mp_keys, mp_paths, mp_last_hash = await capture_comment_multipart_3plus(
+                        page=page,
+                        element_handle=element_handle,
+                        comment_container=comment_container,
+                        data=data,
+                        screenshot_uuid=screenshot_uuid,
+                        screenshot_utc=screenshot_utc,
+                        parts_target=parts_target,
+                        base_sig=base_sig,
+                        screenshot_timeout_ms=screenshot_timeout_ms,
+                        kv_store=kv_store,
+                        run_folder=run_folder,
+                        last_screenshot_hash=state["last_screenshot_hash"],
+                    )
+                    screenshot_keys.extend(mp_keys)
+                    screenshot_paths.extend(mp_paths)
+                    state["last_screenshot_hash"] = mp_last_hash
+                    Actor.log.info(f"[3+PART] RETURN for #{state['count']} saved={len(mp_keys)}")
+                    if not mp_keys:
+                        Actor.log.warning(f"[3+PART] No parts saved for #{state['count']} despite 3+ route.")
+                except Exception as fb_exc:
+                    Actor.log.warning(f"Long-comment 3+ fallback screenshot failed for #{state['count']}: {fb_exc}")
+
+            if len(screenshot_keys) <= 1 and not use_3plus_route:
                 try:
                     metrics = await page.evaluate(
                         """
@@ -545,147 +597,33 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
                         parts_target = 3
                     else:
                         parts_target = 2
-                    if need_long_comment_fallback:
-                        overflow_px = int((metrics or {}).get("overflowPx") or 0)
-                        clipped_px = int((metrics or {}).get("clippedPx") or 0)
-                        Actor.log.info(
-                            f"Tall comment detected for #{state['count']} (ratio={ratio:.2f}, overflow={overflow_px}px, clipped={clipped_px}px); using {parts_target} part(s)."
-                        )
+                    if need_long_comment_fallback and parts_target >= 3:
+                        try:
+                            Actor.log.info(f"[3+PART] CALL for #{state['count']} uuid={screenshot_uuid[:8]} parts_target={parts_target}")
+                            mp_keys, mp_paths, mp_last_hash = await capture_comment_multipart_3plus(
+                                page=page,
+                                element_handle=element_handle,
+                                comment_container=comment_container,
+                                data=data,
+                                screenshot_uuid=screenshot_uuid,
+                                screenshot_utc=screenshot_utc,
+                                parts_target=parts_target,
+                                base_sig=base_sig,
+                                screenshot_timeout_ms=screenshot_timeout_ms,
+                                kv_store=kv_store,
+                                run_folder=run_folder,
+                                last_screenshot_hash=state["last_screenshot_hash"],
+                            )
+                            screenshot_keys.extend(mp_keys)
+                            screenshot_paths.extend(mp_paths)
+                            state["last_screenshot_hash"] = mp_last_hash
+                            Actor.log.info(f"[3+PART] RETURN for #{state['count']} saved={len(mp_keys)}")
+                            if not mp_keys:
+                                Actor.log.warning(f"[3+PART] No parts saved for #{state['count']} despite 3+ route.")
+                        except Exception as fb_exc:
+                            Actor.log.warning(f"Long-comment 3+ fallback screenshot failed for #{state['count']}: {fb_exc}")
                 except Exception:
                     need_long_comment_fallback = False
-
-            if need_long_comment_fallback:
-                try:
-                    for tile_idx in range(1, parts_target + 1):
-                        tile = await page.evaluate(
-                            """
-                            ({ el, commentContainer, partIndex, partsTotal, commentPermalink, userProfilePath, username, text, baseSig }) => {
-                              const norm = (s) => (s || '').toLowerCase().replace(/\\s+/g, ' ').trim();
-                              const user = norm(username);
-                              const txt = norm(text).slice(0, 180);
-                              const rowFrom = (node) => node?.closest?.('li, [role="listitem"], article, div') || node;
-
-                              const findRow = () => {
-                                if (commentPermalink) {
-                                  const a = document.querySelector(`a[href="${commentPermalink}"]`);
-                                  if (a) return rowFrom(a);
-                                }
-                                if (userProfilePath) {
-                                  const anchors = Array.from(document.querySelectorAll(`a[href="${userProfilePath}"]`));
-                                  for (const a of anchors) {
-                                    const r = rowFrom(a);
-                                    const content = norm(r?.innerText || '');
-                                    if (user && !content.includes(user)) continue;
-                                    if (txt && !content.includes(txt.slice(0, 80))) continue;
-                                    return r;
-                                  }
-                                  if (anchors[0]) return rowFrom(anchors[0]);
-                                }
-                                return rowFrom(el);
-                              };
-
-                              const row = findRow();
-                              if (!row || !document.body.contains(row)) return { ok: false, reason: 'row_not_found' };
-
-                              const sig = `${norm(row.querySelector('a[href^="/"]')?.getAttribute('href') || '')}|${norm(row.querySelector('time')?.getAttribute('datetime') || row.querySelector('time')?.textContent || '')}|${norm(row.innerText).slice(0, 180)}`;
-                              if (baseSig && sig && baseSig.split('|').slice(0,2).join('|') !== sig.split('|').slice(0,2).join('|')) {
-                                // IG can remount row nodes; continue with geometry fallback.
-                              }
-
-                              const banner = document.getElementById('apify-screenshot-banner');
-                              const bannerH = banner ? banner.getBoundingClientRect().height : 0;
-                              const minTop = 20;
-                              const maxBottom = window.innerHeight - bannerH - 20;
-                              const visibleH = Math.max(220, maxBottom - minTop);
-
-                              let r = row.getBoundingClientRect();
-                              const overflow = Math.max(0, r.height - visibleH);
-                              const seg = partsTotal <= 1 ? 0 : ((partIndex - 1) / (partsTotal - 1));
-                              const segmentTop = Math.round(overflow * seg);
-                              const desiredTop = minTop - segmentTop;
-
-                              const parent = (() => {
-                                if (commentContainer && commentContainer instanceof HTMLElement) return commentContainer;
-                                let cur = row.parentElement;
-                                while (cur) {
-                                  if (cur.scrollHeight - cur.clientHeight > 20) return cur;
-                                  cur = cur.parentElement;
-                                }
-                                return null;
-                              })();
-
-                              if (parent) {
-                                const maxScroll = Math.max(0, parent.scrollHeight - parent.clientHeight);
-                                const next = Math.max(0, Math.min(maxScroll, parent.scrollTop + (r.top - desiredTop)));
-                                parent.scrollTop = next;
-                              }
-
-                              r = row.getBoundingClientRect();
-                              const clipTop = Math.max(minTop, r.top - 2);
-                              const clipBottom = Math.min(maxBottom, r.bottom + 2);
-                              const clipLeft = Math.max(0, r.left - 4);
-                              const clipRight = Math.min(window.innerWidth, r.right + 4);
-                              const w = Math.max(1, clipRight - clipLeft);
-                              const h = Math.max(1, clipBottom - clipTop);
-                              if (h < 80 || w < 120) return { ok: false, reason: 'clip_too_small' };
-
-                              return { ok: true, clip: { x: clipLeft, y: clipTop, width: w, height: h } };
-                            }
-                            """,
-                            {
-                                "el": element_handle,
-                                "commentContainer": comment_container,
-                                "partIndex": tile_idx,
-                                "partsTotal": parts_target,
-                                "commentPermalink": data.get("commentPermalink"),
-                                "userProfilePath": data.get("userProfilePath"),
-                                "username": data.get("username"),
-                                "text": data.get("text"),
-                                "baseSig": base_sig,
-                            },
-                        )
-
-                        if not (tile or {}).get("ok"):
-                            if tile_idx == 1:
-                                Actor.log.warning(
-                                    f"Long-comment tile fallback aborted for #{state["count"]}: {(tile or {}).get('reason', 'tile_failed')}"
-                                )
-                            break
-
-                        await page.wait_for_timeout(120)
-                        try:
-                            await highlight(page, element_handle, data)
-                        except Exception:
-                            pass
-                        await set_screenshot_banner(
-                            page,
-                            page.url,
-                            f"{screenshot_utc} | c#{state['count']} | {screenshot_uuid[:8]} | element part {tile_idx}/{parts_target}",
-                        )
-                        clip = tile.get("clip") or {}
-                        fallback_buffer = await page.screenshot(
-                            full_page=False,
-                            clip={
-                                "x": float(clip.get("x", 0)),
-                                "y": float(clip.get("y", 0)),
-                                "width": float(clip.get("width", 1)),
-                                "height": float(clip.get("height", 1)),
-                            },
-                            timeout=screenshot_timeout_ms,
-                        )
-                        fallback_hash = hashlib.sha256(fallback_buffer).hexdigest()
-                        if fallback_hash == state["last_screenshot_hash"] and tile_idx == 1:
-                            continue
-
-                        suffix = "element" if tile_idx == 1 else f"element-part{tile_idx}"
-                        fallback_key = f"{screenshot_uuid}-{suffix}.png"
-                        await kv_store.set_value(fallback_key, fallback_buffer, content_type="image/png")
-                        fallback_path = await save_screenshot(fallback_buffer, fallback_key, subdir=run_folder)
-                        screenshot_keys.append(fallback_key)
-                        screenshot_paths.append(fallback_path)
-                        state["last_screenshot_hash"] = fallback_hash
-                except Exception as fb_exc:
-                    Actor.log.warning(f"Long-comment fallback screenshot failed for #{state["count"]}: {fb_exc}")
 
             if screenshot_keys:
                 metadata_payload = {
@@ -701,6 +639,8 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
                     "commentPermalink": comment_permalink,
                     "commentUrl": comment_url,
                     "partsTotal": len(screenshot_keys),
+                    "multipartNeedsReview": len(screenshot_keys) > 2,
+                    "multipartFlagReason": "more_than_2_parts" if len(screenshot_keys) > 2 else None,
                     "screenshotKeys": screenshot_keys,
                 }
                 metadata_path = save_comment_metadata(metadata_payload, screenshot_keys[0], subdir=run_folder)
@@ -725,6 +665,8 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
                 "screenshotKeys": screenshot_keys,
                 "screenshotPaths": screenshot_paths,
                 "partsTotal": len(screenshot_keys),
+                "multipartNeedsReview": len(screenshot_keys) > 2,
+                "multipartFlagReason": "more_than_2_parts" if len(screenshot_keys) > 2 else None,
                 "metadataPath": metadata_path,
             }
         )
