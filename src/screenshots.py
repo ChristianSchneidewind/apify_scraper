@@ -1,7 +1,10 @@
+import hashlib
 import json
 import re
 import secrets
 import time
+
+from apify import Actor
 
 from .constants import SCREENSHOTS_DIR
 
@@ -307,6 +310,196 @@ def save_comment_metadata(metadata, screenshot_filename, subdir=None):
     file_path = target_dir / f"{stem}.json"
     file_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     return str(file_path)
+
+
+async def capture_comment_multipart_3plus(
+    *,
+    page,
+    element_handle,
+    comment_container,
+    data,
+    screenshot_uuid,
+    screenshot_utc,
+    parts_target,
+    base_sig,
+    screenshot_timeout_ms,
+    kv_store,
+    run_folder,
+    last_screenshot_hash,
+):
+    screenshot_keys = []
+    screenshot_paths = []
+
+    Actor.log.info(f"[3+PART] ENTER uuid={screenshot_uuid[:8]} parts_target={parts_target} user={data.get('username')}")
+
+    for tile_idx in range(1, parts_target + 1):
+        tile = await page.evaluate(
+            """
+            ({ el, commentContainer, partIndex, partsTotal, commentPermalink, userProfilePath, username, text, baseSig }) => {
+              const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+              const user = norm(username);
+              const txt = norm(text).slice(0, 180);
+              const rowFrom = (node) => node?.closest?.('li, [role="listitem"], article, div') || node;
+
+              const findRow = () => {
+                if (commentPermalink) {
+                  const a = document.querySelector(`a[href="${commentPermalink}"]`);
+                  if (a) return rowFrom(a);
+                }
+                if (userProfilePath) {
+                  const anchors = Array.from(document.querySelectorAll(`a[href="${userProfilePath}"]`));
+                  for (const a of anchors) {
+                    const r = rowFrom(a);
+                    const content = norm(r?.innerText || '');
+                    if (user && !content.includes(user)) continue;
+                    if (txt && !content.includes(txt.slice(0, 80))) continue;
+                    return r;
+                  }
+                  if (anchors[0]) return rowFrom(anchors[0]);
+                }
+                return rowFrom(el);
+              };
+
+              const row = findRow();
+              if (!row || !document.body.contains(row)) return { ok: false, reason: 'row_not_found' };
+
+              const sig = `${norm(row.querySelector('a[href^="/"]')?.getAttribute('href') || '')}|${norm(row.querySelector('time')?.getAttribute('datetime') || row.querySelector('time')?.textContent || '')}|${norm(row.innerText).slice(0, 180)}`;
+              if (baseSig && sig && baseSig.split('|').slice(0,2).join('|') !== sig.split('|').slice(0,2).join('|')) {
+              }
+
+              const banner = document.getElementById('apify-screenshot-banner');
+              const bannerH = banner ? banner.getBoundingClientRect().height : 0;
+              const minTop = 20;
+              const maxBottom = window.innerHeight - bannerH - 20;
+              const visibleH = Math.max(220, maxBottom - minTop);
+
+              let r = row.getBoundingClientRect();
+              const overflow = Math.max(0, r.height - visibleH);
+              const overlapRatio = partsTotal >= 3 ? 0.22 : 0.35;
+              const stepPx = Math.max(120, visibleH * (1 - overlapRatio));
+              let segmentTop = Math.round(Math.min(overflow, Math.max(0, (partIndex - 1) * stepPx)));
+              if (partIndex >= partsTotal) segmentTop = Math.round(overflow);
+              const desiredTop = minTop - segmentTop;
+
+              const parent = (() => {
+                if (commentContainer && commentContainer instanceof HTMLElement) return commentContainer;
+                let cur = row.parentElement;
+                while (cur) {
+                  if (cur.scrollHeight - cur.clientHeight > 20) return cur;
+                  cur = cur.parentElement;
+                }
+                return null;
+              })();
+
+              if (parent) {
+                const maxScroll = Math.max(0, parent.scrollHeight - parent.clientHeight);
+                for (let i = 0; i < 8; i += 1) {
+                  r = row.getBoundingClientRect();
+                  const delta = r.top - desiredTop;
+                  if (Math.abs(delta) < 6) break;
+                  const next = Math.max(0, Math.min(maxScroll, parent.scrollTop + delta));
+                  const before = parent.scrollTop;
+                  parent.scrollTop = next;
+                  const moved = Math.abs(parent.scrollTop - before);
+                  if (moved < 2) {
+                    window.scrollBy(0, delta);
+                  }
+                }
+              } else {
+                for (let i = 0; i < 8; i += 1) {
+                  r = row.getBoundingClientRect();
+                  const delta = r.top - desiredTop;
+                  if (Math.abs(delta) < 6) break;
+                  window.scrollBy(0, delta);
+                }
+              }
+
+              r = row.getBoundingClientRect();
+              const clipTop = Math.max(minTop, r.top - 2);
+              const clipBottom = Math.min(maxBottom, r.bottom + 2);
+              const clipLeft = Math.max(0, r.left - 4);
+              const clipRight = Math.min(window.innerWidth, r.right + 4);
+              const w = Math.max(1, clipRight - clipLeft);
+              const h = Math.max(1, clipBottom - clipTop);
+              const useClip = !(h < 80 || w < 120);
+
+              return {
+                ok: true,
+                clip: useClip ? { x: clipLeft, y: clipTop, width: w, height: h } : null,
+                debug: {
+                  overflow,
+                  segmentTop,
+                  desiredTop,
+                  rowTop: r.top,
+                  rowBottom: r.bottom,
+                  visibleH,
+                  partIndex,
+                  partsTotal,
+                  parentScrollTop: parent ? parent.scrollTop : null,
+                },
+              };
+            }
+            """,
+            {
+                "el": element_handle,
+                "commentContainer": comment_container,
+                "partIndex": tile_idx,
+                "partsTotal": parts_target,
+                "commentPermalink": data.get("commentPermalink"),
+                "userProfilePath": data.get("userProfilePath"),
+                "username": data.get("username"),
+                "text": data.get("text"),
+                "baseSig": base_sig,
+            },
+        )
+
+        if not (tile or {}).get("ok"):
+            Actor.log.warning(f"[3+PART] tile {tile_idx}/{parts_target} failed: {(tile or {}).get('reason', 'tile_failed')}")
+            if tile_idx == 1:
+                Actor.log.warning(f"Long-comment 3+ fallback aborted: {(tile or {}).get('reason', 'tile_failed')}")
+            break
+
+        dbg = (tile or {}).get("debug") or {}
+        Actor.log.info(
+            f"[3+PART] part {tile_idx}/{parts_target} overflow={dbg.get('overflow')} segmentTop={dbg.get('segmentTop')} rowTop={dbg.get('rowTop')} rowBottom={dbg.get('rowBottom')} visibleH={dbg.get('visibleH')} parentScrollTop={dbg.get('parentScrollTop')}"
+        )
+
+        await page.wait_for_timeout(120)
+        try:
+            await highlight(page, element_handle, data)
+        except Exception:
+            pass
+
+        clip = tile.get("clip")
+        if clip:
+            part_buffer = await page.screenshot(
+                full_page=False,
+                clip={
+                    "x": float(clip.get("x", 0)),
+                    "y": float(clip.get("y", 0)),
+                    "width": float(clip.get("width", 1)),
+                    "height": float(clip.get("height", 1)),
+                },
+                timeout=screenshot_timeout_ms,
+            )
+        else:
+            Actor.log.warning(f"[3+PART] tile {tile_idx}/{parts_target} clip_too_small -> fallback viewport screenshot")
+            part_buffer = await page.screenshot(full_page=False, timeout=screenshot_timeout_ms)
+        part_hash = hashlib.sha256(part_buffer).hexdigest()
+        if part_hash == last_screenshot_hash and tile_idx > 1:
+            continue
+
+        part_suffix = "element" if tile_idx == 1 else f"element-part{tile_idx}"
+        part_key = f"{screenshot_uuid}-{part_suffix}.png"
+        await kv_store.set_value(part_key, part_buffer, content_type="image/png")
+        part_path = await save_screenshot(part_buffer, part_key, subdir=run_folder)
+        screenshot_keys.append(part_key)
+        screenshot_paths.append(part_path)
+        last_screenshot_hash = part_hash
+        Actor.log.info(f"[3+PART] saved part {tile_idx}/{parts_target} key={part_key}")
+
+    Actor.log.info(f"[3+PART] EXIT uuid={screenshot_uuid[:8]} saved={len(screenshot_keys)}")
+    return screenshot_keys, screenshot_paths, last_screenshot_hash
 
 
 async def dump_skip_debug(page, kv_store, index, data, screenshot_timeout_ms):
