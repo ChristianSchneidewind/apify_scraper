@@ -153,7 +153,7 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
             if isinstance(comment_permalink, str) and comment_permalink.startswith("/")
             else comment_permalink
         )
-        # Instagram deep-link to a specific comment is more reliable via ?comment_id=
+        comment_deep_link = None
         comment_id = None
         if isinstance(comment_permalink, str):
             m = __import__("re").search(r"/c/(\d+)", comment_permalink)
@@ -164,7 +164,7 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
             if "/reels/" in base_post_url:
                 base_post_url = base_post_url.replace("/reels/", "/reel/")
             sep = "&" if "?" in base_post_url else "?"
-            comment_url = f"{base_post_url}{sep}comment_id={comment_id}"
+            comment_deep_link = f"{base_post_url}{sep}comment_id={comment_id}"
 
         try:
             # For very long comments, aggressively remove text clamping and
@@ -638,6 +638,7 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
                     "timeText": data.get("timeText"),
                     "commentPermalink": comment_permalink,
                     "commentUrl": comment_url,
+                    "commentDeepLink": comment_deep_link,
                     "partsTotal": len(screenshot_keys),
                     "multipartNeedsReview": len(screenshot_keys) > 2,
                     "multipartFlagReason": "more_than_2_parts" if len(screenshot_keys) > 2 else None,
@@ -658,6 +659,7 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
                 "timeText": data.get("timeText"),
                 "commentPermalink": comment_permalink,
                 "commentUrl": comment_url,
+                "commentDeepLink": comment_deep_link,
                 "index": state["count"],
                 "sourceUrl": context.request.url,
                 "screenshotKey": screenshot_keys[0] if screenshot_keys else None,
