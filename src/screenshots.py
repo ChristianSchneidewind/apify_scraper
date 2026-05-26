@@ -3,9 +3,11 @@ import json
 import re
 import secrets
 import time
+from datetime import datetime, timezone
 
 from apify import Actor
 
+from .comment_models import ScreenshotSession
 from .constants import SCREENSHOTS_DIR
 
 
@@ -334,7 +336,7 @@ async def capture_comment_multipart_3plus(
 
     for tile_idx in range(1, parts_target + 1):
         tile = await page.evaluate(
-            """
+            r"""
             ({ el, commentContainer, partIndex, partsTotal, commentPermalink, userProfilePath, username, text, baseSig }) => {
               const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
               const user = norm(username);
@@ -500,6 +502,60 @@ async def capture_comment_multipart_3plus(
 
     Actor.log.info(f"[3+PART] EXIT uuid={screenshot_uuid[:8]} saved={len(screenshot_keys)}")
     return screenshot_keys, screenshot_paths, last_screenshot_hash
+
+
+def init_screenshot_session() -> ScreenshotSession:
+    return ScreenshotSession(
+        screenshot_uuid=make_uuid7(),
+        screenshot_paths=[],
+        screenshot_keys=[],
+        metadata_path=None,
+        screenshot_utc=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+    )
+
+
+async def run_3plus_capture_fallback(
+    *,
+    page,
+    element_handle,
+    comment_container,
+    data,
+    screenshot_uuid,
+    screenshot_utc,
+    parts_target,
+    base_sig,
+    screenshot_timeout_ms,
+    kv_store,
+    run_folder,
+    state,
+    screenshot_keys,
+    screenshot_paths,
+    comment_index,
+):
+    try:
+        Actor.log.info(f"[3+PART] CALL for #{comment_index} uuid={screenshot_uuid[:8]} parts_target={parts_target}")
+        mp_keys, mp_paths, mp_last_hash = await capture_comment_multipart_3plus(
+            page=page,
+            element_handle=element_handle,
+            comment_container=comment_container,
+            data=data,
+            screenshot_uuid=screenshot_uuid,
+            screenshot_utc=screenshot_utc,
+            parts_target=parts_target,
+            base_sig=base_sig,
+            screenshot_timeout_ms=screenshot_timeout_ms,
+            kv_store=kv_store,
+            run_folder=run_folder,
+            last_screenshot_hash=state["last_screenshot_hash"],
+        )
+        screenshot_keys.extend(mp_keys)
+        screenshot_paths.extend(mp_paths)
+        state["last_screenshot_hash"] = mp_last_hash
+        Actor.log.info(f"[3+PART] RETURN for #{comment_index} saved={len(mp_keys)}")
+        if not mp_keys:
+            Actor.log.warning(f"[3+PART] No parts saved for #{comment_index} despite 3+ route.")
+    except Exception as fb_exc:
+        Actor.log.warning(f"Long-comment 3+ fallback screenshot failed for #{comment_index}: {fb_exc}")
 
 
 async def dump_skip_debug(page, kv_store, index, data, screenshot_timeout_ms):

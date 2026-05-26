@@ -5,6 +5,7 @@ from apify import Actor
 from .auth import dismiss_login_wall
 from .comment_processor import build_process_candidate
 from .comments import extract_comment_from_item, extract_comment_from_time, get_dialog_comment_rows, get_post_comment_rows
+from .instagram_dom import COMMENT_TIME_SELECTOR
 from .ui import expand_all_reply_threads, expand_comments, get_comment_container, load_all_comments, open_comments_panel
 
 
@@ -44,8 +45,7 @@ async def run_comment_capture_loop(
 
         is_post_page = "/p/" in context.request.url
         row_handles = await (get_post_comment_rows(page) if is_post_page else get_dialog_comment_rows(page))
-        time_sel = 'div[role="dialog"] time, article time, li time, time'
-        time_handles = await page.query_selector_all(time_sel)
+        time_handles = await page.query_selector_all(COMMENT_TIME_SELECTOR)
         Actor.log.info(
             f"Round {round_idx + 1}: {len(row_handles)} comment rows, "
             f"{len(time_handles)} time nodes (post_page={is_post_page})"
@@ -159,9 +159,8 @@ async def run_comment_capture_loop(
             comment_container,
         )
 
-        if not scrolled:
-            idle += 1
-
+        # Do not double-count idle rounds: idle is already tracked by
+        # `new_in_round == 0` above.
         await page.wait_for_timeout(1200)
 
     return count

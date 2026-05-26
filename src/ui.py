@@ -204,48 +204,6 @@ async def open_comments_panel(page):
             pass
 
 
-async def switch_comments_to_newest(page):
-    # Try several times because Instagram sometimes re-renders the comments dialog.
-    for _ in range(4):
-        try:
-            sort_toggle = page.locator(
-                'div[role="dialog"] :is(button, a, div[role="button"], span):text-matches("^(Für dich|For you)$", "i")'
-            ).first
-            if await sort_toggle.count() > 0:
-                await sort_toggle.click(timeout=1500)
-                await page.wait_for_timeout(400)
-        except Exception:
-            pass
-
-        # If menu is already open or available directly, click "Newest".
-        newest_locators = [
-            page.locator('div[role="dialog"] :is(button, a, div[role="button"], span):text-matches("^(Neueste|Newest|Most recent)$", "i")').first,
-            page.locator(':is(button, a, div[role="button"], span):text-matches("^(Neueste|Newest|Most recent)$", "i")').first,
-        ]
-
-        clicked = False
-        for loc in newest_locators:
-            try:
-                if await loc.count() > 0:
-                    await loc.click(timeout=1500)
-                    clicked = True
-                    break
-            except Exception:
-                pass
-
-        await page.wait_for_timeout(500)
-
-        # Verify if switched.
-        try:
-            is_newest_visible = await page.locator(
-                'div[role="dialog"] :is(button, a, div[role="button"], span):text-matches("^(Neueste|Newest|Most recent)$", "i")'
-            ).count()
-            if clicked or is_newest_visible > 0:
-                return
-        except Exception:
-            pass
-
-
 async def expand_comments(page, max_clicks):
     clicks = 0
     while clicks < max_clicks:
