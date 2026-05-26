@@ -14,6 +14,27 @@ async def extract_comment_from_time(time_handle):
             if (h.includes('/c/')) return false;
             return /^\/[A-Za-z0-9._]+\/?($|\?)/.test(h);
           };
+          const parseLikesInfo = (root, ownerUsername) => {
+            const raw = (root?.innerText || '').replace(/\s+/g, ' ').trim();
+            const m = raw.match(/(\d+[\d.,]*)\s*likes?/i) || raw.match(/(\d+[\d.,]*)\s*gefällt\s+mir/i);
+            const likesCount = m ? parseInt((m[1] || '').replace(/[.,]/g, ''), 10) || 0 : 0;
+            const seen = new Set();
+            const likers = [];
+            const links = Array.from(root?.querySelectorAll?.('a[href]') || []);
+            for (const a of links) {
+              const href = a.getAttribute('href') || '';
+              if (!isProfileHref(href)) continue;
+              const uname = (a.textContent || '').trim().replace(/\s+/g, '').replace(/verified$/i, '');
+              if (!uname || !/^[a-zA-Z0-9._]{2,30}$/.test(uname)) continue;
+              if (ownerUsername && uname.toLowerCase() === ownerUsername.toLowerCase()) continue;
+              const key = uname.toLowerCase();
+              if (seen.has(key)) continue;
+              seen.add(key);
+              likers.push({ username: uname, profilePath: href });
+              if (likers.length >= 10) break;
+            }
+            return { likesCount, likers };
+          };
 
           let current = timeEl.parentElement;
           for (let i = 0; i < 24 && current; i += 1) {
@@ -85,6 +106,7 @@ async def extract_comment_from_time(time_handle):
                 .trim();
 
               if (username && text && text.length >= 1) {
+                const likesInfo = parseLikesInfo(current, username);
                 return {
                   username,
                   userProfilePath,
@@ -92,11 +114,14 @@ async def extract_comment_from_time(time_handle):
                   text,
                   datetime: timeEl.getAttribute('datetime') ?? null,
                   timeText,
+                  likesCount: likesInfo.likesCount,
+                  commentLikers: likesInfo.likers,
                   isGifOnly: false,
                 };
               }
 
               if (username && hasGif && cleaned.length === 0) {
+                const likesInfo = parseLikesInfo(current, username);
                 return {
                   username,
                   userProfilePath,
@@ -104,6 +129,8 @@ async def extract_comment_from_time(time_handle):
                   text: '[GIF]',
                   datetime: timeEl.getAttribute('datetime') ?? null,
                   timeText,
+                  likesCount: likesInfo.likesCount,
+                  commentLikers: likesInfo.likers,
                   isGifOnly: true,
                 };
               }
@@ -161,6 +188,7 @@ async def extract_comment_from_time(time_handle):
                 .find((t) => !badText(t));
 
               if (username && text && text.length >= 1) {
+                const likesInfo = parseLikesInfo(row, username);
                 return {
                   username,
                   userProfilePath,
@@ -168,6 +196,8 @@ async def extract_comment_from_time(time_handle):
                   text,
                   datetime: timeEl.getAttribute('datetime') ?? null,
                   timeText,
+                  likesCount: likesInfo.likesCount,
+                  commentLikers: likesInfo.likers,
                   isGifOnly: false,
                 };
               }
@@ -249,6 +279,27 @@ async def extract_comment_from_item(item_handle):
             if (h.includes('/c/')) return false;
             return /^\/[A-Za-z0-9._]+\/?($|\?)/.test(h);
           };
+          const parseLikesInfo = (root, ownerUsername) => {
+            const raw = (root?.innerText || '').replace(/\s+/g, ' ').trim();
+            const m = raw.match(/(\d+[\d.,]*)\s*likes?/i) || raw.match(/(\d+[\d.,]*)\s*gefällt\s+mir/i);
+            const likesCount = m ? parseInt((m[1] || '').replace(/[.,]/g, ''), 10) || 0 : 0;
+            const seen = new Set();
+            const likers = [];
+            const links = Array.from(root?.querySelectorAll?.('a[href]') || []);
+            for (const a of links) {
+              const href = a.getAttribute('href') || '';
+              if (!isProfileHref(href)) continue;
+              const uname = (a.textContent || '').trim().replace(/\s+/g, '').replace(/verified$/i, '');
+              if (!uname || !/^[a-zA-Z0-9._]{2,30}$/.test(uname)) continue;
+              if (ownerUsername && uname.toLowerCase() === ownerUsername.toLowerCase()) continue;
+              const key = uname.toLowerCase();
+              if (seen.has(key)) continue;
+              seen.add(key);
+              likers.push({ username: uname, profilePath: href });
+              if (likers.length >= 10) break;
+            }
+            return { likesCount, likers };
+          };
 
           const links = Array.from(item.querySelectorAll('a[role="link"], a'));
           const usernameLink = links.find((a) => isProfileHref(a.getAttribute('href') || ''));
@@ -316,11 +367,32 @@ async def extract_comment_from_item(item_handle):
             .replace(/\s+/g, ' ')
             .trim();
 
+          const likesInfo = parseLikesInfo(item, username);
           if (text && text.length >= 1) {
-            return { username, userProfilePath, commentPermalink, text, datetime, timeText, isGifOnly: false };
+            return {
+              username,
+              userProfilePath,
+              commentPermalink,
+              text,
+              datetime,
+              timeText,
+              likesCount: likesInfo.likesCount,
+              commentLikers: likesInfo.likers,
+              isGifOnly: false,
+            };
           }
           if (hasGif && cleaned.length === 0) {
-            return { username, userProfilePath, commentPermalink, text: '[GIF]', datetime, timeText, isGifOnly: true };
+            return {
+              username,
+              userProfilePath,
+              commentPermalink,
+              text: '[GIF]',
+              datetime,
+              timeText,
+              likesCount: likesInfo.likesCount,
+              commentLikers: likesInfo.likers,
+              isGifOnly: true,
+            };
           }
           return null;
         }

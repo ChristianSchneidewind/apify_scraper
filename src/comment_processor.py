@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from apify import Actor
 
+from .comment_likers import enrich_comment_likers
 from .screenshots import (
     capture_comment_multipart_3plus,
     dump_skip_debug,
@@ -27,7 +28,7 @@ LONG_TEXT_THRESHOLD = 430
 FORCED_MULTIPART_BASE = 430
 
 
-def build_process_candidate(*, page, dataset, kv_store, context, comment_container, run_folder, screenshot_timeout_ms, log_every_n_screenshots, state):
+def build_process_candidate(*, page, dataset, kv_store, context, comment_container, run_folder, screenshot_timeout_ms, log_every_n_screenshots, state, max_comment_likers):
     async def process_candidate(data, element_handle):
         if not data or not element_handle:
             return False
@@ -139,6 +140,28 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
         await freeze_animated_media(page)
         await fit_element_in_viewport(page, element_handle)
         await page.wait_for_timeout(200)
+
+        data = await enrich_comment_likers(
+            page,
+            element_handle,
+            data,
+            max_comment_likers=max_comment_likers,
+        )
+
+        # normalize liker links to absolute profile URLs
+        raw_likers = data.get("commentLikers") or []
+        normalized_likers = []
+        for lk in raw_likers:
+            if not isinstance(lk, dict):
+                continue
+            u = (lk.get("username") or "").strip()
+            p = (lk.get("profilePath") or "").strip()
+            url = (lk.get("profileUrl") or "").strip()
+            if not url and p:
+                url = p if p.startswith("http") else f"https://www.instagram.com{p}"
+            if u and url:
+                normalized_likers.append({"username": u, "profileUrl": url})
+        data["commentLikers"] = normalized_likers
 
         screenshot_uuid = make_uuid7()
         if log_every_n_screenshots <= 1 or state["count"] <= 5 or (state["count"] % log_every_n_screenshots == 0):
@@ -639,6 +662,8 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
                     "commentPermalink": comment_permalink,
                     "commentUrl": comment_url,
                     "commentDeepLink": comment_deep_link,
+                    "likesCount": int(data.get("likesCount") or 0),
+                    "commentLikers": data.get("commentLikers") or [],
                     "partsTotal": len(screenshot_keys),
                     "multipartNeedsReview": len(screenshot_keys) > 2,
                     "multipartFlagReason": "more_than_2_parts" if len(screenshot_keys) > 2 else None,
@@ -660,6 +685,8 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
                 "commentPermalink": comment_permalink,
                 "commentUrl": comment_url,
                 "commentDeepLink": comment_deep_link,
+                "likesCount": int(data.get("likesCount") or 0),
+                "commentLikers": data.get("commentLikers") or [],
                 "index": state["count"],
                 "sourceUrl": context.request.url,
                 "screenshotKey": screenshot_keys[0] if screenshot_keys else None,

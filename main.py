@@ -52,6 +52,7 @@ async def main():
         force_single_concurrency = cfg["force_single_concurrency"]
         no_new_rounds_before_rescan = cfg["no_new_rounds_before_rescan"]
         max_rescan_passes = cfg["max_rescan_passes"]
+        max_comment_likers = cfg["max_comment_likers"]
 
         dataset = await Actor.open_dataset()
         kv_store = await Actor.open_key_value_store()
@@ -169,6 +170,7 @@ async def main():
                 ui_idle_rounds=ui_idle_rounds,
                 no_new_rounds_before_rescan=no_new_rounds_before_rescan,
                 max_rescan_passes=max_rescan_passes,
+                max_comment_likers=max_comment_likers,
             )
 
             if count == 0:
