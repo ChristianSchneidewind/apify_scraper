@@ -34,4 +34,5 @@ def parse_input(input_data: dict) -> dict:
         "viewport_width": int(input_data.get("viewportWidth", VIEWPORT_WIDTH)),
         "viewport_height": int(input_data.get("viewportHeight", VIEWPORT_HEIGHT)),
         "maximize_window": bool(input_data.get("maximizeWindow", True)),
+        "max_comment_likers": int(input_data.get("maxCommentLikers", 50)),
     }

@@ -121,6 +121,12 @@
       "type": "integer",
       "description": "Max time for loading all comments.",
       "default": 120
+    },
+    "maxCommentLikers": {
+      "title": "Max likers per comment",
+      "type": "integer",
+      "description": "Maximum liker profiles to collect per comment. Set 0 to try collecting all visible likers.",
+      "default": 50
     }
   },
   "required": ["urls"]

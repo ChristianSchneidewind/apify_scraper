@@ -22,6 +22,7 @@ async def run_comment_capture_loop(
     ui_idle_rounds: int,
     no_new_rounds_before_rescan: int,
     max_rescan_passes: int,
+    max_comment_likers: int,
 ) -> int:
     count = 0
     seen_strict: set[str] = set()
@@ -68,6 +69,7 @@ async def run_comment_capture_loop(
             screenshot_timeout_ms=screenshot_timeout_ms,
             log_every_n_screenshots=log_every_n_screenshots,
             state=state,
+            max_comment_likers=max_comment_likers,
         )
 
         for row_handle in row_handles:
