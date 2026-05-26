@@ -122,6 +122,66 @@
       "description": "Max time for loading all comments.",
       "default": 120
     },
+    "requestHandlerTimeoutSecs": {
+      "title": "Request handler timeout (seconds)",
+      "type": "integer",
+      "description": "Hard timeout per URL request handler.",
+      "default": 7200
+    },
+    "forceSingleConcurrency": {
+      "title": "Force single concurrency",
+      "type": "boolean",
+      "description": "Run one URL at a time for maximum stability.",
+      "default": true
+    },
+    "noNewRoundsBeforeRescan": {
+      "title": "No-new rounds before rescan",
+      "type": "integer",
+      "description": "Trigger a rescan after N rounds with no new comments.",
+      "default": 5
+    },
+    "maxRescanPasses": {
+      "title": "Max rescan passes",
+      "type": "integer",
+      "description": "Maximum number of extra rescan passes.",
+      "default": 1
+    },
+    "debugNetwork": {
+      "title": "Debug network",
+      "type": "boolean",
+      "description": "Log comment-related network activity.",
+      "default": false
+    },
+    "debugHar": {
+      "title": "Record HAR",
+      "type": "boolean",
+      "description": "Record a HAR file for debugging.",
+      "default": false
+    },
+    "debugDevtools": {
+      "title": "Open DevTools",
+      "type": "boolean",
+      "description": "Open Chromium DevTools in headful mode.",
+      "default": false
+    },
+    "manualDebugMode": {
+      "title": "Manual debug mode",
+      "type": "boolean",
+      "description": "Pause on page before scraping for manual inspection.",
+      "default": false
+    },
+    "manualDebugOnly": {
+      "title": "Manual debug only",
+      "type": "boolean",
+      "description": "Pause for manual debug and skip scraping afterwards.",
+      "default": false
+    },
+    "manualDebugPauseSecs": {
+      "title": "Manual debug pause (seconds)",
+      "type": "integer",
+      "description": "Pause duration in manual debug mode.",
+      "default": 180
+    },
     "maxCommentLikers": {
       "title": "Max likers per comment",
       "type": "integer",

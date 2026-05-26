@@ -1,3 +1,10 @@
+from .instagram_dom import (
+    DIALOG_COMMENT_ROWS_SELECTOR,
+    POST_COMMENT_LAST_RESORT_SELECTOR,
+    POST_COMMENT_LI_ROWS_SELECTOR,
+    POST_COMMENT_ROWS_FALLBACK_SELECTOR,
+)
+
 
 async def extract_comment_from_time(time_handle):
     result = await time_handle.evaluate(
@@ -412,11 +419,7 @@ async def get_dialog_comment_rows(page):
 
 async def get_post_comment_rows(page):
     # First prefer DOM with proper list items (older IG rollouts).
-    li_rows = await page.query_selector_all(
-        'div[role="dialog"] li:has(a[href*="/p/"][href*="/c/"]):has(time), '
-        'article li:has(a[href*="/p/"][href*="/c/"]):has(time), '
-        'main article li:has(a[href*="/p/"][href*="/c/"]):has(time)'
-    )
+    li_rows = await page.query_selector_all(POST_COMMENT_LI_ROWS_SELECTOR)
     if li_rows:
         return li_rows
 
@@ -503,54 +506,16 @@ async def get_post_comment_rows(page):
 
     # Last resort: any div carrying a comment permalink + time (may include nested
     # duplicates; deduplication happens further upstream via seen sets).
-    return await page.query_selector_all(
-        'article div:has(a[href*="/c/"]):has(time), '
-        'main article div:has(a[href*="/c/"]):has(time)'
-    )
-
-
-async def get_post_comment_permalinks(page):
-    return await page.evaluate(
-        """
-        () => {
-          const links = Array.from(document.querySelectorAll('a[href*="/p/"][href*="/c/"]'));
-          const seen = new Set();
-          const out = [];
-
-          for (const a of links) {
-            const href = a.getAttribute('href') || '';
-            if (!href.startsWith('/p/') || !href.includes('/c/')) continue;
-
-            const li = a.closest('li');
-            if (!li) continue;
-
-            if (seen.has(href)) continue;
-            seen.add(href);
-            out.push(href);
-          }
-
-          return out;
-        }
-        """
-    )
+    return await page.query_selector_all(POST_COMMENT_LAST_RESORT_SELECTOR)
 
 
 async def get_comment_rows(page):
     # Strict dialog-first selectors: avoids grabbing unrelated feed/recommendation nodes.
-    rows = await page.query_selector_all(
-        'div[role="dialog"] ul li:has(time), '
-        'div[role="dialog"] li[role="listitem"]:has(time), '
-        'div[role="dialog"] li._a9zj:has(time), '
-        'div[role="dialog"] li._a9zj._a9zl:has(time)'
-    )
+    rows = await page.query_selector_all(DIALOG_COMMENT_ROWS_SELECTOR)
     if rows:
         return rows
 
     # Fallback for post pages without active dialog.
-    return await page.query_selector_all(
-        'article ul li:has(time), '
-        'main article ul li:has(time), '
-        'article div:has(a[href*="/p/"][href*="/c/"]):has(time)'
-    )
+    return await page.query_selector_all(POST_COMMENT_ROWS_FALLBACK_SELECTOR)
 
 

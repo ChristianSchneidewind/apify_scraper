@@ -365,10 +365,40 @@ async def enrich_comment_likers(page, element_handle, data: dict, max_comment_li
 
         await worked_page.wait_for_timeout(400)
         likers = await _collect_open_likers_dialog(worked_page, max_comment_likers=max_comment_likers)
+
+        # IG sometimes opens the likes dialog first and hydrates entries a moment later.
+        # Retry once for positive-like comments before closing the dialog.
+        if not likers and int(data.get("likesCount") or 0) > 0:
+            try:
+                await worked_page.wait_for_timeout(1200)
+                await worked_page.evaluate(
+                    """
+                    () => {
+                      const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+                      const d = dialogs[dialogs.length - 1];
+                      if (!d) return;
+                      const candidates = Array.from(d.querySelectorAll('div, ul'));
+                      for (const c of candidates) {
+                        if (c.scrollHeight > c.clientHeight + 20) {
+                          c.scrollTop += Math.max(300, c.clientHeight * 0.9);
+                          break;
+                        }
+                      }
+                    }
+                    """
+                )
+                await worked_page.wait_for_timeout(700)
+            except Exception:
+                pass
+            likers = await _collect_open_likers_dialog(worked_page, max_comment_likers=max_comment_likers)
+
         data["commentLikers"] = likers
         Actor.log.info(f"[LIKERS] collected={len(likers)}")
 
+        # Keep zero-like comments fast; for positive-like but empty result, do not close instantly.
         try:
+            if int(data.get("likesCount") or 0) > 0 and not likers:
+                await worked_page.wait_for_timeout(1000)
             await worked_page.keyboard.press("Escape")
             await worked_page.wait_for_timeout(150)
         except Exception:
