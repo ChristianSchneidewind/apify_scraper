@@ -135,6 +135,12 @@ CI läuft bei Push über GitHub Actions:
 .github/workflows/tests-on-push.yml
 ```
 
+Optionaler manueller Performance-Guardrail:
+
+```txt
+.github/workflows/perf-guardrail.yml
+```
+
 Output-Schemata:
 
 ```txt
