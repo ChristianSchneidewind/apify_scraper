@@ -50,3 +50,23 @@ def test_retry_async_raises_last_exception():
         assert False, "expected ValueError"
     except ValueError as exc:
         assert "nope" in str(exc)
+
+
+def test_retry_async_uses_backoff_sleep(monkeypatch):
+    state = {"n": 0}
+    sleeps = []
+
+    async def fake_sleep(sec):
+        sleeps.append(sec)
+
+    async def flaky():
+        state["n"] += 1
+        if state["n"] < 3:
+            raise RuntimeError("x")
+        return "ok"
+
+    monkeypatch.setattr("src.flow_utils.asyncio.sleep", fake_sleep)
+    out = asyncio.run(retry_async(flaky, attempts=3, base_delay_ms=100, backoff=2.0))
+
+    assert out == "ok"
+    assert sleeps == [0.1, 0.2]
