@@ -223,3 +223,4 @@ Empfehlung:
 ## Lizenz
 
 Dieses Projekt steht unter der **MIT License**.
+Siehe [`LICENSE`](./LICENSE).
