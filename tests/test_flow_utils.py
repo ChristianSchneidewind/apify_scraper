@@ -1,6 +1,6 @@
 import asyncio
 
-from src.flow_utils import safe_wait, swallowed
+from src.flow_utils import retry_async, safe_wait, swallowed
 
 
 class FakePage:
@@ -25,3 +25,28 @@ def test_swallowed_default_and_specific_exceptions():
 
     with swallowed(ValueError):
         raise ValueError("x")
+
+
+def test_retry_async_retries_then_succeeds():
+    state = {"n": 0}
+
+    async def flaky():
+        state["n"] += 1
+        if state["n"] < 2:
+            raise RuntimeError("boom")
+        return "ok"
+
+    out = asyncio.run(retry_async(flaky, attempts=3, base_delay_ms=0))
+    assert out == "ok"
+    assert state["n"] == 2
+
+
+def test_retry_async_raises_last_exception():
+    async def always_fail():
+        raise ValueError("nope")
+
+    try:
+        asyncio.run(retry_async(always_fail, attempts=2, base_delay_ms=0))
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "nope" in str(exc)

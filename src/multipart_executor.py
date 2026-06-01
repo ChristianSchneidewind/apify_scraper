@@ -3,7 +3,7 @@ import hashlib
 from apify import Actor
 
 from .comment_visual_helpers import get_geometry_fallback_metrics, parts_target_from_ratio, should_run_geometry_fallback
-from .flow_utils import safe_wait
+from .flow_utils import retry_async, safe_wait
 from .log_events import log_event
 from .multipart_planner import plan_comment_multipart
 from .payloads import build_metadata_payload
@@ -168,16 +168,17 @@ async def capture_comment_assets(
             rehighlight_ok = False
             hl = {"ok": False, "reason": "not_attempted"}
             try:
-                for _ in range(2):
+                async def _attempt_highlight():
+                    nonlocal hl
                     hl = await highlight(page, element_handle, data)
-                    if (hl or {}).get("ok"):
-                        rehighlight_ok = True
-                        break
-                    await safe_wait(page, 120)
-                if not rehighlight_ok:
-                    log_event("multipart.rehighlight_failed", index=state["count"], part=part_idx, total=total_parts, reason=(hl or {}).get("reason", "unknown"))
+                    if not (hl or {}).get("ok"):
+                        raise RuntimeError((hl or {}).get("reason", "unknown"))
+                    return hl
+
+                await retry_async(_attempt_highlight, attempts=2, base_delay_ms=120, backoff=1.0)
+                rehighlight_ok = True
             except Exception as hl_exc:
-                Actor.log.warning(f"Re-highlight exception for #{state['count']} part {part_idx}/{total_parts}: {hl_exc}")
+                log_event("multipart.rehighlight_failed", index=state["count"], part=part_idx, total=total_parts, reason=str(hl_exc))
 
             if not rehighlight_ok and part_idx > 1:
                 log_event("multipart.part_skipped", index=state["count"], part=part_idx, total=total_parts, reason="missing_highlight")
