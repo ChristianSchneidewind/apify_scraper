@@ -1,5 +1,7 @@
 from src.comment_text import (
+    build_comment_context,
     build_comment_links,
+    log_gif_comment_if_needed,
     normalize_comment_likers,
     should_log_screenshot,
 )
@@ -76,3 +78,27 @@ def test_normalize_comment_likers_ignores_whitespace_only_or_missing_data():
     )
 
     assert out == []
+
+
+def test_build_comment_context_returns_permalink_and_links():
+    permalink, url, deep = build_comment_context(
+        {"commentPermalink": "/p/XYZ/c/123/"},
+        "https://www.instagram.com/p/XYZ/",
+    )
+    assert permalink == "/p/XYZ/c/123/"
+    assert url == "https://www.instagram.com/p/XYZ/c/123/"
+    assert deep == "https://www.instagram.com/p/XYZ/?comment_id=123"
+
+
+def test_log_gif_comment_if_needed(monkeypatch):
+    events = []
+
+    def fake_log_event(event, **fields):
+        events.append((event, fields))
+
+    monkeypatch.setattr("src.comment_text.log_event", fake_log_event)
+
+    log_gif_comment_if_needed({"isGifOnly": False, "username": "u"}, 1)
+    log_gif_comment_if_needed({"isGifOnly": True, "username": "u"}, 2)
+
+    assert events == [("comment.gif_only", {"username": "u", "index": 2})]

@@ -4,6 +4,8 @@ import time
 
 from apify import Actor
 
+from .log_events import log_event, warn_event
+
 
 def enable_comment_network_debug(page, kv_store):
     def _short(s, n=300):
@@ -17,7 +19,7 @@ def enable_comment_network_debug(page, kv_store):
                 return
             exc = t.exception()
             if exc:
-                Actor.log.warning(f"[COMMENTS-DEBUG] background task failed: {exc}")
+                warn_event("comments_debug.background_task_failed", error=str(exc))
 
         task.add_done_callback(_log_task_result)
 
@@ -59,9 +61,9 @@ def enable_comment_network_debug(page, kv_store):
                 "postData": post_data,
             }
             await kv_store.set_value(key, json.dumps(payload, indent=2), content_type="application/json")
-            Actor.log.info(f"[COMMENTS-DEBUG] saved {key}")
+            log_event("comments_debug.request_saved", key=key)
         except Exception as exc:
-            Actor.log.warning(f"[COMMENTS-DEBUG] request save failed: {exc}")
+            warn_event("comments_debug.request_save_failed", error=str(exc))
 
     async def on_response(response):
         url = response.url
@@ -71,7 +73,7 @@ def enable_comment_network_debug(page, kv_store):
                 body = await response.text()
             except Exception:
                 body = "<no body>"
-            Actor.log.info(f"[RESP] {response.status} {url} body={_short(body)}")
+            log_event("comments_debug.response_snippet", status=response.status, url=url, body=_short(body))
 
         try:
             req = response.request
@@ -103,9 +105,9 @@ def enable_comment_network_debug(page, kv_store):
             }
             key = f"debug-comments-resp-{idx:03d}.json"
             await kv_store.set_value(key, json.dumps(payload, indent=2), content_type="application/json")
-            Actor.log.info(f"[COMMENTS-DEBUG] saved {key}")
+            log_event("comments_debug.response_saved", key=key)
         except Exception as exc:
-            Actor.log.warning(f"[COMMENTS-DEBUG] response save failed: {exc}")
+            warn_event("comments_debug.response_save_failed", error=str(exc))
 
     page.on("request", lambda r: _schedule_debug_task(on_request(r)))
     page.on("response", lambda r: _schedule_debug_task(on_response(r)))
@@ -142,6 +144,9 @@ async def dump_no_comments_debug(page, kv_store, screenshot_timeout_ms: int):
         content_type="application/json",
     )
 
-    Actor.log.warning(
-        f"No comments found. Saved debug screenshot {debug_key}, HTML {html_key}, samples {sample_key}"
+    warn_event(
+        "comments_debug.no_comments_dumped",
+        screenshot_key=debug_key,
+        html_key=html_key,
+        samples_key=sample_key,
     )

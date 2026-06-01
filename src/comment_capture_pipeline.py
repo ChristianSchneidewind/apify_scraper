@@ -59,6 +59,11 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
             max_comment_likers=max_comment_likers,
         )
 
+        metrics = state.get("metrics") if isinstance(state, dict) else None
+        if isinstance(metrics, dict):
+            metrics["comments_processed"] = int(metrics.get("comments_processed", 0)) + 1
+            metrics["likers_collected_total"] = int(metrics.get("likers_collected_total", 0)) + len(data.get("commentLikers") or [])
+
         screenshot_ctx = init_screenshot_session()
         screenshot_uuid = screenshot_ctx.screenshot_uuid
         screenshot_paths = screenshot_ctx.screenshot_paths

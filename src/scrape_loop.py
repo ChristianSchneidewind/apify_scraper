@@ -23,6 +23,7 @@ async def run_comment_capture_loop(
     no_new_rounds_before_rescan: int,
     max_rescan_passes: int,
     max_comment_likers: int,
+    stats: dict | None = None,
 ) -> int:
     count = 0
     seen_strict: set[str] = set()
@@ -60,6 +61,7 @@ async def run_comment_capture_loop(
             "seen_strict": seen_strict,
             "seen_loose": seen_loose,
             "seen_comment_uid": seen_comment_uid,
+            "metrics": stats if isinstance(stats, dict) else None,
         }
         process_candidate = build_process_candidate(
             page=page,
@@ -168,4 +170,6 @@ async def run_comment_capture_loop(
         # `new_in_round == 0` above.
         await page.wait_for_timeout(1200)
 
+    if isinstance(stats, dict):
+        stats["comments_captured"] = count
     return count
