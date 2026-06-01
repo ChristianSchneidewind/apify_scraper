@@ -1,6 +1,5 @@
-from apify import Actor
-
 from .flow_utils import safe_wait, swallowed
+from .log_events import warn_event
 from .screenshots import dump_skip_debug, highlight
 from .tuning import (
     EXPAND_TEXT_WAIT_MS,
@@ -59,9 +58,12 @@ async def handle_highlight_failure(*, page, kv_store, state, data, highlight_res
     if highlight_result.get("detachedFallbackUsed"):
         extra += " (fallback used)"
 
-    Actor.log.warning(
-        f"Highlight fehlgeschlagen für Kommentar #{state['count']} ({data.get('username')}) "
-        f"reason={reason}{extra}; Screenshot wird übersprungen."
+    warn_event(
+        "comment.highlight_failed",
+        index=state["count"],
+        username=data.get("username"),
+        reason=reason,
+        extra=extra.strip(),
     )
 
     try:
@@ -70,7 +72,7 @@ async def handle_highlight_failure(*, page, kv_store, state, data, highlight_res
             screenshot_timeout_ms,
         )
     except Exception as dbg_exc:
-        Actor.log.warning(f"dump_skip_debug failed: {dbg_exc}")
+        warn_event("comment.dump_skip_debug_failed", error=str(dbg_exc))
 
     decrement_comment_counters(state)
     rollback_comment_seen(state, strict_key, loose_key, comment_uid)
