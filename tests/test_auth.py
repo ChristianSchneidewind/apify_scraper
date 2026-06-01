@@ -89,7 +89,11 @@ def test_ensure_logged_in_requires_credentials():
 def test_ensure_logged_in_returns_when_already_logged(monkeypatch):
     p = FakePage()
     p.set_locator('nav, svg[aria-label="Home"], svg[aria-label="Profile"]', FakeLocator(count=1))
-    monkeypatch.setattr(auth, "handle_cookie_banner", lambda _p: asyncio.sleep(0))
+
+    async def noop(_p):
+        return None
+
+    monkeypatch.setattr(auth, "handle_cookie_banner", noop)
 
     asyncio.run(auth.ensure_logged_in(p, FakeKv(), "u", "p", 1000))
     assert p.gotos[0] == "https://www.instagram.com/"
@@ -98,7 +102,11 @@ def test_ensure_logged_in_returns_when_already_logged(monkeypatch):
 def test_ensure_logged_in_login_form_missing_saves_debug(monkeypatch):
     p = FakePage()
     kv = FakeKv()
-    monkeypatch.setattr(auth, "handle_cookie_banner", lambda _p: asyncio.sleep(0))
+
+    async def noop(_p):
+        return None
+
+    monkeypatch.setattr(auth, "handle_cookie_banner", noop)
 
     p.set_locator('nav, svg[aria-label="Home"], svg[aria-label="Profile"]', FakeLocator(count=0))
     p.set_locator('a[href^="/accounts/login/"]', FakeLocator(count=0))

@@ -133,10 +133,16 @@ def test_main_happy_path_runs_crawler(monkeypatch):
     monkeypatch.setattr(m, "PlaywrightCrawler", FakeCrawler)
     monkeypatch.setattr(m, "parse_input", lambda _i: _cfg(["https://www.instagram.com/p/abc/"]))
     monkeypatch.setattr(m, "init_session_state", lambda _s: {})
-    monkeypatch.setattr(m, "apply_login_session", lambda **_k: asyncio.sleep(0))
-    monkeypatch.setattr(m, "force_light_mode", lambda *_a, **_k: asyncio.sleep(0))
-    monkeypatch.setattr(m, "prepare_comments_page", lambda **_k: asyncio.sleep(0))
-    monkeypatch.setattr(m, "run_comment_capture_loop", lambda **_k: asyncio.sleep(0, result=1))
+    async def _noop(*_a, **_k):
+        return None
+
+    async def _run_loop(*_a, **_k):
+        return 1
+
+    monkeypatch.setattr(m, "apply_login_session", _noop)
+    monkeypatch.setattr(m, "force_light_mode", _noop)
+    monkeypatch.setattr(m, "prepare_comments_page", _noop)
+    monkeypatch.setattr(m, "run_comment_capture_loop", _run_loop)
     monkeypatch.setattr(m, "make_post_slug", lambda _u: "slug")
 
     asyncio.run(m.main())

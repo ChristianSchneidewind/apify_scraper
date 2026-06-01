@@ -58,11 +58,20 @@ def test_capture_comment_assets_happy_path(monkeypatch):
         }
 
     monkeypatch.setattr(me, "plan_comment_multipart", plan_comment_multipart)
-    monkeypatch.setattr(me, "safe_wait", lambda *_a, **_k: asyncio.sleep(0))
-    monkeypatch.setattr(me, "fit_element_in_viewport", lambda *_a, **_k: asyncio.sleep(0))
-    monkeypatch.setattr(me, "highlight", lambda *_a, **_k: asyncio.sleep(0, result={"ok": True}))
-    monkeypatch.setattr(me, "set_screenshot_banner", lambda *_a, **_k: asyncio.sleep(0))
-    monkeypatch.setattr(me, "save_screenshot", lambda *_a, **_k: asyncio.sleep(0, result="Screenshots/a.png"))
+    async def _noop(*_a, **_k):
+        return None
+
+    async def _highlight(*_a, **_k):
+        return {"ok": True}
+
+    async def _save_screenshot(*_a, **_k):
+        return "Screenshots/a.png"
+
+    monkeypatch.setattr(me, "safe_wait", _noop)
+    monkeypatch.setattr(me, "fit_element_in_viewport", _noop)
+    monkeypatch.setattr(me, "highlight", _highlight)
+    monkeypatch.setattr(me, "set_screenshot_banner", _noop)
+    monkeypatch.setattr(me, "save_screenshot", _save_screenshot)
     monkeypatch.setattr(me, "should_run_geometry_fallback", lambda *_a, **_k: False)
     monkeypatch.setattr(me, "build_metadata_payload", lambda **_k: {"id": "u1"})
     monkeypatch.setattr(me, "save_comment_metadata", lambda *_a, **_k: "m.json")
