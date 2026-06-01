@@ -14,6 +14,13 @@
         "editor": "textfield"
       }
     },
+    "runtimeProfile": {
+      "title": "Runtime profile",
+      "type": "string",
+      "description": "fast = quicker runs with lower depth, balanced = default, deep = maximum loading effort.",
+      "default": "balanced",
+      "enum": ["fast", "balanced", "deep"]
+    },
     "maxComments": {
       "title": "Max comments",
       "type": "integer",

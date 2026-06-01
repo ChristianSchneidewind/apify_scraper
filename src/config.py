@@ -55,15 +55,28 @@ def _liker_collection_mode(value) -> str:
     return mode if mode in {"best_effort", "strict"} else "best_effort"
 
 
+def _runtime_profile(value) -> str:
+    profile = str(value or "balanced").strip().lower()
+    return profile if profile in {"fast", "balanced", "deep"} else "balanced"
+
+
 def parse_input(input_data: dict) -> dict:
+    profile = _runtime_profile(input_data.get("runtimeProfile"))
+    profile_defaults = {
+        "fast": {"max_ui_rounds": 30, "ui_idle_rounds": 4, "load_timeout_secs": 90, "request_handler_timeout_secs": 3600},
+        "balanced": {"max_ui_rounds": 40, "ui_idle_rounds": 6, "load_timeout_secs": 120, "request_handler_timeout_secs": 7200},
+        "deep": {"max_ui_rounds": 120, "ui_idle_rounds": 15, "load_timeout_secs": 240, "request_handler_timeout_secs": 10800},
+    }[profile]
+
     return {
         "urls": _parse_urls(input_data.get("urls", [])),
+        "runtime_profile": profile,
         "max_comments": _to_int_min(input_data.get("maxComments", 0), 0, 0),
-        "max_ui_rounds": _to_int_min(input_data.get("maxUiRounds", 40), 40, 1),
-        "ui_idle_rounds": _to_int_min(input_data.get("uiIdleRounds", 6), 6, 1),
-        "load_timeout_secs": _to_int_min(input_data.get("loadTimeoutSecs", 120), 120, 10),
+        "max_ui_rounds": _to_int_min(input_data.get("maxUiRounds", profile_defaults["max_ui_rounds"]), profile_defaults["max_ui_rounds"], 1),
+        "ui_idle_rounds": _to_int_min(input_data.get("uiIdleRounds", profile_defaults["ui_idle_rounds"]), profile_defaults["ui_idle_rounds"], 1),
+        "load_timeout_secs": _to_int_min(input_data.get("loadTimeoutSecs", profile_defaults["load_timeout_secs"]), profile_defaults["load_timeout_secs"], 10),
         "screenshot_timeout_ms": _to_int_min(input_data.get("screenshotTimeoutSecs", 60), 60, 1) * 1000,
-        "request_handler_timeout_secs": _to_int_min(input_data.get("requestHandlerTimeoutSecs", 7200), 7200, 60),
+        "request_handler_timeout_secs": _to_int_min(input_data.get("requestHandlerTimeoutSecs", profile_defaults["request_handler_timeout_secs"]), profile_defaults["request_handler_timeout_secs"], 60),
         "login_enabled": _as_bool(input_data.get("loginEnabled"), False),
         "login_username": input_data.get("loginUsername") or os.getenv("INSTAGRAM_USERNAME"),
         "login_password": input_data.get("loginPassword") or os.getenv("INSTAGRAM_PASSWORD"),
