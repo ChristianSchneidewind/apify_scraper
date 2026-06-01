@@ -69,6 +69,8 @@ Optional `.env`:
 ```env
 INSTAGRAM_USERNAME=dein_username
 INSTAGRAM_PASSWORD=dein_passwort
+LIKERS_DEBUG_INLINE=0
+LIKERS_DEBUG_PROGRESS=0
 ```
 
 ---
@@ -100,6 +102,22 @@ Beispiel:
 ```
 
 > `maxCommentLikers: 0` = versuche alle sichtbaren Likers zu sammeln.
+
+---
+
+## Feature Flags / Debug
+
+Umfangreiche Laufzeit-Optionen kommen über `INPUT.json` (siehe `INPUT_SCHEMA.json`).
+Zusätzliche Debug-Flags laufen über Umgebungsvariablen:
+
+- `LIKERS_DEBUG_INLINE=1` → detailliertes Inline-Debugging für Like-Button-Erkennung
+- `LIKERS_DEBUG_PROGRESS=1` → Progress-/Stop-Gründe beim Einsammeln der Likers pro Runde
+
+Beispiel:
+
+```bash
+LIKERS_DEBUG_PROGRESS=1 python3 -m main
+```
 
 ---
 
