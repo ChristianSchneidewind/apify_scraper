@@ -76,6 +76,23 @@ class FakeKv:
         self.saved.append((key, content_type))
 
 
+def test_handle_cookie_banner_clicks_visible_button_and_returns():
+    p = FakePage()
+    p.set_locator('button:has-text("Allow all cookies")', FakeLocator(count=1, visible=True))
+
+    asyncio.run(auth.handle_cookie_banner(p))
+
+    assert p.waits == [1500]
+
+
+def test_handle_cookie_banner_no_match_waits_full_loop():
+    p = FakePage()
+
+    asyncio.run(auth.handle_cookie_banner(p))
+
+    assert p.waits == [1000, 1000, 1000, 1000, 1000]
+
+
 def test_dismiss_login_wall_runs_script():
     p = FakePage()
     asyncio.run(auth.dismiss_login_wall(p))
@@ -98,6 +115,28 @@ def test_ensure_logged_in_returns_when_already_logged(monkeypatch):
 
     asyncio.run(auth.ensure_logged_in(p, FakeKv(), "u", "p", 1000))
     assert p.gotos[0] == "https://www.instagram.com/"
+
+
+def test_ensure_logged_in_success_path(monkeypatch):
+    p = FakePage()
+
+    async def noop(_p):
+        return None
+
+    monkeypatch.setattr(auth, "handle_cookie_banner", noop)
+
+    p.set_locator('nav, svg[aria-label="Home"], svg[aria-label="Profile"]', FakeLocator(count=0))
+    p.set_locator('a[href^="/accounts/login/"]', FakeLocator(count=1))
+    user = FakeLocator(count=1)
+    pwd = FakeLocator(count=1)
+    p.set_locator('input[name="username"], input[autocomplete="username"], input[type="text"]', user)
+    p.set_locator('input[name="password"], input[autocomplete="current-password"], input[type="password"]', pwd)
+
+    asyncio.run(auth.ensure_logged_in(p, FakeKv(), "u", "p", 1000))
+
+    assert user.filled == ["u"]
+    assert pwd.filled == ["p"]
+    assert pwd.pressed == ["Enter"]
 
 
 def test_ensure_logged_in_login_form_missing_saves_debug(monkeypatch):
