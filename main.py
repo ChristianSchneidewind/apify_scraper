@@ -62,7 +62,8 @@ async def main():
         meta_store = await Actor.open_key_value_store(name="video_meta")
 
         SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
-        run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        run_started_at = datetime.now(timezone.utc)
+        run_id = run_started_at.strftime("%Y%m%dT%H%M%SZ")
 
         stored_state = await kv_store.get_value(login_state_key) if login_enabled else None
         viewport_width = cfg["viewport_width"]
@@ -109,6 +110,13 @@ async def main():
         )
 
         session_state = init_session_state(stored_state)
+        run_summary = {
+            "urls_total": len(urls),
+            "urls_processed": 0,
+            "comments_captured_total": 0,
+            "zero_comment_urls": 0,
+            "errors": 0,
+        }
 
         @crawler.router.default_handler
         async def request_handler(context: PlaywrightCrawlingContext) -> None:
@@ -177,6 +185,11 @@ async def main():
             if count == 0:
                 await dump_no_comments_debug(page, kv_store, screenshot_timeout_ms)
 
+            run_summary["urls_processed"] += 1
+            run_summary["comments_captured_total"] += int(count or 0)
+            if count == 0:
+                run_summary["zero_comment_urls"] += 1
+
             log_event("request.captured", count=count, source_url=context.request.url)
             finished_at = datetime.now(timezone.utc).isoformat()
 
@@ -195,11 +208,25 @@ async def main():
         try:
             await crawler.run(urls)
         except Exception as exc:
+            run_summary["errors"] += 1
             message = str(exc)
             if "Target page, context or browser has been closed" in message:
                 warn_event("crawler.shutdown_warning_ignored", message=message)
             else:
                 raise
+        finally:
+            finished_at = datetime.now(timezone.utc)
+            elapsed_secs = int((finished_at - run_started_at).total_seconds())
+            log_event(
+                "run.summary",
+                run_id=run_id,
+                urls_total=run_summary["urls_total"],
+                urls_processed=run_summary["urls_processed"],
+                comments_captured_total=run_summary["comments_captured_total"],
+                zero_comment_urls=run_summary["zero_comment_urls"],
+                errors=run_summary["errors"],
+                elapsed_secs=elapsed_secs,
+            )
 
 
 if __name__ == "__main__":
