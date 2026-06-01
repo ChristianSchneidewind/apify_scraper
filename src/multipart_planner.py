@@ -1,7 +1,6 @@
-from apify import Actor
-
 from .comment_decisions import calc_forced_parts, should_force_row_multipart, should_use_3plus_route, total_parts as calc_total_parts
 from .comment_pipeline_helpers import FORCED_MULTIPART_BASE, LONG_TEXT_THRESHOLD
+from .log_events import log_event
 
 
 def build_comment_locator_payload(data, element_handle):
@@ -127,7 +126,7 @@ async def plan_comment_multipart(*, page, element_handle, data, state):
         mode = "row"
         text_parts = calc_forced_parts(text_len=text_len, base=FORCED_MULTIPART_BASE)
         scroll_parts = list(range(max(2, text_parts)))
-        Actor.log.info(f"Forced multipart for long text #{state['count']} (len={text_len}) -> mode=row, parts={len(scroll_parts)}")
+        log_event("multipart.forced", index=state["count"], text_len=text_len, mode="row", parts=len(scroll_parts))
 
     total_parts = calc_total_parts(scroll_parts)
     use_3plus_route = should_use_3plus_route(total_parts)

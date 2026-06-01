@@ -1,8 +1,7 @@
 import asyncio
 
-from apify import Actor
-
 from .auth import dismiss_login_wall, handle_cookie_banner
+from .log_events import warn_event
 from .ui import auto_scroll, expand_comments, force_light_mode, get_comment_container, load_all_comments, open_comments_panel
 
 
@@ -23,9 +22,7 @@ async def prepare_comments_page(*, page, max_ui_rounds: int, ui_idle_rounds: int
             timeout=load_timeout_secs,
         )
     except Exception as exc:
-        Actor.log.warning(
-            f"load_all_comments timeout or error: {type(exc).__name__}: {exc!r}"
-        )
+        warn_event("page_setup.load_all_comments_warning", error_type=type(exc).__name__, error=repr(exc))
 
     await auto_scroll(page, 8)
     await page.wait_for_timeout(1500)

@@ -4,13 +4,16 @@ import re
 from apify import Actor
 
 LIKERS_DEBUG_INLINE = os.getenv("LIKERS_DEBUG_INLINE", "0").strip().lower() in {"1", "true", "yes", "on"}
+LIKERS_DEBUG_PROGRESS = os.getenv("LIKERS_DEBUG_PROGRESS", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
 async def _collect_open_likers_dialog(page, max_comment_likers: int) -> list[dict]:
     likers = []
     seen = set()
     rounds = 0
-    max_rounds = 180 if max_comment_likers == 0 else 60
+    stagnant_rounds = 0
+    max_rounds = 240 if max_comment_likers == 0 else 60
+    max_stagnant_rounds = 8 if max_comment_likers == 0 else 3
 
     while rounds < max_rounds:
         rounds += 1
@@ -38,17 +41,17 @@ async def _collect_open_likers_dialog(page, max_comment_likers: int) -> list[dic
               }).filter((x) => /^[A-Za-z0-9._]{2,30}$/.test(x.username));
 
               let scroller = null;
-              const candidates = Array.from(d.querySelectorAll('div, ul'));
-              for (const c of candidates) {
-                if (c.scrollHeight > c.clientHeight + 20) {
-                  scroller = c;
-                  break;
-                }
-              }
+              const candidates = Array.from(d.querySelectorAll('div, ul'))
+                .filter((c) => c.scrollHeight > c.clientHeight + 20)
+                .sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight));
+              if (candidates.length) scroller = candidates[0];
+
               let canScroll = false;
               if (scroller) {
                 const before = scroller.scrollTop;
-                scroller.scrollTop += Math.max(240, scroller.clientHeight * 0.9);
+                const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+                const step = Math.max(260, scroller.clientHeight * 0.95);
+                scroller.scrollTop = Math.min(maxScroll, before + step);
                 canScroll = Math.abs(scroller.scrollTop - before) > 2;
               }
               return { open: true, items, canScroll };
@@ -57,6 +60,8 @@ async def _collect_open_likers_dialog(page, max_comment_likers: int) -> list[dic
         )
 
         if not (batch or {}).get("open"):
+            if LIKERS_DEBUG_PROGRESS:
+                Actor.log.info(f"[LIKERS][PROGRESS] stop reason=dialog_closed rounds={rounds} collected={len(likers)}")
             break
 
         new_added = 0
@@ -75,11 +80,34 @@ async def _collect_open_likers_dialog(page, max_comment_likers: int) -> list[dic
             if max_comment_likers and len(likers) >= max_comment_likers:
                 break
 
+        if LIKERS_DEBUG_PROGRESS:
+            Actor.log.info(
+                f"[LIKERS][PROGRESS] round={rounds} batch_items={len((batch or {}).get('items', []))} "
+                f"new_added={new_added} canScroll={bool((batch or {}).get('canScroll'))} collected={len(likers)}"
+            )
+
         if max_comment_likers and len(likers) >= max_comment_likers:
+            if LIKERS_DEBUG_PROGRESS:
+                Actor.log.info(f"[LIKERS][PROGRESS] stop reason=max_comment_likers reached={max_comment_likers}")
             break
-        if not (batch or {}).get("canScroll") and new_added == 0:
+
+        if new_added == 0:
+            stagnant_rounds += 1
+        else:
+            stagnant_rounds = 0
+
+        if not (batch or {}).get("canScroll") and stagnant_rounds >= max_stagnant_rounds:
+            if LIKERS_DEBUG_PROGRESS:
+                Actor.log.info(
+                    f"[LIKERS][PROGRESS] stop reason=no_scroll_and_stagnant rounds={rounds} "
+                    f"stagnant_rounds={stagnant_rounds} collected={len(likers)}"
+                )
             break
-        await page.wait_for_timeout(220)
+
+        await page.wait_for_timeout(280 if max_comment_likers == 0 else 220)
+
+    if rounds >= max_rounds and LIKERS_DEBUG_PROGRESS:
+        Actor.log.info(f"[LIKERS][PROGRESS] stop reason=max_rounds rounds={rounds} collected={len(likers)} max_rounds={max_rounds}")
 
     return likers
 
@@ -363,7 +391,7 @@ async def enrich_comment_likers(page, element_handle, data: dict, max_comment_li
                     pass
             return data
 
-        await worked_page.wait_for_timeout(400)
+        await worked_page.wait_for_timeout(900)
         likers = await _collect_open_likers_dialog(worked_page, max_comment_likers=max_comment_likers)
 
         # IG sometimes opens the likes dialog first and hydrates entries a moment later.
