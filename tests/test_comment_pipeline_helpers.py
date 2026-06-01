@@ -12,8 +12,9 @@ class FakeDataset:
 
 
 def test_enrich_and_normalize_likers(monkeypatch):
-    async def enrich(_page, _el, data, max_comment_likers):
+    async def enrich(_page, _el, data, max_comment_likers, liker_collection_mode):
         assert max_comment_likers == 5
+        assert liker_collection_mode == "strict"
         data = dict(data)
         data["commentLikers"] = [{"username": "alice", "profilePath": "/alice/"}]
         return data
@@ -26,6 +27,7 @@ def test_enrich_and_normalize_likers(monkeypatch):
             element_handle=object(),
             data={"username": "u", "text": "t"},
             max_comment_likers=5,
+            liker_collection_mode="strict",
         )
     )
 

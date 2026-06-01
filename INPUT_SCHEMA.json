@@ -187,6 +187,13 @@
       "type": "integer",
       "description": "Maximum liker profiles to collect per comment. Set 0 to try collecting all visible likers.",
       "default": 50
+    },
+    "likerCollectionMode": {
+      "title": "Liker collection mode",
+      "type": "string",
+      "description": "best_effort = collect whatever UI yields; strict = do extra retry and warn when collected < likesCount.",
+      "default": "best_effort",
+      "enum": ["best_effort", "strict"]
     }
   },
   "required": ["urls"]

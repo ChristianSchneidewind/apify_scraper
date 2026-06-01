@@ -55,7 +55,14 @@ async def main():
         no_new_rounds_before_rescan = cfg["no_new_rounds_before_rescan"]
         max_rescan_passes = cfg["max_rescan_passes"]
         max_comment_likers = cfg["max_comment_likers"]
-        log_event("config.effective", max_comment_likers=max_comment_likers, urls_count=len(urls), login_enabled=login_enabled)
+        liker_collection_mode = cfg["liker_collection_mode"]
+        log_event(
+            "config.effective",
+            max_comment_likers=max_comment_likers,
+            liker_collection_mode=liker_collection_mode,
+            urls_count=len(urls),
+            login_enabled=login_enabled,
+        )
 
         dataset = await Actor.open_dataset()
         kv_store = await Actor.open_key_value_store()
@@ -184,6 +191,7 @@ async def main():
                 no_new_rounds_before_rescan=no_new_rounds_before_rescan,
                 max_rescan_passes=max_rescan_passes,
                 max_comment_likers=max_comment_likers,
+                liker_collection_mode=liker_collection_mode,
                 stats=url_stats,
             )
 

@@ -7,12 +7,13 @@ LONG_TEXT_THRESHOLD = 430
 FORCED_MULTIPART_BASE = 430
 
 
-async def enrich_and_normalize_likers(*, page, element_handle, data, max_comment_likers):
+async def enrich_and_normalize_likers(*, page, element_handle, data, max_comment_likers, liker_collection_mode="best_effort"):
     data = await enrich_comment_likers(
         page,
         element_handle,
         data,
         max_comment_likers=max_comment_likers,
+        liker_collection_mode=liker_collection_mode,
     )
     data["commentLikers"] = normalize_comment_likers(data.get("commentLikers"))
     return data

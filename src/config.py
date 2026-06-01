@@ -40,6 +40,11 @@ def _parse_urls(value) -> list[str]:
     return urls
 
 
+def _liker_collection_mode(value) -> str:
+    mode = str(value or "best_effort").strip().lower()
+    return mode if mode in {"best_effort", "strict"} else "best_effort"
+
+
 def parse_input(input_data: dict) -> dict:
     return {
         "urls": _parse_urls(input_data.get("urls", [])),
@@ -72,4 +77,5 @@ def parse_input(input_data: dict) -> dict:
         "viewport_height": _to_int_range(input_data.get("viewportHeight", VIEWPORT_HEIGHT), VIEWPORT_HEIGHT, 240, 4320),
         "maximize_window": _as_bool(input_data.get("maximizeWindow"), True),
         "max_comment_likers": _to_int_min(input_data.get("maxCommentLikers", 50), 50, 0),
+        "liker_collection_mode": _liker_collection_mode(input_data.get("likerCollectionMode", "best_effort")),
     }
