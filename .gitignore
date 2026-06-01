@@ -19,6 +19,8 @@ Screenshots/
 
 # Memory
 scripts/
+!.github/scripts/
+!.github/scripts/*.py
 .cursor/
 Makefile
 
