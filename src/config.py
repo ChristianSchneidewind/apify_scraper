@@ -28,6 +28,16 @@ def _as_bool(value, default: bool) -> bool:
     return bool(value)
 
 
+def _is_instagram_url(url: str) -> bool:
+    lower = url.lower()
+    return (
+        lower.startswith("https://www.instagram.com/")
+        or lower.startswith("https://instagram.com/")
+        or lower.startswith("http://www.instagram.com/")
+        or lower.startswith("http://instagram.com/")
+    )
+
+
 def _parse_urls(value) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -35,7 +45,7 @@ def _parse_urls(value) -> list[str]:
     for item in value:
         if isinstance(item, str):
             u = item.strip()
-            if u.startswith("http://") or u.startswith("https://"):
+            if _is_instagram_url(u):
                 urls.append(u)
     return urls
 

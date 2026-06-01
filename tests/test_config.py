@@ -14,7 +14,7 @@ def test_parse_input_defaults_and_bounds():
 def test_parse_input_filters_invalid_urls_and_casts_values():
     cfg = parse_input(
         {
-            "urls": ["https://ok", "http://ok2", "ftp://bad", 42],
+            "urls": ["https://www.instagram.com/p/ok/", "http://instagram.com/p/ok2/", "https://example.com/x", "ftp://bad", 42],
             "maxComments": "12",
             "headful": "false",
             "viewportWidth": 100,
@@ -22,7 +22,7 @@ def test_parse_input_filters_invalid_urls_and_casts_values():
         }
     )
 
-    assert cfg["urls"] == ["https://ok", "http://ok2"]
+    assert cfg["urls"] == ["https://www.instagram.com/p/ok/", "http://instagram.com/p/ok2/"]
     assert cfg["max_comments"] == 12
     assert cfg["headful"] is False
     assert cfg["viewport_width"] == 320
@@ -35,6 +35,11 @@ def test_parse_input_liker_collection_mode_validation():
 
     assert cfg1["liker_collection_mode"] == "strict"
     assert cfg2["liker_collection_mode"] == "best_effort"
+
+
+def test_parse_input_rejects_non_instagram_urls():
+    cfg = parse_input({"urls": ["https://example.com/p/x/", "https://notinstagram.com/"]})
+    assert cfg["urls"] == []
 
 
 def test_parse_input_bool_string_variants_and_numeric_clamps():
