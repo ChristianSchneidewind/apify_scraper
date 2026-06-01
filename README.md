@@ -224,6 +224,12 @@ Empfehlung:
 3. vor Release `Unreleased` in Versionsblock überführen
 4. Tag setzen und pushen
 
+Release-Workflow testen (RC):
+
+1. RC-Tag erstellen und pushen (z. B. `v1.1.0-rc1`)
+2. In GitHub Actions `Release on tag` per `Run workflow` starten
+3. `tag_name=v1.1.0-rc1` und `prerelease=true` setzen
+
 ---
 
 ## Lizenz
