@@ -175,6 +175,10 @@ if use_3plus_route:
 
 ---
 
+## Troubleshooting
+
+Siehe [`docs/troubleshooting.md`](./docs/troubleshooting.md).
+
 ## Bekannte Grenzen
 
 - Instagram kann sichtbare Kommentare/Like-Dialoge limitieren.
