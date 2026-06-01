@@ -1,6 +1,6 @@
 import re
 
-from apify import Actor
+from .log_events import log_event
 
 
 def normalize_comment_likers(raw_likers):
@@ -58,4 +58,4 @@ def should_log_screenshot(index: int, log_every_n_screenshots: int) -> bool:
 
 def log_gif_comment_if_needed(data: dict, index: int):
     if data.get("isGifOnly"):
-        Actor.log.info(f"GIF-only comment detected: {data.get('username')} #{index}")
+        log_event("comment.gif_only", username=data.get("username"), index=index)

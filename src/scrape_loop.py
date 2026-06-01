@@ -1,8 +1,7 @@
 import asyncio
 
-from apify import Actor
-
 from .auth import dismiss_login_wall
+from .log_events import log_event, warn_event
 from .comment_processor import build_process_candidate
 from .comments import extract_comment_from_item, extract_comment_from_time, get_dialog_comment_rows, get_post_comment_rows
 from .instagram_dom import COMMENT_TIME_SELECTOR
@@ -46,9 +45,12 @@ async def run_comment_capture_loop(
         is_post_page = "/p/" in context.request.url
         row_handles = await (get_post_comment_rows(page) if is_post_page else get_dialog_comment_rows(page))
         time_handles = await page.query_selector_all(COMMENT_TIME_SELECTOR)
-        Actor.log.info(
-            f"Round {round_idx + 1}: {len(row_handles)} comment rows, "
-            f"{len(time_handles)} time nodes (post_page={is_post_page})"
+        log_event(
+            "scrape.round",
+            round=round_idx + 1,
+            rows=len(row_handles),
+            time_nodes=len(time_handles),
+            post_page=is_post_page,
         )
 
         state = {
@@ -100,13 +102,16 @@ async def run_comment_capture_loop(
             stale_rounds = 0
 
         if stale_rounds >= no_new_rounds_before_rescan and rescan_passes < max_rescan_passes:
-            Actor.log.info(
-                f"No new comments for {stale_rounds} rounds. Starting rescan pass {rescan_passes + 1}/{max_rescan_passes}."
+            log_event(
+                "scrape.rescan.start",
+                stale_rounds=stale_rounds,
+                pass_index=rescan_passes + 1,
+                max_rescan_passes=max_rescan_passes,
             )
             try:
                 await asyncio.wait_for(load_all_comments(page, 45, 6), timeout=150)
             except Exception as exc:
-                Actor.log.warning(f"rescan load_all_comments warning: {type(exc).__name__}: {exc!r}")
+                warn_event("scrape.rescan.load_all_comments_warning", error_type=type(exc).__name__, error=repr(exc))
 
             comment_container = await get_comment_container(page)
             try:
@@ -132,7 +137,7 @@ async def run_comment_capture_loop(
             continue
 
         if no_gain_after_rescan and new_in_round == 0:
-            Actor.log.info("No gain after rescan; stopping early.")
+            log_event("scrape.rescan.no_gain_stop")
             break
 
         if new_in_round > 0:

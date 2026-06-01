@@ -15,6 +15,7 @@ from src.page_setup import prepare_comments_page
 from src.screenshots import make_post_slug
 from src.session import apply_login_session, init_session_state
 from src.ui import force_light_mode
+from src.log_events import log_event, warn_event
 
 load_dotenv()
 
@@ -53,6 +54,7 @@ async def main():
         no_new_rounds_before_rescan = cfg["no_new_rounds_before_rescan"]
         max_rescan_passes = cfg["max_rescan_passes"]
         max_comment_likers = cfg["max_comment_likers"]
+        log_event("config.effective", max_comment_likers=max_comment_likers, urls_count=len(urls), login_enabled=login_enabled)
 
         dataset = await Actor.open_dataset()
         kv_store = await Actor.open_key_value_store()
@@ -131,12 +133,10 @@ async def main():
             await page.goto(target_url, wait_until="domcontentloaded")
 
             if manual_debug_mode:
-                Actor.log.info(
-                    f"Manual debug mode active: {manual_debug_pause_secs}s control for user on {target_url}"
-                )
+                log_event("request.manual_debug_mode", pause_secs=manual_debug_pause_secs, target_url=target_url)
                 await page.wait_for_timeout(manual_debug_pause_secs * 1000)
                 if manual_debug_only:
-                    Actor.log.info("Manual debug only active: skipping scraper after pause.")
+                    log_event("request.manual_debug_only_skip")
                     return
 
             await prepare_comments_page(
@@ -176,7 +176,7 @@ async def main():
             if count == 0:
                 await dump_no_comments_debug(page, kv_store, screenshot_timeout_ms)
 
-            Actor.log.info(f"Captured {count} comments for {context.request.url}")
+            log_event("request.captured", count=count, source_url=context.request.url)
             finished_at = datetime.now(timezone.utc).isoformat()
 
             video_meta.update(
@@ -196,7 +196,7 @@ async def main():
         except Exception as exc:
             message = str(exc)
             if "Target page, context or browser has been closed" in message:
-                Actor.log.warning(f"Crawler shutdown warning ignored: {message}")
+                warn_event("crawler.shutdown_warning_ignored", message=message)
             else:
                 raise
 
