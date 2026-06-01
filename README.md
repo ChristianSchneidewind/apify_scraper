@@ -183,6 +183,20 @@ if use_3plus_route:
 
 ---
 
+## Benchmark (lokal)
+
+Für reproduzierbare lokale Laufzeitmessungen:
+
+```bash
+python3 tools/benchmark_runner.py \
+  --url "https://www.instagram.com/p/DWHWE2vDbdr/" \
+  --runs 3 \
+  --max-comments 20 \
+  --python .venv/bin/python
+```
+
+Der Runner schreibt das Input nach `storage/key_value_stores/default/INPUT.json`, startet mehrere Läufe und extrahiert `run.summary`-Metriken.
+
 ## Release-Prozess
 
 Für nachvollziehbare Stände nutzen wir:
