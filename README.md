@@ -135,6 +135,13 @@ CI läuft bei Push über GitHub Actions:
 .github/workflows/tests-on-push.yml
 ```
 
+Output-Schemata:
+
+```txt
+.actor/dataset_schema.json
+.actor/output_schema.json
+```
+
 ---
 
 ## Wichtige Module
