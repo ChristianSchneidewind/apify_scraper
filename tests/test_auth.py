@@ -3,6 +3,7 @@ import asyncio
 import pytest
 
 import src.auth as auth
+from src.errors import LoginError
 
 
 class FakeLocator:
@@ -82,7 +83,7 @@ def test_dismiss_login_wall_runs_script():
 
 
 def test_ensure_logged_in_requires_credentials():
-    with pytest.raises(RuntimeError):
+    with pytest.raises(LoginError):
         asyncio.run(auth.ensure_logged_in(FakePage(), FakeKv(), None, None, 1000))
 
 
@@ -113,7 +114,7 @@ def test_ensure_logged_in_login_form_missing_saves_debug(monkeypatch):
     p.set_locator('input[name="username"], input[autocomplete="username"], input[type="text"]', FakeLocator(count=1, wait_raises=True))
     p.set_locator('input[name="password"], input[autocomplete="current-password"], input[type="password"]', FakeLocator(count=1))
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(LoginError):
         asyncio.run(auth.ensure_logged_in(p, kv, "u", "p", 1000))
 
     assert len(kv.saved) == 2

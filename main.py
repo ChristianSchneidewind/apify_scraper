@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from src.scrape_loop import run_comment_capture_loop
 from src.config import parse_input
+from src.errors import InputValidationError
 from src.constants import SCREENSHOTS_DIR
 from src.debug_tools import dump_no_comments_debug, enable_comment_network_debug
 from src.page_setup import prepare_comments_page
@@ -26,7 +27,7 @@ async def main():
         cfg = parse_input(input_data)
         urls = cfg["urls"]
         if not urls:
-            raise RuntimeError('Input "urls" must be a non-empty array of Instagram post URLs.')
+            raise InputValidationError('Input "urls" must be a non-empty array of Instagram post URLs.')
 
         max_comments = cfg["max_comments"]
         max_ui_rounds = cfg["max_ui_rounds"]

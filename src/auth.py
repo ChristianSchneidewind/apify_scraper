@@ -1,5 +1,7 @@
 import asyncio
 
+from .errors import LoginError
+
 
 async def handle_cookie_banner(page):
     selectors = [
@@ -64,7 +66,7 @@ async def dismiss_login_wall(page):
 
 async def ensure_logged_in(page, kv_store, username, password, screenshot_timeout_ms):
     if not username or not password:
-        raise RuntimeError("Login enabled but credentials missing.")
+        raise LoginError("Login enabled but credentials missing.")
 
     await page.goto("https://www.instagram.com/", wait_until="domcontentloaded")
     await handle_cookie_banner(page)
@@ -96,7 +98,7 @@ async def ensure_logged_in(page, kv_store, username, password, screenshot_timeou
         html_key = f"login-form-missing-{int(asyncio.get_event_loop().time()*1000)}.html"
         html = await page.content()
         await kv_store.set_value(html_key, html, content_type="text/html")
-        raise RuntimeError(f"Login form not found. Saved {debug_key} and {html_key}")
+        raise LoginError(f"Login form not found. Saved {debug_key} and {html_key}")
 
     await username_input.fill(username)
     await password_input.fill(password)

@@ -119,10 +119,12 @@ def test_main_raises_on_empty_urls(monkeypatch):
     monkeypatch.setattr(m, "Actor", actor)
     monkeypatch.setattr(m, "parse_input", lambda _i: _cfg([]))
 
+    from src.errors import InputValidationError
+
     try:
         asyncio.run(m.main())
-        assert False, "expected RuntimeError"
-    except RuntimeError as e:
+        assert False, "expected InputValidationError"
+    except InputValidationError as e:
         assert "urls" in str(e)
 
 
