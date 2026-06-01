@@ -58,6 +58,12 @@ pip install -r requirements.txt
 playwright install
 ```
 
+Für Entwicklung/Tests:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
 Optional `.env`:
 
 ```env
@@ -101,6 +107,8 @@ Beispiel:
 
 ```bash
 .venv/bin/pytest -q
+# optional mit Coverage:
+.venv/bin/pytest -q --cov=src --cov-report=term-missing
 ```
 
 CI läuft bei Push über GitHub Actions:
