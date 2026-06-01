@@ -154,3 +154,4 @@ def test_main_happy_path_runs_crawler(monkeypatch):
     crawler = FakeCrawler.instances[-1]
     assert crawler.kwargs["max_requests_per_crawl"] == 1
     assert actor.meta_store.set_calls
+    assert any(key.startswith("RUN_SUMMARY::") and ctype == "application/json" for key, ctype in actor.default_store.set_calls)

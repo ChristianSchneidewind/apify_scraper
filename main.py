@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -236,6 +237,20 @@ async def main():
             comments_total = int(run_summary.get("comments_captured_total", 0))
             avg_comment_ms = int(run_summary.get("comment_processing_ms_total", 0) / comments_total) if comments_total else 0
             avg_likers_per_comment = round(float(run_summary.get("likers_collected_total", 0)) / comments_total, 2) if comments_total else 0.0
+            summary_payload = {
+                "runId": run_id,
+                "urlsTotal": run_summary["urls_total"],
+                "urlsProcessed": run_summary["urls_processed"],
+                "commentsCapturedTotal": comments_total,
+                "likersCollectedTotal": run_summary["likers_collected_total"],
+                "avgCommentMs": avg_comment_ms,
+                "avgLikersPerComment": avg_likers_per_comment,
+                "zeroCommentUrls": run_summary["zero_comment_urls"],
+                "errors": run_summary["errors"],
+                "elapsedSecs": elapsed_secs,
+                "finishedAt": finished_at.isoformat(),
+            }
+
             log_event(
                 "run.summary",
                 run_id=run_id,
@@ -249,6 +264,21 @@ async def main():
                 errors=run_summary["errors"],
                 elapsed_secs=elapsed_secs,
             )
+
+            try:
+                await kv_store.set_value(f"RUN_SUMMARY::{run_id}", summary_payload, content_type="application/json")
+            except Exception as exc:
+                warn_event("run.summary.persist_kv_failed", error=str(exc))
+
+            try:
+                summary_dir = SCREENSHOTS_DIR / "_run_summaries"
+                summary_dir.mkdir(parents=True, exist_ok=True)
+                (summary_dir / f"{run_id}.json").write_text(
+                    json.dumps(summary_payload, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+            except Exception as exc:
+                warn_event("run.summary.persist_file_failed", error=str(exc))
 
 
 if __name__ == "__main__":
