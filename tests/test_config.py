@@ -9,6 +9,7 @@ def test_parse_input_defaults_and_bounds():
     assert cfg["max_ui_rounds"] >= 1
     assert cfg["screenshot_timeout_ms"] == 60000
     assert cfg["liker_collection_mode"] == "best_effort"
+    assert cfg["runtime_profile"] == "balanced"
 
 
 def test_parse_input_filters_invalid_urls_and_casts_values():
@@ -30,11 +31,27 @@ def test_parse_input_filters_invalid_urls_and_casts_values():
 
 
 def test_parse_input_liker_collection_mode_validation():
-    cfg1 = parse_input({"urls": ["https://ok"], "likerCollectionMode": "strict"})
-    cfg2 = parse_input({"urls": ["https://ok"], "likerCollectionMode": "invalid"})
+    cfg1 = parse_input({"urls": ["https://www.instagram.com/p/x/"], "likerCollectionMode": "strict"})
+    cfg2 = parse_input({"urls": ["https://www.instagram.com/p/x/"], "likerCollectionMode": "invalid"})
 
     assert cfg1["liker_collection_mode"] == "strict"
     assert cfg2["liker_collection_mode"] == "best_effort"
+
+
+def test_parse_input_runtime_profile_defaults_and_override():
+    fast = parse_input({"urls": ["https://www.instagram.com/p/x/"], "runtimeProfile": "fast"})
+    deep = parse_input({"urls": ["https://www.instagram.com/p/x/"], "runtimeProfile": "deep"})
+    override = parse_input({"urls": ["https://www.instagram.com/p/x/"], "runtimeProfile": "fast", "maxUiRounds": 77})
+
+    assert fast["runtime_profile"] == "fast"
+    assert fast["max_ui_rounds"] == 30
+    assert fast["ui_idle_rounds"] == 4
+
+    assert deep["runtime_profile"] == "deep"
+    assert deep["max_ui_rounds"] == 120
+    assert deep["ui_idle_rounds"] == 15
+
+    assert override["max_ui_rounds"] == 77
 
 
 def test_parse_input_rejects_non_instagram_urls():
