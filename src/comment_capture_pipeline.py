@@ -1,3 +1,5 @@
+import time
+
 from .comment_pipeline_helpers import enrich_and_normalize_likers, persist_comment_result
 from .comment_state import increment_comment_counters, register_candidate_or_skip
 from .comment_text import build_comment_context, log_gif_comment_if_needed, should_log_screenshot
@@ -14,6 +16,7 @@ from .screenshots import init_screenshot_session
 
 def build_process_candidate(*, page, dataset, kv_store, context, comment_container, run_folder, screenshot_timeout_ms, log_every_n_screenshots, state, max_comment_likers):
     async def process_candidate(data, element_handle):
+        started_at = time.perf_counter()
         if not data or not element_handle:
             return False
 
@@ -100,6 +103,16 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
             comment_permalink=comment_permalink,
             comment_url=comment_url,
             comment_deep_link=comment_deep_link,
+        )
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        log_event(
+            "comment.processed",
+            index=state["count"],
+            username=data.get("username"),
+            likes_count=data.get("likesCount", 0),
+            likers_collected=len(data.get("commentLikers") or []),
+            screenshot_parts=len(screenshot_keys),
+            elapsed_ms=elapsed_ms,
         )
         return True
 

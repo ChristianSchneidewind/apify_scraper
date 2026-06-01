@@ -1,5 +1,6 @@
 import os
 import re
+import time
 
 from apify import Actor
 
@@ -296,6 +297,7 @@ async def _debug_inline_like_scope(page, element_handle, comment_permalink):
 
 
 async def enrich_comment_likers(page, element_handle, data: dict, max_comment_likers: int = 50) -> dict:
+    started_at = time.perf_counter()
     if not element_handle:
         return data
 
@@ -440,4 +442,9 @@ async def enrich_comment_likers(page, element_handle, data: dict, max_comment_li
     except Exception as exc:
         Actor.log.warning(f"comment likers enrich failed: {exc}")
 
+    elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+    Actor.log.info(
+        f"[LIKERS] done user={data.get('username')} likesCount={int(data.get('likesCount') or 0)} "
+        f"collected={len(data.get('commentLikers') or [])} elapsedMs={elapsed_ms}"
+    )
     return data
