@@ -190,12 +190,17 @@ Für reproduzierbare lokale Laufzeitmessungen:
 ```bash
 python3 tools/benchmark_runner.py \
   --url "https://www.instagram.com/p/DWHWE2vDbdr/" \
+  --warmup-runs 1 \
   --runs 3 \
   --max-comments 20 \
+  --max-ui-rounds 120 \
+  --ui-idle-rounds 15 \
+  --login-enabled \
   --python .venv/bin/python
 ```
 
 Der Runner schreibt das Input nach `storage/key_value_stores/default/INPUT.json`, startet mehrere Läufe und extrahiert `run.summary`-Metriken.
+Er markiert Läufe als `valid=false`, wenn `urls_processed < urls_total`, und berechnet Durchschnitt/Median nur aus validen gemessenen Runs.
 
 ## Release-Prozess
 
