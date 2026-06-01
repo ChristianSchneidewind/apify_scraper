@@ -14,7 +14,7 @@ from .multipart_executor import capture_comment_assets
 from .screenshots import init_screenshot_session
 
 
-def build_process_candidate(*, page, dataset, kv_store, context, comment_container, run_folder, screenshot_timeout_ms, log_every_n_screenshots, state, max_comment_likers):
+def build_process_candidate(*, page, dataset, kv_store, context, comment_container, run_folder, screenshot_timeout_ms, log_every_n_screenshots, state, max_comment_likers, liker_collection_mode="best_effort"):
     async def process_candidate(data, element_handle):
         started_at = time.perf_counter()
         if not data or not element_handle:
@@ -57,6 +57,7 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
             element_handle=element_handle,
             data=data,
             max_comment_likers=max_comment_likers,
+            liker_collection_mode=liker_collection_mode,
         )
 
         metrics = state.get("metrics") if isinstance(state, dict) else None

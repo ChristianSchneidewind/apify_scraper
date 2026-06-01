@@ -8,6 +8,7 @@ def test_parse_input_defaults_and_bounds():
     assert cfg["max_comments"] == 0
     assert cfg["max_ui_rounds"] >= 1
     assert cfg["screenshot_timeout_ms"] == 60000
+    assert cfg["liker_collection_mode"] == "best_effort"
 
 
 def test_parse_input_filters_invalid_urls_and_casts_values():
@@ -26,6 +27,14 @@ def test_parse_input_filters_invalid_urls_and_casts_values():
     assert cfg["headful"] is False
     assert cfg["viewport_width"] == 320
     assert cfg["viewport_height"] == 4320
+
+
+def test_parse_input_liker_collection_mode_validation():
+    cfg1 = parse_input({"urls": ["https://ok"], "likerCollectionMode": "strict"})
+    cfg2 = parse_input({"urls": ["https://ok"], "likerCollectionMode": "invalid"})
+
+    assert cfg1["liker_collection_mode"] == "strict"
+    assert cfg2["liker_collection_mode"] == "best_effort"
 
 
 def test_parse_input_bool_string_variants_and_numeric_clamps():

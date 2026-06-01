@@ -23,6 +23,7 @@ async def run_comment_capture_loop(
     no_new_rounds_before_rescan: int,
     max_rescan_passes: int,
     max_comment_likers: int,
+    liker_collection_mode: str = "best_effort",
     stats: dict | None = None,
 ) -> int:
     count = 0
@@ -74,6 +75,7 @@ async def run_comment_capture_loop(
             log_every_n_screenshots=log_every_n_screenshots,
             state=state,
             max_comment_likers=max_comment_likers,
+            liker_collection_mode=liker_collection_mode,
         )
 
         for row_handle in row_handles:

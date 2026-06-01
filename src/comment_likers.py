@@ -296,7 +296,13 @@ async def _debug_inline_like_scope(page, element_handle, comment_permalink):
         Actor.log.info(f"[LIKERS][DEBUG] inline-scope debug failed: {e}")
 
 
-async def enrich_comment_likers(page, element_handle, data: dict, max_comment_likers: int = 50) -> dict:
+async def enrich_comment_likers(
+    page,
+    element_handle,
+    data: dict,
+    max_comment_likers: int = 50,
+    liker_collection_mode: str = "best_effort",
+) -> dict:
     started_at = time.perf_counter()
     if not element_handle:
         return data
@@ -424,6 +430,24 @@ async def enrich_comment_likers(page, element_handle, data: dict, max_comment_li
 
         data["commentLikers"] = likers
         Actor.log.info(f"[LIKERS] collected={len(likers)}")
+
+        if liker_collection_mode == "strict":
+            likes_count = int(data.get("likesCount") or 0)
+            if likes_count > 0 and len(likers) < likes_count:
+                try:
+                    await worked_page.wait_for_timeout(1200)
+                    retry_likers = await _collect_open_likers_dialog(worked_page, max_comment_likers=max_comment_likers)
+                    if len(retry_likers) > len(likers):
+                        likers = retry_likers
+                        data["commentLikers"] = likers
+                except Exception:
+                    pass
+
+                if len(data.get("commentLikers") or []) < likes_count:
+                    Actor.log.warning(
+                        f"[LIKERS] strict_incomplete user={data.get('username')} "
+                        f"collected={len(data.get('commentLikers') or [])} likesCount={likes_count}"
+                    )
 
         # Keep zero-like comments fast; for positive-like but empty result, do not close instantly.
         try:

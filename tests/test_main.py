@@ -107,6 +107,7 @@ def _cfg(urls):
         "no_new_rounds_before_rescan": 1,
         "max_rescan_passes": 0,
         "max_comment_likers": 0,
+        "liker_collection_mode": "best_effort",
         "viewport_width": 1080,
         "viewport_height": 1800,
         "maximize_window": False,
