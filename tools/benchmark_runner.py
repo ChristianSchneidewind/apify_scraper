@@ -57,6 +57,7 @@ def main() -> None:
     parser.add_argument("--headful", action="store_true", help="Run in headful mode")
     parser.add_argument("--python", default="python3", help="Python executable")
     parser.add_argument("--warmup-runs", type=int, default=0, help="Warmup runs (excluded from aggregate)")
+    parser.add_argument("--out", default="", help="Optional output JSON file path for benchmark report")
     args = parser.parse_args()
 
     input_payload = {
@@ -127,6 +128,12 @@ def main() -> None:
             print(f"WARN: high runtime variance detected (max/min={spread:.2f}).")
     print("---")
     print(json.dumps(report, indent=2, ensure_ascii=False))
+
+    if args.out:
+        out_path = Path(args.out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"Report written to: {out_path}")
 
 
 if __name__ == "__main__":

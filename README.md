@@ -196,7 +196,8 @@ python3 tools/benchmark_runner.py \
   --max-ui-rounds 120 \
   --ui-idle-rounds 15 \
   --login-enabled \
-  --python .venv/bin/python
+  --python .venv/bin/python \
+  --out storage/benchmarks/latest.json
 ```
 
 Der Runner schreibt das Input nach `storage/key_value_stores/default/INPUT.json`, startet mehrere Läufe und extrahiert `run.summary`-Metriken.
