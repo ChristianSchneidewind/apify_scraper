@@ -183,6 +183,29 @@ if use_3plus_route:
 
 ---
 
+## Release-Prozess
+
+Für nachvollziehbare Stände nutzen wir:
+
+- `CHANGELOG.md` für Änderungen pro Release
+- Git Tags für stabile Versionen
+
+Beispiel:
+
+```bash
+git tag -a v1.1.0 -m "Release v1.1.0"
+git push origin v1.1.0
+```
+
+Empfehlung:
+
+1. PRs nach `main` mergen
+2. `CHANGELOG.md` unter `Unreleased` pflegen
+3. vor Release `Unreleased` in Versionsblock überführen
+4. Tag setzen und pushen
+
+---
+
 ## Lizenz
 
-Internes Projekt / nach Bedarf ergänzen.
+Dieses Projekt steht unter der **MIT License**.
