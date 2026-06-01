@@ -109,6 +109,7 @@ def build_process_candidate(*, page, dataset, kv_store, context, comment_contain
             comment_permalink=comment_permalink,
             comment_url=comment_url,
             comment_deep_link=comment_deep_link,
+            qa_state=state.get("qa_state"),
         )
         elapsed_ms = int((time.perf_counter() - started_at) * 1000)
         log_event(

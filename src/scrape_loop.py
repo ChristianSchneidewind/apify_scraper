@@ -35,6 +35,7 @@ async def run_comment_capture_loop(
     rescan_passes = 0
     no_gain_after_rescan = False
     last_screenshot_hash: str | None = None
+    qa_state = stats.setdefault("dataset_qa", {}) if isinstance(stats, dict) else None
 
     for round_idx in range(max_ui_rounds):
         comment_container = await get_comment_container(page)
@@ -63,6 +64,7 @@ async def run_comment_capture_loop(
             "seen_loose": seen_loose,
             "seen_comment_uid": seen_comment_uid,
             "metrics": stats if isinstance(stats, dict) else None,
+            "qa_state": qa_state,
         }
         process_candidate = build_process_candidate(
             page=page,

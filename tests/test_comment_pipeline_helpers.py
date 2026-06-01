@@ -36,8 +36,20 @@ def test_enrich_and_normalize_likers(monkeypatch):
 
 def test_persist_comment_result_pushes_built_payload(monkeypatch):
     ds = FakeDataset()
+    qa = {}
 
-    monkeypatch.setattr(cph, "build_dataset_payload", lambda **kwargs: {"id": kwargs["screenshot_uuid"], "index": kwargs["index"]})
+    monkeypatch.setattr(
+        cph,
+        "build_dataset_payload",
+        lambda **kwargs: {
+            "id": kwargs["screenshot_uuid"],
+            "index": kwargs["index"],
+            "username": "u",
+            "text": "t",
+            "sourceUrl": "https://src",
+            "screenshotPaths": ["p1"],
+        },
+    )
 
     asyncio.run(
         cph.persist_comment_result(
@@ -52,7 +64,10 @@ def test_persist_comment_result_pushes_built_payload(monkeypatch):
             comment_permalink="/p/x/c/1/",
             comment_url="https://www.instagram.com/p/x/c/1/",
             comment_deep_link="https://www.instagram.com/p/x/?comment_id=1",
+            qa_state=qa,
         )
     )
 
-    assert ds.items == [{"id": "u1", "index": 3}]
+    assert ds.items == [{"id": "u1", "index": 3, "username": "u", "text": "t", "sourceUrl": "https://src", "screenshotPaths": ["p1"]}]
+    assert qa["items_total"] == 1
+    assert qa.get("items_with_missing_fields", 0) == 0

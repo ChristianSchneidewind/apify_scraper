@@ -237,6 +237,7 @@ async def main():
             comments_total = int(run_summary.get("comments_captured_total", 0))
             avg_comment_ms = int(run_summary.get("comment_processing_ms_total", 0) / comments_total) if comments_total else 0
             avg_likers_per_comment = round(float(run_summary.get("likers_collected_total", 0)) / comments_total, 2) if comments_total else 0.0
+            dataset_qa = run_summary.get("dataset_qa") or {}
             summary_payload = {
                 "runId": run_id,
                 "urlsTotal": run_summary["urls_total"],
@@ -247,6 +248,7 @@ async def main():
                 "avgLikersPerComment": avg_likers_per_comment,
                 "zeroCommentUrls": run_summary["zero_comment_urls"],
                 "errors": run_summary["errors"],
+                "datasetQa": dataset_qa,
                 "elapsedSecs": elapsed_secs,
                 "finishedAt": finished_at.isoformat(),
             }
@@ -262,6 +264,8 @@ async def main():
                 avg_likers_per_comment=avg_likers_per_comment,
                 zero_comment_urls=run_summary["zero_comment_urls"],
                 errors=run_summary["errors"],
+                qa_items_total=int(dataset_qa.get("items_total", 0)),
+                qa_items_with_missing_fields=int(dataset_qa.get("items_with_missing_fields", 0)),
                 elapsed_secs=elapsed_secs,
             )
 
