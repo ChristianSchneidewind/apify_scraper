@@ -114,6 +114,8 @@ async def main():
             "urls_total": len(urls),
             "urls_processed": 0,
             "comments_captured_total": 0,
+            "likers_collected_total": 0,
+            "comment_processing_ms_total": 0,
             "zero_comment_urls": 0,
             "errors": 0,
         }
@@ -166,6 +168,8 @@ async def main():
                 "totalCaptured": 0,
             }
 
+            url_started_at = datetime.now(timezone.utc)
+            url_stats = {"comments_processed": 0, "likers_collected_total": 0}
             count = await run_comment_capture_loop(
                 page=page,
                 context=context,
@@ -180,6 +184,7 @@ async def main():
                 no_new_rounds_before_rescan=no_new_rounds_before_rescan,
                 max_rescan_passes=max_rescan_passes,
                 max_comment_likers=max_comment_likers,
+                stats=url_stats,
             )
 
             if count == 0:
@@ -187,6 +192,9 @@ async def main():
 
             run_summary["urls_processed"] += 1
             run_summary["comments_captured_total"] += int(count or 0)
+            run_summary["likers_collected_total"] = int(run_summary.get("likers_collected_total", 0)) + int(url_stats.get("likers_collected_total", 0))
+            elapsed_url_ms = int((datetime.now(timezone.utc) - url_started_at).total_seconds() * 1000)
+            run_summary["comment_processing_ms_total"] = int(run_summary.get("comment_processing_ms_total", 0)) + elapsed_url_ms
             if count == 0:
                 run_summary["zero_comment_urls"] += 1
 
@@ -217,12 +225,18 @@ async def main():
         finally:
             finished_at = datetime.now(timezone.utc)
             elapsed_secs = int((finished_at - run_started_at).total_seconds())
+            comments_total = int(run_summary.get("comments_captured_total", 0))
+            avg_comment_ms = int(run_summary.get("comment_processing_ms_total", 0) / comments_total) if comments_total else 0
+            avg_likers_per_comment = round(float(run_summary.get("likers_collected_total", 0)) / comments_total, 2) if comments_total else 0.0
             log_event(
                 "run.summary",
                 run_id=run_id,
                 urls_total=run_summary["urls_total"],
                 urls_processed=run_summary["urls_processed"],
-                comments_captured_total=run_summary["comments_captured_total"],
+                comments_captured_total=comments_total,
+                likers_collected_total=run_summary["likers_collected_total"],
+                avg_comment_ms=avg_comment_ms,
+                avg_likers_per_comment=avg_likers_per_comment,
                 zero_comment_urls=run_summary["zero_comment_urls"],
                 errors=run_summary["errors"],
                 elapsed_secs=elapsed_secs,
