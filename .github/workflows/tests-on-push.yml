@@ -23,6 +23,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      - name: Lint (ruff)
+        run: ruff check src tests main.py
       - name: Validate actor output schemas
         run: python .github/scripts/validate_actor_schemas.py
 
