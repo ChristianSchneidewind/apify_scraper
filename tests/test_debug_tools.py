@@ -59,10 +59,21 @@ def test_dump_no_comments_debug_saves_artifacts():
     assert any(k.endswith("-samples.json") for k in keys)
 
 
-def test_enable_comment_network_debug_registers_and_saves():
+def test_enable_comment_network_debug_registers_and_saves(monkeypatch):
     async def _run():
         page = FakePage()
         kv = FakeKV()
+        created_tasks = []
+
+        real_create_task = asyncio.create_task
+
+        def _create_task(coro):
+            t = real_create_task(coro)
+            created_tasks.append(t)
+            return t
+
+        monkeypatch.setattr(asyncio, "create_task", _create_task)
+
         dt.enable_comment_network_debug(page, kv)
 
         assert "request" in page.handlers and "response" in page.handlers
@@ -70,7 +81,8 @@ def test_enable_comment_network_debug_registers_and_saves():
         page.handlers["request"](Req("https://x/graphql", post_data="comment PolarisPostCommentsContainerQuery"))
         page.handlers["response"](Resp(Req("https://instagram.com/api", post_data="comment"), body="{\"ok\":1}"))
 
-        await asyncio.sleep(0.05)
+        if created_tasks:
+            await asyncio.gather(*created_tasks)
 
         keys = [k for k, *_ in kv.saved]
         assert any("debug-comments-req" in k for k in keys)
