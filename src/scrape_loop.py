@@ -146,7 +146,7 @@ async def run_comment_capture_loop(
         if idle >= ui_idle_rounds:
             break
 
-        scrolled = await page.evaluate(
+        await page.evaluate(
             """
             (container) => {
               if (!container) {

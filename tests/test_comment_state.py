@@ -62,10 +62,11 @@ def test_register_candidate_or_skip_paths():
     page = FakePage("uid-a")
     data = {"username": "u", "text": "t", "datetime": "d", "timeText": "tt"}
 
-    ok, s, l, uid = asyncio.run(cs.register_candidate_or_skip(page, st, data, object()))
+    ok, strict_key, loose_key, uid = asyncio.run(cs.register_candidate_or_skip(page, st, data, object()))
     assert ok is True
     assert uid == "uid-a"
-    assert s in st["seen_strict"]
+    assert strict_key in st["seen_strict"]
+    assert loose_key in st["seen_loose"]
 
     # strict/loose duplicate
     ok2, *_ = asyncio.run(cs.register_candidate_or_skip(page, st, data, object()))
