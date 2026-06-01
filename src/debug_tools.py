@@ -2,8 +2,6 @@ import asyncio
 import json
 import time
 
-from apify import Actor
-
 from .log_events import log_event, warn_event
 
 
