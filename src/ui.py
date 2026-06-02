@@ -208,10 +208,30 @@ async def expand_comments(page, max_clicks):
     clicks = 0
     while clicks < max_clicks:
         clicked = await page.evaluate(
-            """
+            r"""
             (texts) => {
               let count = 0;
               const candidates = Array.from(document.querySelectorAll('button, [role="button"], a, span[role="button"]'));
+              const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const hasCommentContext = (node) => {
+                const row = node?.closest?.('li, [role="listitem"], article, section, div') || node;
+                if (!row) return false;
+                if (row.querySelector('time')) return true;
+                const rowText = norm(row.innerText || row.textContent || '');
+                return rowText.includes('reply') || rowText.includes('antwort') || rowText.includes('comment') || rowText.includes('kommentar');
+              };
+              const isOptionsTrigger = (node) => {
+                const text = norm(node.innerText || node.textContent || '');
+                const aria = norm(node.getAttribute?.('aria-label'));
+                const title = norm(node.getAttribute?.('title'));
+                const combined = `${text} ${aria} ${title}`.trim();
+                return combined.includes('more options')
+                  || combined.includes('options')
+                  || combined.includes('optionen')
+                  || combined.includes('report')
+                  || combined.includes('melden');
+              };
+
               for (const el of candidates) {
                 const text = (el.innerText || '').trim();
                 if (!text) continue;
@@ -220,13 +240,12 @@ async def expand_comments(page, max_clicks):
                 const looksLikeReplies = (lower.includes('repl') || lower.includes('antwort')) && /\\d/.test(text);
                 const looksLikeView = lower.includes('view') || lower.includes('anzeigen') || lower.includes('ansehen') || lower.includes('more');
                 const looksLikeCollapsedLongText =
-                  lower === 'more' ||
-                  lower === 'mehr' ||
                   lower.includes('read more') ||
                   lower.includes('see more') ||
                   lower.includes('weiterlesen') ||
-                  lower.includes('mehr anzeigen');
-                if (isReplyAction) continue;
+                  lower.includes('mehr anzeigen') ||
+                  ((lower === 'more' || lower === 'mehr') && hasCommentContext(el));
+                if (isReplyAction || isOptionsTrigger(el)) continue;
                 if (texts.some((item) => text.includes(item)) || (looksLikeReplies && looksLikeView) || looksLikeCollapsedLongText) {
                   el.click();
                   count += 1;
@@ -276,17 +295,31 @@ async def expand_comment_row_text(page, element_handle, max_clicks=8):
         return 0
 
     return await page.evaluate(
-        """
+        r"""
         ({ el, maxClicks }) => {
           if (!el) return 0;
           const row = el.closest('li, [role="listitem"], article, div') || el;
           const candidates = Array.from(row.querySelectorAll('button, [role="button"], a, span[role="button"]'));
+          const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+          const isOptionsTrigger = (node) => {
+            const combined = [
+              norm(node.innerText || node.textContent || ''),
+              norm(node.getAttribute?.('aria-label')),
+              norm(node.getAttribute?.('title')),
+            ].join(' ');
+            return combined.includes('more options')
+              || combined.includes('options')
+              || combined.includes('optionen')
+              || combined.includes('report')
+              || combined.includes('melden');
+          };
 
           let clicked = 0;
           for (const node of candidates) {
             if (clicked >= maxClicks) break;
             const text = (node.innerText || node.textContent || '').trim().toLowerCase();
             if (!text) continue;
+            if (isOptionsTrigger(node)) continue;
 
             const looksLikeLongTextExpand =
               text === 'more' ||
