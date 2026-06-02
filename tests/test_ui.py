@@ -23,8 +23,10 @@ class FakePage:
         self.time_counts = list(time_counts or [])
         self.waits = []
         self.locator_count = locator_count
+        self.scripts = []
 
-    async def evaluate(self, _script, _arg=None):
+    async def evaluate(self, script, _arg=None):
+        self.scripts.append(script)
         if self.evaluate_results:
             return self.evaluate_results.pop(0)
         return None
@@ -54,6 +56,7 @@ def test_open_comments_panel_returns_after_inpage_click():
     page = FakePage(evaluate_results=[True])
     asyncio.run(ui.open_comments_panel(page))
     assert page.waits == [1500]
+    assert any("isSaneClickTarget" in script for script in page.scripts)
 
 
 def test_open_comments_panel_falls_back_to_locator_click():
@@ -99,6 +102,7 @@ def test_expand_comments_stops_when_no_clicks():
     page = FakePage(evaluate_results=[0])
     asyncio.run(ui.expand_comments(page, max_clicks=10))
     assert page.waits == []
+    assert any("isSaneClickTarget" in script for script in page.scripts)
 
 
 def test_expand_comments_safe_mode_caps_click_rounds(monkeypatch):

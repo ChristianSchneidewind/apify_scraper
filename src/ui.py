@@ -154,7 +154,7 @@ async def open_comments_panel(page, safe_mode: bool = False):
           __HELPERS__
           const candidates = Array.from(document.querySelectorAll('button, a, div[role="button"], svg, span'));
           for (const el of candidates) {
-            if (isOptionsTrigger(el)) continue;
+            if (!isSaneClickTarget(el)) continue;
             const label = norm(el.getAttribute('aria-label'));
             const text = norm(el.textContent);
             const href = norm(el.getAttribute('href'));
@@ -166,6 +166,7 @@ async def open_comments_panel(page, safe_mode: bool = False):
             if (!isComment) continue;
 
             const clickable = el.closest('button, a, div[role="button"]') || el;
+            if (!isSaneClickTarget(clickable)) continue;
             clickable.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             return true;
           }
@@ -238,7 +239,7 @@ async def expand_comments(page, max_clicks, safe_mode: bool = False):
                   lower.includes('weiterlesen') ||
                   lower.includes('mehr anzeigen') ||
                   __ALLOW_BARE_MORE__;
-                if (isReplyAction || isOptionsTrigger(el)) continue;
+                if (isReplyAction || !isSaneClickTarget(el)) continue;
                 if (texts.some((item) => text.includes(item)) || (looksLikeReplies && looksLikeView) || looksLikeCollapsedLongText) {
                   el.click();
                   count += 1;
@@ -305,7 +306,7 @@ async def expand_comment_row_text(page, element_handle, max_clicks=8):
             if (clicked >= maxClicks) break;
             const text = (node.innerText || node.textContent || '').trim().toLowerCase();
             if (!text) continue;
-            if (isOptionsTrigger(node)) continue;
+            if (!isSaneClickTarget(node)) continue;
 
             const looksLikeLongTextExpand =
               text === 'more' ||

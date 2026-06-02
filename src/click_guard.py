@@ -26,13 +26,19 @@ OPTIONS_TRIGGER_TERMS = (
 )
 
 
-def build_safe_click_js_helpers(*, include_comment_context: bool = False, include_like_text: bool = False) -> str:
+def build_safe_click_js_helpers(*, include_comment_context: bool = False, include_like_text: bool = False, include_sanity_checks: bool = True) -> str:
     options_terms = json.dumps(list(OPTIONS_TRIGGER_TERMS), ensure_ascii=False)
     parts = [
         f"const OPTIONS_TRIGGER_TERMS = {options_terms};",
         "const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim().toLowerCase();",
         "const isOptionsTrigger = (node) => { const combined = [norm(node?.innerText || node?.textContent || ''), norm(node?.getAttribute?.('aria-label')), norm(node?.getAttribute?.('title'))].join(' '); return OPTIONS_TRIGGER_TERMS.some((term) => combined.includes(term)); };",
     ]
+    if include_sanity_checks:
+        parts.extend([
+            "const hasVisibleBox = (node) => { if (!(node instanceof Element)) return false; const r = node.getBoundingClientRect(); return r.width >= 8 && r.height >= 8; };",
+            "const isEffectivelyHidden = (node) => { if (!(node instanceof Element)) return true; const cs = window.getComputedStyle(node); return cs.display === 'none' || cs.visibility === 'hidden' || cs.pointerEvents === 'none' || node.getAttribute('aria-hidden') === 'true'; };",
+            "const isSaneClickTarget = (node) => { if (!(node instanceof Element)) return false; if (isOptionsTrigger(node)) return false; if (isEffectivelyHidden(node)) return false; if (!hasVisibleBox(node)) return false; if (node.hasAttribute('disabled') || node.getAttribute('aria-disabled') === 'true') return false; return true; };",
+        ])
     if include_comment_context:
         parts.append(
             "const hasCommentContext = (node) => { const row = node?.closest?.('li, [role=\"listitem\"], article, section, div') || node; if (!row) return false; if (row.querySelector('time')) return true; const rowText = norm(row.innerText || row.textContent || ''); return rowText.includes('reply') || rowText.includes('antwort') || rowText.includes('comment') || rowText.includes('kommentar'); };"

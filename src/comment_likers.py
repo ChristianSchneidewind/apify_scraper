@@ -152,7 +152,7 @@ async def _open_likes_in_current_page(page, element_handle, comment_permalink):
           const controls = scopes.flatMap((s) => Array.from(s?.querySelectorAll?.('button, a, [role="button"], [tabindex="0"]') || []));
           let likesBtn = null;
           for (const c of controls) {
-            if (isOptionsTrigger(c)) continue;
+            if (!isSaneClickTarget(c)) continue;
             const t = (c.textContent || c.innerText || '').replace(/\s+/g, ' ').trim();
             const aria = (c.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
             if (isLikeText(t) || /like/i.test(aria) || /gefällt mir/i.test(aria)) {
@@ -169,7 +169,7 @@ async def _open_likes_in_current_page(page, element_handle, comment_permalink):
               for (let i = 0; i < 6 && p; i += 1) {
                 const role = (p.getAttribute?.('role') || '').toLowerCase();
                 const tab = p.getAttribute?.('tabindex');
-                if (!isOptionsTrigger(p) && (p.tagName === 'BUTTON' || p.tagName === 'A' || role === 'button' || tab === '0')) {
+                if (isSaneClickTarget(p) && (p.tagName === 'BUTTON' || p.tagName === 'A' || role === 'button' || tab === '0')) {
                   likesBtn = p;
                   break;
                 }
@@ -180,7 +180,7 @@ async def _open_likes_in_current_page(page, element_handle, comment_permalink):
 
           if (!likesBtn) return { ok: true, likesCount, clicked: false, reason: 'likes_button_not_found' };
           const clickEl = likesBtn.closest('button, [role="button"], a, [tabindex="0"]') || likesBtn;
-          if (isOptionsTrigger(clickEl)) return { ok: true, likesCount, clicked: false, reason: 'likes_target_looks_like_options' };
+          if (!isSaneClickTarget(clickEl)) return { ok: true, likesCount, clicked: false, reason: 'likes_target_failed_sanity_check' };
           clickEl.click();
           return { ok: true, likesCount, clicked: true };
         }
