@@ -64,6 +64,8 @@ def test_build_safe_click_js_helpers_includes_expected_helpers_by_flag():
 
     assert "const norm =" in base
     assert "const isOptionsTrigger =" in base
+    assert "const isSaneClickTarget =" in base
+    assert "const hasVisibleBox =" in base
     assert "const hasCommentContext =" not in base
     assert "const isLikeText =" not in base
     assert "const hasCommentContext =" in with_comment
