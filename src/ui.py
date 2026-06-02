@@ -1,5 +1,5 @@
 from .auth import dismiss_login_wall
-from .click_guard import dismiss_suspicious_dialog_if_present
+from .click_guard import dismiss_suspicious_dialog_if_present, log_click_attempt, log_click_result
 from .constants import LOAD_MORE_TEXTS
 
 
@@ -187,9 +187,12 @@ async def open_comments_panel(page):
         """
     )
     if clicked:
+        log_click_attempt(source="open_comments_panel.inpage", action="open_comments_panel")
         if await dismiss_suspicious_dialog_if_present(page, source="open_comments_panel.inpage"):
+            log_click_result(source="open_comments_panel.inpage", action="open_comments_panel", outcome="suspicious_dialog_dismissed")
             clicked = False
         else:
+            log_click_result(source="open_comments_panel.inpage", action="open_comments_panel", outcome="clicked")
             await page.wait_for_timeout(1500)
             return
 
@@ -213,9 +216,12 @@ async def open_comments_panel(page):
         if await locator.count() == 0:
             continue
         try:
+            log_click_attempt(source=f"open_comments_panel.selector:{selector}", action="open_comments_panel", target=selector)
             await locator.click(timeout=2000)
             if await dismiss_suspicious_dialog_if_present(page, source=f"open_comments_panel.selector:{selector}"):
+                log_click_result(source=f"open_comments_panel.selector:{selector}", action="open_comments_panel", outcome="suspicious_dialog_dismissed", target=selector)
                 continue
+            log_click_result(source=f"open_comments_panel.selector:{selector}", action="open_comments_panel", outcome="clicked", target=selector)
             await page.wait_for_timeout(1200)
             return
         except Exception:
@@ -275,10 +281,14 @@ async def expand_comments(page, max_clicks):
             LOAD_MORE_TEXTS,
         )
         if not clicked:
+            log_click_result(source="expand_comments", action="expand_comments", outcome="no_targets")
             break
         clicks += clicked
+        log_click_attempt(source="expand_comments", action="expand_comments", extra={"clicked_count": clicked, "clicks_total": clicks})
         if await dismiss_suspicious_dialog_if_present(page, source="expand_comments"):
+            log_click_result(source="expand_comments", action="expand_comments", outcome="suspicious_dialog_dismissed", extra={"clicked_count": clicked, "clicks_total": clicks})
             break
+        log_click_result(source="expand_comments", action="expand_comments", outcome="clicked", extra={"clicked_count": clicked, "clicks_total": clicks})
         await page.wait_for_timeout(1200)
 
 
@@ -366,8 +376,14 @@ async def expand_comment_row_text(page, element_handle, max_clicks=8):
         """,
         {"el": element_handle, "maxClicks": max_clicks},
     )
-    if clicked:
-        await dismiss_suspicious_dialog_if_present(page, source="expand_comment_row_text")
+    if not clicked:
+        log_click_result(source="expand_comment_row_text", action="expand_comment_row_text", outcome="no_targets")
+        return clicked
+    log_click_attempt(source="expand_comment_row_text", action="expand_comment_row_text", extra={"clicked_count": clicked})
+    if await dismiss_suspicious_dialog_if_present(page, source="expand_comment_row_text"):
+        log_click_result(source="expand_comment_row_text", action="expand_comment_row_text", outcome="suspicious_dialog_dismissed", extra={"clicked_count": clicked})
+    else:
+        log_click_result(source="expand_comment_row_text", action="expand_comment_row_text", outcome="clicked", extra={"clicked_count": clicked})
     return clicked
 
 
