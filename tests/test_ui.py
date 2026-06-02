@@ -62,9 +62,49 @@ def test_open_comments_panel_falls_back_to_locator_click():
     assert 1200 in page.waits
 
 
+def test_open_comments_panel_retries_after_suspicious_inpage_click(monkeypatch):
+    page = FakePage(evaluate_results=[True], locator_count=1)
+    responses = iter([True, False])
+
+    async def fake_dismiss(_page, *, source):
+        return next(responses)
+
+    monkeypatch.setattr(ui, "dismiss_suspicious_dialog_if_present", fake_dismiss)
+
+    asyncio.run(ui.open_comments_panel(page))
+
+    assert 1200 in page.waits
+
+
+def test_open_comments_panel_skips_suspicious_selector_click(monkeypatch):
+    page = FakePage(evaluate_results=[False], locator_count=1)
+
+    async def fake_dismiss(_page, *, source):
+        return True
+
+    monkeypatch.setattr(ui, "dismiss_suspicious_dialog_if_present", fake_dismiss)
+
+    asyncio.run(ui.open_comments_panel(page))
+
+    assert 1200 not in page.waits
+
+
 def test_expand_comments_stops_when_no_clicks():
     page = FakePage(evaluate_results=[0])
     asyncio.run(ui.expand_comments(page, max_clicks=10))
+    assert page.waits == []
+
+
+def test_expand_comments_stops_after_suspicious_dialog(monkeypatch):
+    page = FakePage(evaluate_results=[2])
+
+    async def fake_dismiss(_page, *, source):
+        return True
+
+    monkeypatch.setattr(ui, "dismiss_suspicious_dialog_if_present", fake_dismiss)
+
+    asyncio.run(ui.expand_comments(page, max_clicks=10))
+
     assert page.waits == []
 
 

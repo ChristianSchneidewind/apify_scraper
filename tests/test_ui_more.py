@@ -41,3 +41,22 @@ def test_scroll_to_element_handles_scroll_into_view_error():
     el = FakeElement(should_fail=True)
     asyncio.run(ui.scroll_to_element(page, el, None))
     assert page.eval_calls == 1
+
+
+def test_expand_comment_row_text_returns_after_suspicious_dialog(monkeypatch):
+    page = FakePage()
+
+    async def fake_dismiss(_page, *, source):
+        return True
+
+    async def fake_evaluate(_script, _arg=None):
+        page.eval_calls += 1
+        return 1
+
+    page.evaluate = fake_evaluate
+    monkeypatch.setattr(ui, "dismiss_suspicious_dialog_if_present", fake_dismiss)
+
+    out = asyncio.run(ui.expand_comment_row_text(page, object(), max_clicks=3))
+
+    assert out == 1
+    assert page.eval_calls == 1
