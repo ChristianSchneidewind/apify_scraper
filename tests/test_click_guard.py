@@ -1,6 +1,6 @@
 import asyncio
 
-from src.click_guard import dismiss_suspicious_dialog_if_present
+from src.click_guard import build_safe_click_js_helpers, dismiss_suspicious_dialog_if_present
 
 
 class FakeKeyboard:
@@ -37,3 +37,16 @@ def test_dismiss_suspicious_dialog_if_present_ignores_normal_result():
     out = asyncio.run(dismiss_suspicious_dialog_if_present(page, source="test"))
     assert out is False
     assert page.keyboard.pressed == []
+
+
+def test_build_safe_click_js_helpers_includes_expected_helpers_by_flag():
+    base = build_safe_click_js_helpers()
+    with_comment = build_safe_click_js_helpers(include_comment_context=True)
+    with_like = build_safe_click_js_helpers(include_like_text=True)
+
+    assert "const norm =" in base
+    assert "const isOptionsTrigger =" in base
+    assert "const hasCommentContext =" not in base
+    assert "const isLikeText =" not in base
+    assert "const hasCommentContext =" in with_comment
+    assert "const isLikeText =" in with_like
