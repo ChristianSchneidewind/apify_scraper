@@ -1,4 +1,4 @@
-from .click_guard import dismiss_suspicious_dialog_if_present
+from .click_guard import build_safe_click_js_helpers, dismiss_suspicious_dialog_if_present
 from .comment_decisions import calc_forced_parts, should_force_row_multipart, should_use_3plus_route, total_parts as calc_total_parts
 from .comment_pipeline_helpers import FORCED_MULTIPART_BASE, LONG_TEXT_THRESHOLD
 from .log_events import log_event
@@ -17,24 +17,11 @@ def build_comment_locator_payload(data, element_handle):
 async def plan_comment_multipart(*, page, element_handle, data, state):
     if len((data.get("text") or "")) >= LONG_TEXT_THRESHOLD:
         try:
-            await page.evaluate(
-                r"""
+            script = r"""
                 (el) => {
                   const row = el?.closest?.('li, [role="listitem"], article, div') || el;
                   if (!row) return;
-                  const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                  const isOptionsTrigger = (node) => {
-                    const combined = [
-                      norm(node.innerText || node.textContent || ''),
-                      norm(node.getAttribute?.('aria-label')),
-                      norm(node.getAttribute?.('title')),
-                    ].join(' ');
-                    return combined.includes('more options')
-                      || combined.includes('options')
-                      || combined.includes('optionen')
-                      || combined.includes('report')
-                      || combined.includes('melden');
-                  };
+                  __HELPERS__
                   const controls = Array.from(row.querySelectorAll('button, [role="button"], a, span[role="button"]'));
                   for (const c of controls) {
                     const t = norm(c.innerText || c.textContent || '');
@@ -57,9 +44,8 @@ async def plan_comment_multipart(*, page, element_handle, data, state):
                     style.setProperty('line-clamp', 'unset', 'important');
                   }
                 }
-                """,
-                element_handle,
-            )
+                """.replace("__HELPERS__", build_safe_click_js_helpers())
+            await page.evaluate(script, element_handle)
             if await dismiss_suspicious_dialog_if_present(page, source="multipart_planner.long_text_expand"):
                 return {
                     "scroll_parts": [0],

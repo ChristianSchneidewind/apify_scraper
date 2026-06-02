@@ -4,7 +4,7 @@ import time
 
 from apify import Actor
 
-from .click_guard import dismiss_suspicious_dialog_if_present, log_click_attempt, log_click_result
+from .click_guard import build_safe_click_js_helpers, dismiss_suspicious_dialog_if_present, log_click_attempt, log_click_result
 from .log_events import log_event
 
 LIKERS_DEBUG_INLINE = os.getenv("LIKERS_DEBUG_INLINE", "0").strip().lower() in {"1", "true", "yes", "on"}
@@ -117,24 +117,9 @@ async def _collect_open_likers_dialog(page, max_comment_likers: int) -> list[dic
 
 
 async def _open_likes_in_current_page(page, element_handle, comment_permalink):
-    return await page.evaluate(
-        r"""
+    script = r"""
         ({ el, commentPermalink }) => {
-          const isLikeText = (s) => /(\d+[\d.,]*\s*likes?)/i.test(s || '')
-            || /(\d+[\d.,]*\s*gefällt\s*mir(?:-angaben|\s*mal)?)/i.test(s || '');
-          const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
-          const isOptionsTrigger = (node) => {
-            const combined = [
-              norm(node.textContent || node.innerText || ''),
-              norm(node.getAttribute?.('aria-label')),
-              norm(node.getAttribute?.('title')),
-            ].join(' ');
-            return combined.includes('more options')
-              || combined.includes('options')
-              || combined.includes('optionen')
-              || combined.includes('report')
-              || combined.includes('melden');
-          };
+          __HELPERS__
 
           const row = el?.closest?.('li, [role="listitem"], article, div') || el;
           if (!row) return { ok: false, reason: 'row_missing' };
@@ -199,7 +184,9 @@ async def _open_likes_in_current_page(page, element_handle, comment_permalink):
           clickEl.click();
           return { ok: true, likesCount, clicked: true };
         }
-        """,
+        """.replace("__HELPERS__", build_safe_click_js_helpers(include_like_text=True))
+    return await page.evaluate(
+        script,
         {"el": element_handle, "commentPermalink": comment_permalink},
     )
 

@@ -1,5 +1,5 @@
 from .auth import dismiss_login_wall
-from .click_guard import dismiss_suspicious_dialog_if_present, log_click_attempt, log_click_result
+from .click_guard import build_safe_click_js_helpers, dismiss_suspicious_dialog_if_present, log_click_attempt, log_click_result
 from .constants import LOAD_MORE_TEXTS
 
 
@@ -149,23 +149,10 @@ async def force_light_mode(page):
 
 async def open_comments_panel(page):
     # First try a robust in-page click strategy (works for many Reel layouts).
-    clicked = await page.evaluate(
-        r"""
+    script = r"""
         () => {
-          const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+          __HELPERS__
           const candidates = Array.from(document.querySelectorAll('button, a, div[role="button"], svg, span'));
-          const isOptionsTrigger = (node) => {
-            const combined = [
-              norm(node.getAttribute?.('aria-label')),
-              norm(node.textContent),
-              norm(node.getAttribute?.('title')),
-            ].join(' ');
-            return combined.includes('more options')
-              || combined.includes('options')
-              || combined.includes('optionen')
-              || combined.includes('report')
-              || combined.includes('melden');
-          };
           for (const el of candidates) {
             if (isOptionsTrigger(el)) continue;
             const label = norm(el.getAttribute('aria-label'));
@@ -184,8 +171,8 @@ async def open_comments_panel(page):
           }
           return false;
         }
-        """
-    )
+        """.replace("__HELPERS__", build_safe_click_js_helpers())
+    clicked = await page.evaluate(script)
     if clicked:
         log_click_attempt(source="open_comments_panel.inpage", action="open_comments_panel")
         if await dismiss_suspicious_dialog_if_present(page, source="open_comments_panel.inpage"):
@@ -231,30 +218,11 @@ async def open_comments_panel(page):
 async def expand_comments(page, max_clicks):
     clicks = 0
     while clicks < max_clicks:
-        clicked = await page.evaluate(
-            r"""
+        script = r"""
             (texts) => {
               let count = 0;
+              __HELPERS__
               const candidates = Array.from(document.querySelectorAll('button, [role="button"], a, span[role="button"]'));
-              const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
-              const hasCommentContext = (node) => {
-                const row = node?.closest?.('li, [role="listitem"], article, section, div') || node;
-                if (!row) return false;
-                if (row.querySelector('time')) return true;
-                const rowText = norm(row.innerText || row.textContent || '');
-                return rowText.includes('reply') || rowText.includes('antwort') || rowText.includes('comment') || rowText.includes('kommentar');
-              };
-              const isOptionsTrigger = (node) => {
-                const text = norm(node.innerText || node.textContent || '');
-                const aria = norm(node.getAttribute?.('aria-label'));
-                const title = norm(node.getAttribute?.('title'));
-                const combined = `${text} ${aria} ${title}`.trim();
-                return combined.includes('more options')
-                  || combined.includes('options')
-                  || combined.includes('optionen')
-                  || combined.includes('report')
-                  || combined.includes('melden');
-              };
 
               for (const el of candidates) {
                 const text = (el.innerText || '').trim();
@@ -277,9 +245,8 @@ async def expand_comments(page, max_clicks):
               }
               return count;
             }
-            """,
-            LOAD_MORE_TEXTS,
-        )
+            """.replace("__HELPERS__", build_safe_click_js_helpers(include_comment_context=True))
+        clicked = await page.evaluate(script, LOAD_MORE_TEXTS)
         if not clicked:
             log_click_result(source="expand_comments", action="expand_comments", outcome="no_targets")
             break
@@ -324,25 +291,12 @@ async def expand_comment_row_text(page, element_handle, max_clicks=8):
     if not element_handle:
         return 0
 
-    clicked = await page.evaluate(
-        r"""
+    script = r"""
         ({ el, maxClicks }) => {
           if (!el) return 0;
+          __HELPERS__
           const row = el.closest('li, [role="listitem"], article, div') || el;
           const candidates = Array.from(row.querySelectorAll('button, [role="button"], a, span[role="button"]'));
-          const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
-          const isOptionsTrigger = (node) => {
-            const combined = [
-              norm(node.innerText || node.textContent || ''),
-              norm(node.getAttribute?.('aria-label')),
-              norm(node.getAttribute?.('title')),
-            ].join(' ');
-            return combined.includes('more options')
-              || combined.includes('options')
-              || combined.includes('optionen')
-              || combined.includes('report')
-              || combined.includes('melden');
-          };
 
           let clicked = 0;
           for (const node of candidates) {
@@ -373,9 +327,8 @@ async def expand_comment_row_text(page, element_handle, max_clicks=8):
           }
           return clicked;
         }
-        """,
-        {"el": element_handle, "maxClicks": max_clicks},
-    )
+        """.replace("__HELPERS__", build_safe_click_js_helpers())
+    clicked = await page.evaluate(script, {"el": element_handle, "maxClicks": max_clicks})
     if not clicked:
         log_click_result(source="expand_comment_row_text", action="expand_comment_row_text", outcome="no_targets")
         return clicked
