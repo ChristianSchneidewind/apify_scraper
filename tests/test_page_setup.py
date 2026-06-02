@@ -34,16 +34,16 @@ def test_prepare_comments_page_happy_path(monkeypatch):
     async def dismiss_login_wall(_p):
         calls["dismiss"] += 1
 
-    async def open_comments_panel(_p):
+    async def open_comments_panel(_p, **_kwargs):
         calls["open"] += 1
 
-    async def load_all_comments(_p, _max, _idle):
+    async def load_all_comments(_p, _max, _idle, **_kwargs):
         calls["load"] += 1
 
     async def auto_scroll(_p, _r):
         calls["scroll"] += 1
 
-    async def expand_comments(_p, _n):
+    async def expand_comments(_p, _n, **_kwargs):
         calls["expand"] += 1
 
     async def get_comment_container(_p):

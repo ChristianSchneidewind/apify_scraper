@@ -93,6 +93,7 @@ def parse_input(input_data: dict) -> dict:
         "manual_debug_mode": _as_bool(input_data.get("manualDebugMode"), False),
         "manual_debug_only": _as_bool(input_data.get("manualDebugOnly"), False),
         "manual_debug_pause_secs": _to_int_min(input_data.get("manualDebugPauseSecs", 180), 180, 1),
+        "safe_interaction_mode": _as_bool(input_data.get("safeInteractionMode"), False),
         "force_single_concurrency": _as_bool(input_data.get("forceSingleConcurrency"), True),
         "no_new_rounds_before_rescan": _to_int_min(input_data.get("noNewRoundsBeforeRescan", 5), 5, 1),
         "max_rescan_passes": _to_int_min(input_data.get("maxRescanPasses", 1), 1, 0),

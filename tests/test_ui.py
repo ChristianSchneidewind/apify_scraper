@@ -62,6 +62,12 @@ def test_open_comments_panel_falls_back_to_locator_click():
     assert 1200 in page.waits
 
 
+def test_open_comments_panel_safe_mode_skips_inpage_click():
+    page = FakePage(evaluate_results=[True], locator_count=1)
+    asyncio.run(ui.open_comments_panel(page, safe_mode=True))
+    assert 1200 in page.waits
+
+
 def test_open_comments_panel_retries_after_suspicious_inpage_click(monkeypatch):
     page = FakePage(evaluate_results=[True], locator_count=1)
     responses = iter([True, False])
@@ -95,6 +101,19 @@ def test_expand_comments_stops_when_no_clicks():
     assert page.waits == []
 
 
+def test_expand_comments_safe_mode_caps_click_rounds(monkeypatch):
+    page = FakePage(evaluate_results=[1] * 20)
+
+    async def fake_dismiss(_page, *, source):
+        return False
+
+    monkeypatch.setattr(ui, "dismiss_suspicious_dialog_if_present", fake_dismiss)
+
+    asyncio.run(ui.expand_comments(page, max_clicks=20, safe_mode=True))
+
+    assert len(page.waits) == 8
+
+
 def test_expand_comments_stops_after_suspicious_dialog(monkeypatch):
     page = FakePage(evaluate_results=[2])
 
@@ -118,13 +137,13 @@ def test_load_all_comments_increments_idle_and_calls_helpers(monkeypatch):
     page = FakePage(time_counts=[0, 1, 1])
     calls = {"open": 0, "dismiss": 0, "expand": 0, "scroll": 0, "auto": 0}
 
-    async def open_comments_panel(_p):
+    async def open_comments_panel(_p, **_kwargs):
         calls["open"] += 1
 
     async def dismiss_login_wall(_p):
         calls["dismiss"] += 1
 
-    async def expand_comments(_p, _n):
+    async def expand_comments(_p, _n, **_kwargs):
         calls["expand"] += 1
 
     async def scroll_comment_container(_p, _n):

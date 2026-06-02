@@ -10,6 +10,7 @@ def test_parse_input_defaults_and_bounds():
     assert cfg["screenshot_timeout_ms"] == 60000
     assert cfg["liker_collection_mode"] == "best_effort"
     assert cfg["runtime_profile"] == "balanced"
+    assert cfg["safe_interaction_mode"] is False
 
 
 def test_parse_input_filters_invalid_urls_and_casts_values():
@@ -68,6 +69,7 @@ def test_parse_input_bool_string_variants_and_numeric_clamps():
             "debugNetwork": "1",
             "manualDebugMode": "true",
             "manualDebugOnly": "0",
+            "safeInteractionMode": "yes",
             "maxUiRounds": -5,
             "uiIdleRounds": 0,
             "loadTimeoutSecs": 1,
@@ -83,6 +85,7 @@ def test_parse_input_bool_string_variants_and_numeric_clamps():
     assert cfg["debug_network"] is True
     assert cfg["manual_debug_mode"] is True
     assert cfg["manual_debug_only"] is False
+    assert cfg["safe_interaction_mode"] is True
 
     assert cfg["max_ui_rounds"] == 1
     assert cfg["ui_idle_rounds"] == 1
