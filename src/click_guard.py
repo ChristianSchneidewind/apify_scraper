@@ -1,4 +1,4 @@
-from .log_events import warn_event
+from .log_events import log_event, warn_event
 
 
 SUSPICIOUS_DIALOG_TERMS = (
@@ -12,6 +12,24 @@ SUSPICIOUS_DIALOG_TERMS = (
     "copy link",
     "link kopieren",
 )
+
+
+def log_click_attempt(*, source: str, action: str, target: str | None = None, extra: dict | None = None):
+    payload = {"source": source, "action": action}
+    if target is not None:
+        payload["target"] = target
+    if isinstance(extra, dict):
+        payload.update(extra)
+    log_event("ui.click_attempt", **payload)
+
+
+def log_click_result(*, source: str, action: str, outcome: str, target: str | None = None, extra: dict | None = None):
+    payload = {"source": source, "action": action, "outcome": outcome}
+    if target is not None:
+        payload["target"] = target
+    if isinstance(extra, dict):
+        payload.update(extra)
+    log_event("ui.click_result", **payload)
 
 
 async def dismiss_suspicious_dialog_if_present(page, *, source: str) -> bool:

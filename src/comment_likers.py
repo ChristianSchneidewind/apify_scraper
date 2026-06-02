@@ -4,7 +4,8 @@ import time
 
 from apify import Actor
 
-from .click_guard import dismiss_suspicious_dialog_if_present
+from .click_guard import dismiss_suspicious_dialog_if_present, log_click_attempt, log_click_result
+from .log_events import log_event
 
 LIKERS_DEBUG_INLINE = os.getenv("LIKERS_DEBUG_INLINE", "0").strip().lower() in {"1", "true", "yes", "on"}
 LIKERS_DEBUG_PROGRESS = os.getenv("LIKERS_DEBUG_PROGRESS", "0").strip().lower() in {"1", "true", "yes", "on"}
@@ -339,9 +340,20 @@ async def enrich_comment_likers(
             inline_likes = data.get("likesCount")
         data["likesCount"] = int(inline_likes or 0)
         Actor.log.info(f"[LIKERS] inline likesCount={data['likesCount']} clicked={bool(result.get('clicked'))} reason={result.get('reason')}")
+        log_click_attempt(
+            source="comment_likers.inline",
+            action="open_comment_likes",
+            extra={"clicked": bool(result.get("clicked")), "reason": result.get("reason"), "likes_count": data["likesCount"]},
+        )
         if result.get("clicked") and await dismiss_suspicious_dialog_if_present(page, source="comment_likers.inline"):
             result["clicked"] = False
             result["reason"] = "suspicious_dialog_dismissed"
+        log_click_result(
+            source="comment_likers.inline",
+            action="open_comment_likes",
+            outcome="clicked" if result.get("clicked") else "not_clicked",
+            extra={"reason": result.get("reason"), "likes_count": data["likesCount"]},
+        )
         if not result.get("clicked") and LIKERS_DEBUG_INLINE:
             await _debug_inline_like_scope(page, element_handle, comment_permalink)
 
@@ -368,9 +380,22 @@ async def enrich_comment_likers(
                 data["likesCount"] = int(deep_likes or 0)
                 deep_reason = result2.get("reason")
                 Actor.log.info(f"[LIKERS] deep likesCount={data['likesCount']} clicked={bool(result2.get('clicked'))} reason={deep_reason}")
+                log_click_attempt(
+                    source="comment_likers.deep_link",
+                    action="open_comment_likes",
+                    target=comment_permalink,
+                    extra={"clicked": bool(result2.get("clicked")), "reason": deep_reason, "likes_count": data["likesCount"]},
+                )
                 if result2.get("clicked") and await dismiss_suspicious_dialog_if_present(p2, source="comment_likers.deep_link"):
                     result2["clicked"] = False
                     deep_reason = result2["reason"] = "suspicious_dialog_dismissed"
+                log_click_result(
+                    source="comment_likers.deep_link",
+                    action="open_comment_likes",
+                    outcome="clicked" if result2.get("clicked") else "not_clicked",
+                    target=comment_permalink,
+                    extra={"reason": deep_reason, "likes_count": data["likesCount"]},
+                )
                 if result2.get("clicked"):
                     worked_page = p2
                     # Keep dialog page stable before extraction.
@@ -488,6 +513,13 @@ async def enrich_comment_likers(
         Actor.log.warning(f"comment likers enrich failed: {exc}")
 
     elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+    log_event(
+        "comment_likers.summary",
+        username=data.get("username"),
+        likes_count=int(data.get("likesCount") or 0),
+        collected=len(data.get("commentLikers") or []),
+        elapsed_ms=elapsed_ms,
+    )
     Actor.log.info(
         f"[LIKERS] done user={data.get('username')} likesCount={int(data.get('likesCount') or 0)} "
         f"collected={len(data.get('commentLikers') or [])} elapsedMs={elapsed_ms}"
