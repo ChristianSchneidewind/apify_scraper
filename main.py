@@ -53,6 +53,7 @@ async def main():
         manual_debug_only = cfg["manual_debug_only"]
         manual_debug_pause_secs = cfg["manual_debug_pause_secs"]
         force_single_concurrency = cfg["force_single_concurrency"]
+        safe_interaction_mode = cfg["safe_interaction_mode"]
         no_new_rounds_before_rescan = cfg["no_new_rounds_before_rescan"]
         max_rescan_passes = cfg["max_rescan_passes"]
         max_comment_likers = cfg["max_comment_likers"]
@@ -63,6 +64,7 @@ async def main():
             liker_collection_mode=liker_collection_mode,
             urls_count=len(urls),
             login_enabled=login_enabled,
+            safe_interaction_mode=safe_interaction_mode,
         )
 
         dataset = await Actor.open_dataset()
@@ -163,6 +165,7 @@ async def main():
                 max_ui_rounds=max_ui_rounds,
                 ui_idle_rounds=ui_idle_rounds,
                 load_timeout_secs=load_timeout_secs,
+                safe_interaction_mode=safe_interaction_mode,
             )
 
             post_slug = make_post_slug(context.request.url)
@@ -193,6 +196,7 @@ async def main():
                 max_rescan_passes=max_rescan_passes,
                 max_comment_likers=max_comment_likers,
                 liker_collection_mode=liker_collection_mode,
+                safe_interaction_mode=safe_interaction_mode,
                 stats=url_stats,
             )
 

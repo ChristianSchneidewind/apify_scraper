@@ -147,7 +147,7 @@ async def force_light_mode(page):
     )
 
 
-async def open_comments_panel(page):
+async def open_comments_panel(page, safe_mode: bool = False):
     # First try a robust in-page click strategy (works for many Reel layouts).
     script = r"""
         () => {
@@ -172,7 +172,7 @@ async def open_comments_panel(page):
           return false;
         }
         """.replace("__HELPERS__", build_safe_click_js_helpers())
-    clicked = await page.evaluate(script)
+    clicked = False if safe_mode else await page.evaluate(script)
     if clicked:
         log_click_attempt(source="open_comments_panel.inpage", action="open_comments_panel")
         if await dismiss_suspicious_dialog_if_present(page, source="open_comments_panel.inpage"):
@@ -215,9 +215,10 @@ async def open_comments_panel(page):
             pass
 
 
-async def expand_comments(page, max_clicks):
+async def expand_comments(page, max_clicks, safe_mode: bool = False):
+    effective_max_clicks = min(max_clicks, 8) if safe_mode else max_clicks
     clicks = 0
-    while clicks < max_clicks:
+    while clicks < effective_max_clicks:
         script = r"""
             (texts) => {
               let count = 0;
@@ -236,7 +237,7 @@ async def expand_comments(page, max_clicks):
                   lower.includes('see more') ||
                   lower.includes('weiterlesen') ||
                   lower.includes('mehr anzeigen') ||
-                  ((lower === 'more' || lower === 'mehr') && hasCommentContext(el));
+                  __ALLOW_BARE_MORE__;
                 if (isReplyAction || isOptionsTrigger(el)) continue;
                 if (texts.some((item) => text.includes(item)) || (looksLikeReplies && looksLikeView) || looksLikeCollapsedLongText) {
                   el.click();
@@ -245,7 +246,7 @@ async def expand_comments(page, max_clicks):
               }
               return count;
             }
-            """.replace("__HELPERS__", build_safe_click_js_helpers(include_comment_context=True))
+            """.replace("__HELPERS__", build_safe_click_js_helpers(include_comment_context=True)).replace("__ALLOW_BARE_MORE__", "((lower === 'more' || lower === 'mehr') && hasCommentContext(el))" if not safe_mode else "false")
         clicked = await page.evaluate(script, LOAD_MORE_TEXTS)
         if not clicked:
             log_click_result(source="expand_comments", action="expand_comments", outcome="no_targets")
@@ -259,7 +260,8 @@ async def expand_comments(page, max_clicks):
         await page.wait_for_timeout(1200)
 
 
-async def expand_all_reply_threads(page, max_clicks=80):
+async def expand_all_reply_threads(page, max_clicks=80, safe_mode: bool = False):
+    effective_max_clicks = min(max_clicks, 20) if safe_mode else max_clicks
     return await page.evaluate(
         """
         (maxClicks) => {
@@ -283,7 +285,7 @@ async def expand_all_reply_threads(page, max_clicks=80):
           return clicked;
         }
         """,
-        max_clicks,
+        effective_max_clicks,
     )
 
 
@@ -410,7 +412,7 @@ async def auto_scroll(page, rounds):
         await page.wait_for_timeout(1000)
 
 
-async def load_all_comments(page, max_rounds, idle_rounds):
+async def load_all_comments(page, max_rounds, idle_rounds, safe_mode: bool = False):
     rounds = 0
     idle = 0
     last_count = 0
@@ -418,10 +420,10 @@ async def load_all_comments(page, max_rounds, idle_rounds):
     while rounds < max_rounds and idle < idle_rounds:
         current_count = await page.eval_on_selector_all("time", "nodes => nodes.length")
         if current_count == 0:
-            await open_comments_panel(page)
+            await open_comments_panel(page, safe_mode=safe_mode)
             await dismiss_login_wall(page)
 
-        await expand_comments(page, 20)
+        await expand_comments(page, 12 if safe_mode else 20, safe_mode=safe_mode)
         await scroll_comment_container(page, 5)
         await auto_scroll(page, 8)
         await page.wait_for_timeout(1500)

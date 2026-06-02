@@ -189,6 +189,12 @@
       "description": "Pause duration in manual debug mode.",
       "default": 180
     },
+    "safeInteractionMode": {
+      "title": "Safe interaction mode",
+      "type": "boolean",
+      "description": "Use more conservative UI click heuristics to reduce accidental interactions with menus or dialogs.",
+      "default": false
+    },
     "maxCommentLikers": {
       "title": "Max likers per comment",
       "type": "integer",

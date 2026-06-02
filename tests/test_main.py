@@ -104,6 +104,7 @@ def _cfg(urls):
         "manual_debug_only": False,
         "manual_debug_pause_secs": 1,
         "force_single_concurrency": True,
+        "safe_interaction_mode": False,
         "no_new_rounds_before_rescan": 1,
         "max_rescan_passes": 0,
         "max_comment_likers": 0,

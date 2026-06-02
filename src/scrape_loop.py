@@ -24,6 +24,7 @@ async def run_comment_capture_loop(
     max_rescan_passes: int,
     max_comment_likers: int,
     liker_collection_mode: str = "best_effort",
+    safe_interaction_mode: bool = False,
     stats: dict | None = None,
 ) -> int:
     count = 0
@@ -39,9 +40,9 @@ async def run_comment_capture_loop(
 
     for round_idx in range(max_ui_rounds):
         comment_container = await get_comment_container(page)
-        await expand_comments(page, 30)
+        await expand_comments(page, 30, safe_mode=safe_interaction_mode)
         try:
-            await expand_all_reply_threads(page, max_clicks=100)
+            await expand_all_reply_threads(page, max_clicks=20 if safe_interaction_mode else 100)
         except Exception:
             pass
 
@@ -115,7 +116,7 @@ async def run_comment_capture_loop(
                 max_rescan_passes=max_rescan_passes,
             )
             try:
-                await asyncio.wait_for(load_all_comments(page, 45, 6), timeout=150)
+                await asyncio.wait_for(load_all_comments(page, 45, 6, safe_mode=safe_interaction_mode), timeout=150)
             except Exception as exc:
                 warn_event("scrape.rescan.load_all_comments_warning", error_type=type(exc).__name__, error=repr(exc))
 
@@ -133,9 +134,9 @@ async def run_comment_capture_loop(
                 await page.wait_for_timeout(1500)
             except Exception:
                 pass
-            await open_comments_panel(page)
+            await open_comments_panel(page, safe_mode=safe_interaction_mode)
             await dismiss_login_wall(page)
-            await expand_comments(page, 40)
+            await expand_comments(page, 40, safe_mode=safe_interaction_mode)
             stale_rounds = 0
             idle = 0
             rescan_passes += 1
