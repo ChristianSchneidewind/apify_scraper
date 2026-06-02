@@ -81,7 +81,7 @@ def test_enrich_comment_likers_no_click_keeps_empty_likers(monkeypatch):
 
 
 def test_enrich_comment_likers_click_collects_and_closes_dialog(monkeypatch):
-    page = FakePage(eval_results=[True])  # dialog open check
+    page = FakePage(eval_results=[None, True])  # guard check, then dialog open check
 
     async def fake_open(*_args, **_kwargs):
         return {"ok": True, "clicked": True, "likesCount": 2, "reason": "clicked"}
