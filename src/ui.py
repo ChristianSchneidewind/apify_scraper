@@ -1,4 +1,5 @@
 from .auth import dismiss_login_wall
+from .click_guard import dismiss_suspicious_dialog_if_present
 from .constants import LOAD_MORE_TEXTS
 
 
@@ -186,8 +187,11 @@ async def open_comments_panel(page):
         """
     )
     if clicked:
-        await page.wait_for_timeout(1500)
-        return
+        if await dismiss_suspicious_dialog_if_present(page, source="open_comments_panel.inpage"):
+            clicked = False
+        else:
+            await page.wait_for_timeout(1500)
+            return
 
     selectors = [
         '[aria-label="Comment"]',
@@ -210,6 +214,8 @@ async def open_comments_panel(page):
             continue
         try:
             await locator.click(timeout=2000)
+            if await dismiss_suspicious_dialog_if_present(page, source=f"open_comments_panel.selector:{selector}"):
+                continue
             await page.wait_for_timeout(1200)
             return
         except Exception:
@@ -271,6 +277,8 @@ async def expand_comments(page, max_clicks):
         if not clicked:
             break
         clicks += clicked
+        if await dismiss_suspicious_dialog_if_present(page, source="expand_comments"):
+            break
         await page.wait_for_timeout(1200)
 
 
@@ -306,7 +314,7 @@ async def expand_comment_row_text(page, element_handle, max_clicks=8):
     if not element_handle:
         return 0
 
-    return await page.evaluate(
+    clicked = await page.evaluate(
         r"""
         ({ el, maxClicks }) => {
           if (!el) return 0;
@@ -358,6 +366,9 @@ async def expand_comment_row_text(page, element_handle, max_clicks=8):
         """,
         {"el": element_handle, "maxClicks": max_clicks},
     )
+    if clicked:
+        await dismiss_suspicious_dialog_if_present(page, source="expand_comment_row_text")
+    return clicked
 
 
 async def scroll_comment_container(page, rounds=3):

@@ -4,6 +4,8 @@ import time
 
 from apify import Actor
 
+from .click_guard import dismiss_suspicious_dialog_if_present
+
 LIKERS_DEBUG_INLINE = os.getenv("LIKERS_DEBUG_INLINE", "0").strip().lower() in {"1", "true", "yes", "on"}
 LIKERS_DEBUG_PROGRESS = os.getenv("LIKERS_DEBUG_PROGRESS", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -337,6 +339,9 @@ async def enrich_comment_likers(
             inline_likes = data.get("likesCount")
         data["likesCount"] = int(inline_likes or 0)
         Actor.log.info(f"[LIKERS] inline likesCount={data['likesCount']} clicked={bool(result.get('clicked'))} reason={result.get('reason')}")
+        if result.get("clicked") and await dismiss_suspicious_dialog_if_present(page, source="comment_likers.inline"):
+            result["clicked"] = False
+            result["reason"] = "suspicious_dialog_dismissed"
         if not result.get("clicked") and LIKERS_DEBUG_INLINE:
             await _debug_inline_like_scope(page, element_handle, comment_permalink)
 
@@ -363,6 +368,9 @@ async def enrich_comment_likers(
                 data["likesCount"] = int(deep_likes or 0)
                 deep_reason = result2.get("reason")
                 Actor.log.info(f"[LIKERS] deep likesCount={data['likesCount']} clicked={bool(result2.get('clicked'))} reason={deep_reason}")
+                if result2.get("clicked") and await dismiss_suspicious_dialog_if_present(p2, source="comment_likers.deep_link"):
+                    result2["clicked"] = False
+                    deep_reason = result2["reason"] = "suspicious_dialog_dismissed"
                 if result2.get("clicked"):
                     worked_page = p2
                     # Keep dialog page stable before extraction.

@@ -1,3 +1,4 @@
+from .click_guard import dismiss_suspicious_dialog_if_present
 from .comment_decisions import calc_forced_parts, should_force_row_multipart, should_use_3plus_route, total_parts as calc_total_parts
 from .comment_pipeline_helpers import FORCED_MULTIPART_BASE, LONG_TEXT_THRESHOLD
 from .log_events import log_event
@@ -59,6 +60,15 @@ async def plan_comment_multipart(*, page, element_handle, data, state):
                 """,
                 element_handle,
             )
+            if await dismiss_suspicious_dialog_if_present(page, source="multipart_planner.long_text_expand"):
+                return {
+                    "scroll_parts": [0],
+                    "mode": "single",
+                    "base_sig": None,
+                    "total_parts": 1,
+                    "use_3plus_route": False,
+                    "planned_parts_3plus": 1,
+                }
             await page.wait_for_timeout(160)
         except Exception:
             pass

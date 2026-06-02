@@ -55,8 +55,8 @@ def test_plan_comment_multipart_defaults_when_plan_not_ok(monkeypatch):
 
 
 def test_plan_comment_multipart_forced_row_for_long_text(monkeypatch):
-    # first evaluate call = long-text pre-expand (ignored return), second = part_plan
-    page = FakePage(evaluate_results=[None, {"ok": True, "mode": "single", "tops": [0], "sig": "abc"}])
+    # evaluate calls: long-text pre-expand, suspicious-dialog guard, part_plan
+    page = FakePage(evaluate_results=[None, None, {"ok": True, "mode": "single", "tops": [0], "sig": "abc"}])
 
     monkeypatch.setattr(mp, "LONG_TEXT_THRESHOLD", 10)
     monkeypatch.setattr(mp, "FORCED_MULTIPART_BASE", 10)
