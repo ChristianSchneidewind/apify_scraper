@@ -17,14 +17,27 @@ async def plan_comment_multipart(*, page, element_handle, data, state):
     if len((data.get("text") or "")) >= LONG_TEXT_THRESHOLD:
         try:
             await page.evaluate(
-                """
+                r"""
                 (el) => {
                   const row = el?.closest?.('li, [role="listitem"], article, div') || el;
                   if (!row) return;
+                  const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  const isOptionsTrigger = (node) => {
+                    const combined = [
+                      norm(node.innerText || node.textContent || ''),
+                      norm(node.getAttribute?.('aria-label')),
+                      norm(node.getAttribute?.('title')),
+                    ].join(' ');
+                    return combined.includes('more options')
+                      || combined.includes('options')
+                      || combined.includes('optionen')
+                      || combined.includes('report')
+                      || combined.includes('melden');
+                  };
                   const controls = Array.from(row.querySelectorAll('button, [role="button"], a, span[role="button"]'));
                   for (const c of controls) {
-                    const t = (c.innerText || c.textContent || '').trim().toLowerCase();
-                    if (!t) continue;
+                    const t = norm(c.innerText || c.textContent || '');
+                    if (!t || isOptionsTrigger(c)) continue;
                     if (
                       t === 'more' || t === 'mehr' || t.includes('read more') || t.includes('see more') ||
                       t.includes('weiterlesen') || t.includes('mehr anzeigen') || t.includes('view more')

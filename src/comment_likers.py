@@ -119,6 +119,19 @@ async def _open_likes_in_current_page(page, element_handle, comment_permalink):
         ({ el, commentPermalink }) => {
           const isLikeText = (s) => /(\d+[\d.,]*\s*likes?)/i.test(s || '')
             || /(\d+[\d.,]*\s*gefällt\s*mir(?:-angaben|\s*mal)?)/i.test(s || '');
+          const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+          const isOptionsTrigger = (node) => {
+            const combined = [
+              norm(node.textContent || node.innerText || ''),
+              norm(node.getAttribute?.('aria-label')),
+              norm(node.getAttribute?.('title')),
+            ].join(' ');
+            return combined.includes('more options')
+              || combined.includes('options')
+              || combined.includes('optionen')
+              || combined.includes('report')
+              || combined.includes('melden');
+          };
 
           const row = el?.closest?.('li, [role="listitem"], article, div') || el;
           if (!row) return { ok: false, reason: 'row_missing' };
@@ -132,12 +145,10 @@ async def _open_likes_in_current_page(page, element_handle, comment_permalink):
           add(rowFromPermalink);
           add(row?.parentElement);
           add(rowFromPermalink?.parentElement);
-          add(row?.parentElement?.parentElement);
-          add(rowFromPermalink?.parentElement?.parentElement);
 
           // climb ancestors from permalink, IG often renders actions in nearby sibling branches
           let cur = permalinkAnchor;
-          for (let i = 0; i < 6 && cur; i += 1) {
+          for (let i = 0; i < 4 && cur; i += 1) {
             add(cur);
             add(cur.parentElement);
             add(cur.parentElement?.nextElementSibling);
@@ -153,6 +164,7 @@ async def _open_likes_in_current_page(page, element_handle, comment_permalink):
           const controls = scopes.flatMap((s) => Array.from(s?.querySelectorAll?.('button, a, [role="button"], [tabindex="0"]') || []));
           let likesBtn = null;
           for (const c of controls) {
+            if (isOptionsTrigger(c)) continue;
             const t = (c.textContent || c.innerText || '').replace(/\s+/g, ' ').trim();
             const aria = (c.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
             if (isLikeText(t) || /like/i.test(aria) || /gefällt mir/i.test(aria)) {
@@ -166,10 +178,10 @@ async def _open_likes_in_current_page(page, element_handle, comment_permalink):
             const hit = textNodes.find((n) => isLikeText((n.textContent || n.innerText || '').replace(/\s+/g, ' ').trim()));
             if (hit) {
               let p = hit;
-              for (let i = 0; i < 8 && p; i += 1) {
+              for (let i = 0; i < 6 && p; i += 1) {
                 const role = (p.getAttribute?.('role') || '').toLowerCase();
                 const tab = p.getAttribute?.('tabindex');
-                if (p.tagName === 'BUTTON' || p.tagName === 'A' || role === 'button' || tab === '0') {
+                if (!isOptionsTrigger(p) && (p.tagName === 'BUTTON' || p.tagName === 'A' || role === 'button' || tab === '0')) {
                   likesBtn = p;
                   break;
                 }
@@ -180,6 +192,7 @@ async def _open_likes_in_current_page(page, element_handle, comment_permalink):
 
           if (!likesBtn) return { ok: true, likesCount, clicked: false, reason: 'likes_button_not_found' };
           const clickEl = likesBtn.closest('button, [role="button"], a, [tabindex="0"]') || likesBtn;
+          if (isOptionsTrigger(clickEl)) return { ok: true, likesCount, clicked: false, reason: 'likes_target_looks_like_options' };
           clickEl.click();
           return { ok: true, likesCount, clicked: true };
         }

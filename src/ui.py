@@ -149,17 +149,30 @@ async def force_light_mode(page):
 async def open_comments_panel(page):
     # First try a robust in-page click strategy (works for many Reel layouts).
     clicked = await page.evaluate(
-        """
+        r"""
         () => {
-          const norm = (s) => (s || '').toLowerCase();
+          const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
           const candidates = Array.from(document.querySelectorAll('button, a, div[role="button"], svg, span'));
+          const isOptionsTrigger = (node) => {
+            const combined = [
+              norm(node.getAttribute?.('aria-label')),
+              norm(node.textContent),
+              norm(node.getAttribute?.('title')),
+            ].join(' ');
+            return combined.includes('more options')
+              || combined.includes('options')
+              || combined.includes('optionen')
+              || combined.includes('report')
+              || combined.includes('melden');
+          };
           for (const el of candidates) {
+            if (isOptionsTrigger(el)) continue;
             const label = norm(el.getAttribute('aria-label'));
             const text = norm(el.textContent);
             const href = norm(el.getAttribute('href'));
             const isComment =
-              label.includes('comment') || label.includes('kommentar') || label.includes('komment') ||
-              text.includes('comment') || text.includes('kommentar') || text.includes('komment') ||
+              label === 'comment' || label.includes('comments') || label.includes('kommentar') ||
+              text === 'comments' || text === 'kommentare' || text === 'view comments' || text === 'view all comments' ||
               href.includes('/comments/') ||
               ((text.includes('view all') || text.includes('alle')) && (text.includes('comment') || text.includes('kommentar')));
             if (!isComment) continue;
@@ -178,17 +191,16 @@ async def open_comments_panel(page):
 
     selectors = [
         '[aria-label="Comment"]',
+        '[aria-label*="Comments"]',
         '[aria-label*="Komment"]',
         'svg[aria-label="Comment"]',
+        'svg[aria-label*="Comments"]',
         'svg[aria-label*="Komment"]',
         'a[href*="/comments/"]',
-        'a:has-text("View all")',
         'a:has-text("View all comments")',
-        'a:has-text("Alle")',
-        'a:has-text("comments")',
         'a:has-text("Kommentare")',
         'button:has-text("View comments")',
-        'button:has-text("comments")',
+        'button:has-text("Comments")',
         'button:has-text("Kommentare")',
     ]
 
