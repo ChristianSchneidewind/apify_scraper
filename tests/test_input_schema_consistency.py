@@ -43,12 +43,13 @@ def test_input_schema_defaults_match_parse_input_defaults():
         "safeInteractionMode": "safe_interaction_mode",
         "maxCommentLikers": "max_comment_likers",
         "likerCollectionMode": "liker_collection_mode",
+        "profileCaptureWaitSecs": "profile_capture_wait_secs",
     }
 
     for schema_key, config_key in direct_mappings.items():
-        assert cfg[config_key] == props[schema_key]["default"], schema_key
+        assert getattr(cfg, config_key) == props[schema_key]["default"], schema_key
 
-    assert cfg["screenshot_timeout_ms"] == props["screenshotTimeoutSecs"]["default"] * 1000
+    assert cfg.screenshot_timeout_ms == props["screenshotTimeoutSecs"]["default"] * 1000
 
 
 def test_input_schema_enums_match_config_normalization():
@@ -63,11 +64,11 @@ def test_input_schema_enums_match_config_normalization():
 
     for value in runtime_profile_enum:
         cfg = parse_input({"urls": ["https://www.instagram.com/p/abc/"], "runtimeProfile": value})
-        assert cfg["runtime_profile"] == value
+        assert cfg.runtime_profile == value
 
     for value in liker_mode_enum:
         cfg = parse_input({"urls": ["https://www.instagram.com/p/abc/"], "likerCollectionMode": value})
-        assert cfg["liker_collection_mode"] == value
+        assert cfg.liker_collection_mode == value
 
 
 def test_input_schema_requires_urls():

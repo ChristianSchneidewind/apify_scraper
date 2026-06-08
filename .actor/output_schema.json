@@ -1,11 +1,11 @@
 {
   "title": "Instagram Comment Scraper Output",
-  "description": "Primary output is dataset items as defined in .actor/dataset_schema.json.",
+  "description": "Primary output is dataset items for captured comments and profile screenshots as defined in .actor/dataset_schema.json.",
   "schemaVersion": 1,
   "outputs": [
     {
       "name": "dataset",
-      "description": "One item per captured comment.",
+      "description": "One item per captured comment or profile screenshot.",
       "schema": "./dataset_schema.json"
     }
   ]

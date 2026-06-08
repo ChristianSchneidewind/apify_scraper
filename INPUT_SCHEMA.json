@@ -5,10 +5,10 @@
   "schemaVersion": 1,
   "properties": {
     "urls": {
-      "title": "Post URLs",
+      "title": "Instagram URLs",
       "type": "array",
       "editor": "requestListSources",
-      "description": "List of public Instagram post URLs.",
+      "description": "List of public Instagram post, reel, or profile URLs.",
       "items": {
         "type": "string",
         "editor": "textfield"
@@ -207,6 +207,12 @@
       "description": "best_effort = collect whatever UI yields; strict = do extra retry and warn when collected < likesCount.",
       "default": "best_effort",
       "enum": ["best_effort", "strict"]
+    },
+    "profileCaptureWaitSecs": {
+      "title": "Profile capture wait (seconds)",
+      "type": "integer",
+      "description": "Wait time after opening a profile URL before taking the screenshot, so images can finish loading.",
+      "default": 3
     }
   },
   "required": ["urls"]
