@@ -2,10 +2,9 @@ import asyncio
 import json
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from apify import Actor
-from crawlee import ConcurrencySettings
-from crawlee.crawlers import PlaywrightCrawler, PlaywrightCrawlingContext
 from dotenv import load_dotenv
 
 from src.scrape_loop import run_comment_capture_loop
@@ -19,45 +18,59 @@ from src.session import apply_login_session, init_session_state
 from src.ui import force_light_mode
 from src.log_events import log_event, warn_event
 
+if TYPE_CHECKING:
+    from crawlee.crawlers import PlaywrightCrawlingContext
+
+ConcurrencySettings = None
+PlaywrightCrawler = None
+
 load_dotenv()
 
 
 async def main():
+    global ConcurrencySettings, PlaywrightCrawler
+    if ConcurrencySettings is None or PlaywrightCrawler is None:
+        from crawlee import ConcurrencySettings as CrawleeConcurrencySettings
+        from crawlee.crawlers import PlaywrightCrawler as CrawleePlaywrightCrawler
+
+        ConcurrencySettings = CrawleeConcurrencySettings
+        PlaywrightCrawler = CrawleePlaywrightCrawler
+
     async with Actor:
         input_data = await Actor.get_input() or {}
         cfg = parse_input(input_data)
-        urls = cfg["urls"]
+        urls = cfg.urls
         if not urls:
             raise InputValidationError('Input "urls" must be a non-empty array of Instagram post URLs.')
 
-        max_comments = cfg["max_comments"]
-        max_ui_rounds = cfg["max_ui_rounds"]
-        ui_idle_rounds = cfg["ui_idle_rounds"]
-        load_timeout_secs = cfg["load_timeout_secs"]
-        screenshot_timeout_ms = cfg["screenshot_timeout_ms"]
-        request_handler_timeout_secs = cfg["request_handler_timeout_secs"]
-        login_enabled = cfg["login_enabled"]
-        login_username = cfg["login_username"]
-        login_password = cfg["login_password"]
-        login_state_key = cfg["login_state_key"]
-        save_login_state = cfg["save_login_state"]
-        headful = cfg["headful"]
-        window_pos_x = cfg["window_pos_x"]
-        window_pos_y = cfg["window_pos_y"]
-        slow_mo_ms = cfg["slow_mo_ms"]
-        debug_network = cfg["debug_network"]
-        log_every_n_screenshots = cfg["log_every_n_screenshots"]
-        debug_har = cfg["debug_har"]
-        debug_devtools = cfg["debug_devtools"]
-        manual_debug_mode = cfg["manual_debug_mode"]
-        manual_debug_only = cfg["manual_debug_only"]
-        manual_debug_pause_secs = cfg["manual_debug_pause_secs"]
-        force_single_concurrency = cfg["force_single_concurrency"]
-        safe_interaction_mode = cfg["safe_interaction_mode"]
-        no_new_rounds_before_rescan = cfg["no_new_rounds_before_rescan"]
-        max_rescan_passes = cfg["max_rescan_passes"]
-        max_comment_likers = cfg["max_comment_likers"]
-        liker_collection_mode = cfg["liker_collection_mode"]
+        max_comments = cfg.max_comments
+        max_ui_rounds = cfg.max_ui_rounds
+        ui_idle_rounds = cfg.ui_idle_rounds
+        load_timeout_secs = cfg.load_timeout_secs
+        screenshot_timeout_ms = cfg.screenshot_timeout_ms
+        request_handler_timeout_secs = cfg.request_handler_timeout_secs
+        login_enabled = cfg.login_enabled
+        login_username = cfg.login_username
+        login_password = cfg.login_password
+        login_state_key = cfg.login_state_key
+        save_login_state = cfg.save_login_state
+        headful = cfg.headful
+        window_pos_x = cfg.window_pos_x
+        window_pos_y = cfg.window_pos_y
+        slow_mo_ms = cfg.slow_mo_ms
+        debug_network = cfg.debug_network
+        log_every_n_screenshots = cfg.log_every_n_screenshots
+        debug_har = cfg.debug_har
+        debug_devtools = cfg.debug_devtools
+        manual_debug_mode = cfg.manual_debug_mode
+        manual_debug_only = cfg.manual_debug_only
+        manual_debug_pause_secs = cfg.manual_debug_pause_secs
+        force_single_concurrency = cfg.force_single_concurrency
+        safe_interaction_mode = cfg.safe_interaction_mode
+        no_new_rounds_before_rescan = cfg.no_new_rounds_before_rescan
+        max_rescan_passes = cfg.max_rescan_passes
+        max_comment_likers = cfg.max_comment_likers
+        liker_collection_mode = cfg.liker_collection_mode
         log_event(
             "config.effective",
             max_comment_likers=max_comment_likers,
@@ -76,9 +89,9 @@ async def main():
         run_id = run_started_at.strftime("%Y%m%dT%H%M%SZ")
 
         stored_state = await kv_store.get_value(login_state_key) if login_enabled else None
-        viewport_width = cfg["viewport_width"]
-        viewport_height = cfg["viewport_height"]
-        maximize_window = cfg["maximize_window"]
+        viewport_width = cfg.viewport_width
+        viewport_height = cfg.viewport_height
+        maximize_window = cfg.maximize_window
 
         browser_new_context_options = {
             "color_scheme": "light",
@@ -131,7 +144,7 @@ async def main():
         }
 
         @crawler.router.default_handler
-        async def request_handler(context: PlaywrightCrawlingContext) -> None:
+        async def request_handler(context: "PlaywrightCrawlingContext") -> None:
             page = context.page
 
             if debug_network:

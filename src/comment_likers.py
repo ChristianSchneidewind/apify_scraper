@@ -5,7 +5,7 @@ import time
 from apify import Actor
 
 from .click_guard import build_safe_click_js_helpers, dismiss_suspicious_dialog_if_present, log_click_attempt, log_click_result
-from .log_events import log_event
+from .log_events import log_event, warn_suppressed_exception
 
 LIKERS_DEBUG_INLINE = os.getenv("LIKERS_DEBUG_INLINE", "0").strip().lower() in {"1", "true", "yes", "on"}
 LIKERS_DEBUG_PROGRESS = os.getenv("LIKERS_DEBUG_PROGRESS", "0").strip().lower() in {"1", "true", "yes", "on"}
@@ -395,8 +395,8 @@ async def enrich_comment_likers(
                 Actor.log.warning(f"[LIKERS] deep-link fallback failed: {e}")
                 try:
                     await p2.close()
-                except Exception:
-                    pass
+                except Exception as close_exc:
+                    warn_suppressed_exception("comment_likers.deep_link_close_failed", close_exc, stage="deep_link_exception")
 
         # If nothing was clicked, do not wait for dialog.
         if worked_page is page and not result.get("clicked"):
@@ -428,8 +428,8 @@ async def enrich_comment_likers(
             if worked_page is not page:
                 try:
                     await worked_page.close()
-                except Exception:
-                    pass
+                except Exception as close_exc:
+                    warn_suppressed_exception("comment_likers.deep_link_close_failed", close_exc, stage="dialog_not_open")
             return data
 
         await worked_page.wait_for_timeout(900)
@@ -457,8 +457,8 @@ async def enrich_comment_likers(
                     """
                 )
                 await worked_page.wait_for_timeout(700)
-            except Exception:
-                pass
+            except Exception as exc:
+                warn_suppressed_exception("comment_likers.dialog_retry_scroll_failed", exc)
             likers = await _collect_open_likers_dialog(worked_page, max_comment_likers=max_comment_likers)
 
         data["commentLikers"] = likers
@@ -473,8 +473,8 @@ async def enrich_comment_likers(
                     if len(retry_likers) > len(likers):
                         likers = retry_likers
                         data["commentLikers"] = likers
-                except Exception:
-                    pass
+                except Exception as exc:
+                    warn_suppressed_exception("comment_likers.strict_retry_failed", exc, username=data.get("username"))
 
                 if len(data.get("commentLikers") or []) < likes_count:
                     Actor.log.warning(
@@ -488,13 +488,13 @@ async def enrich_comment_likers(
                 await worked_page.wait_for_timeout(1000)
             await worked_page.keyboard.press("Escape")
             await worked_page.wait_for_timeout(150)
-        except Exception:
-            pass
+        except Exception as exc:
+            warn_suppressed_exception("comment_likers.dialog_close_failed", exc, username=data.get("username"))
         if worked_page is not page:
             try:
                 await worked_page.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                warn_suppressed_exception("comment_likers.deep_link_close_failed", exc, stage="final_close")
 
     except Exception as exc:
         Actor.log.warning(f"comment likers enrich failed: {exc}")

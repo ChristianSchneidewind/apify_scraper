@@ -10,6 +10,7 @@ from apify import Actor
 from .comment_models import ScreenshotSession
 from .constants import SCREENSHOTS_DIR
 from .highlighting import HIGHLIGHT_COMMENT_JS, build_highlight_payload
+from .log_events import warn_suppressed_exception
 
 
 async def highlight(page, element_handle, comment_data):
@@ -221,8 +222,8 @@ async def capture_comment_multipart_3plus(
         await page.wait_for_timeout(120)
         try:
             await highlight(page, element_handle, data)
-        except Exception:
-            pass
+        except Exception as exc:
+            warn_suppressed_exception("screenshots.multipart_highlight_refresh_failed", exc, tile_index=tile_idx, parts_target=parts_target)
 
         clip = tile.get("clip")
         if clip:
@@ -316,14 +317,14 @@ async def dump_skip_debug(page, kv_store, index, data, screenshot_timeout_ms):
     try:
         buffer = await page.screenshot(full_page=False, timeout=screenshot_timeout_ms)
         await kv_store.set_value(f"{prefix}.png", buffer, content_type="image/png")
-    except Exception:
-        pass
+    except Exception as exc:
+        warn_suppressed_exception("screenshots.dump_skip_debug_screenshot_failed", exc, prefix=prefix)
 
     try:
         html = await page.content()
         await kv_store.set_value(f"{prefix}.html", html, content_type="text/html")
-    except Exception:
-        pass
+    except Exception as exc:
+        warn_suppressed_exception("screenshots.dump_skip_debug_html_failed", exc, prefix=prefix)
 
     try:
         dom_info = await page.evaluate(
@@ -364,7 +365,7 @@ async def dump_skip_debug(page, kv_store, index, data, screenshot_timeout_ms):
             "rows": dom_info,
         }
         await kv_store.set_value(f"{prefix}.json", json.dumps(payload, indent=2), content_type="application/json")
-    except Exception:
-        pass
+    except Exception as exc:
+        warn_suppressed_exception("screenshots.dump_skip_debug_dom_failed", exc, prefix=prefix)
 
 

@@ -2,7 +2,7 @@ import json
 import time
 
 from .constants import SCREENSHOTS_DIR
-from .log_events import log_event, warn_event
+from .log_events import log_event, warn_event, warn_suppressed_exception
 
 
 SUSPICIOUS_DIALOG_TERMS = (
@@ -126,7 +126,7 @@ async def dismiss_suspicious_dialog_if_present(page, *, source: str) -> bool:
     try:
         await page.keyboard.press("Escape")
         await page.wait_for_timeout(150)
-    except Exception:
-        pass
+    except Exception as exc:
+        warn_suppressed_exception("ui.suspicious_dialog_escape_failed", exc, source=source)
 
     return True

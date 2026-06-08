@@ -1,7 +1,7 @@
 import asyncio
 
 from .auth import dismiss_login_wall, handle_cookie_banner
-from .log_events import warn_event
+from .log_events import warn_event, warn_suppressed_exception
 from .ui import auto_scroll, expand_comments, force_light_mode, get_comment_container, load_all_comments, open_comments_panel
 
 
@@ -42,5 +42,5 @@ async def prepare_comments_page(*, page, max_ui_rounds: int, ui_idle_rounds: int
             comment_container,
         )
         await page.wait_for_timeout(500)
-    except Exception:
-        pass
+    except Exception as exc:
+        warn_suppressed_exception("page_setup.reset_scroll_failed", exc)

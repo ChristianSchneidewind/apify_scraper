@@ -2,6 +2,8 @@ import asyncio
 import importlib
 from types import SimpleNamespace
 
+from src.config import AppConfig
+
 
 class FakeStore:
     def __init__(self):
@@ -79,40 +81,41 @@ class FakeCrawler:
 
 
 def _cfg(urls):
-    return {
-        "urls": urls,
-        "max_comments": 0,
-        "max_ui_rounds": 1,
-        "ui_idle_rounds": 1,
-        "load_timeout_secs": 1,
-        "screenshot_timeout_ms": 1000,
-        "request_handler_timeout_secs": 60,
-        "login_enabled": False,
-        "login_username": None,
-        "login_password": None,
-        "login_state_key": "LOGIN_STATE",
-        "save_login_state": False,
-        "headful": False,
-        "window_pos_x": 0,
-        "window_pos_y": 0,
-        "slow_mo_ms": 0,
-        "debug_network": False,
-        "log_every_n_screenshots": 10,
-        "debug_har": False,
-        "debug_devtools": False,
-        "manual_debug_mode": False,
-        "manual_debug_only": False,
-        "manual_debug_pause_secs": 1,
-        "force_single_concurrency": True,
-        "safe_interaction_mode": False,
-        "no_new_rounds_before_rescan": 1,
-        "max_rescan_passes": 0,
-        "max_comment_likers": 0,
-        "liker_collection_mode": "best_effort",
-        "viewport_width": 1080,
-        "viewport_height": 1800,
-        "maximize_window": False,
-    }
+    return AppConfig(
+        urls=urls,
+        runtime_profile="balanced",
+        max_comments=0,
+        max_ui_rounds=1,
+        ui_idle_rounds=1,
+        load_timeout_secs=1,
+        screenshot_timeout_ms=1000,
+        request_handler_timeout_secs=60,
+        login_enabled=False,
+        login_username=None,
+        login_password=None,
+        login_state_key="LOGIN_STATE",
+        save_login_state=False,
+        headful=False,
+        window_pos_x=0,
+        window_pos_y=0,
+        slow_mo_ms=0,
+        debug_network=False,
+        log_every_n_screenshots=10,
+        debug_har=False,
+        debug_devtools=False,
+        manual_debug_mode=False,
+        manual_debug_only=False,
+        manual_debug_pause_secs=1,
+        safe_interaction_mode=False,
+        force_single_concurrency=True,
+        no_new_rounds_before_rescan=1,
+        max_rescan_passes=0,
+        viewport_width=1080,
+        viewport_height=1800,
+        maximize_window=False,
+        max_comment_likers=0,
+        liker_collection_mode="best_effort",
+    )
 
 
 def test_main_raises_on_empty_urls(monkeypatch):

@@ -1,6 +1,7 @@
 import asyncio
 
 from .errors import LoginError
+from .log_events import warn_suppressed_exception
 
 
 async def handle_cookie_banner(page):
@@ -25,8 +26,8 @@ async def handle_cookie_banner(page):
                         await locator.click(timeout=2000)
                         await page.wait_for_timeout(1500)
                         return
-                except Exception:
-                    pass
+                except Exception as exc:
+                    warn_suppressed_exception("auth.cookie_banner_click_failed", exc, selector=selector)
         await page.wait_for_timeout(1000)
 
 
@@ -83,8 +84,8 @@ async def ensure_logged_in(page, kv_store, username, password, screenshot_timeou
         try:
             await login_link.click(timeout=2000)
             await page.wait_for_timeout(1500)
-        except Exception:
-            pass
+        except Exception as exc:
+            warn_suppressed_exception("auth.login_link_click_failed", exc)
 
     username_input = page.locator('input[name="username"], input[autocomplete="username"], input[type="text"]').first
     password_input = page.locator('input[name="password"], input[autocomplete="current-password"], input[type="password"]').first
