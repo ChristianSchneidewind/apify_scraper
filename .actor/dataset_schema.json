@@ -1,10 +1,11 @@
 {
   "title": "Instagram Comment Scraper Dataset",
-  "description": "Output items produced per captured comment.",
+  "description": "Output items produced per captured comment or profile screenshot.",
   "schemaVersion": 1,
   "type": "object",
   "properties": {
     "id": { "type": ["string", "null"] },
+    "itemType": { "type": "string", "enum": ["comment", "profile"] },
     "username": { "type": "string" },
     "text": { "type": "string" },
     "isGifOnly": { "type": "boolean" },
@@ -27,6 +28,12 @@
     },
     "index": { "type": "integer" },
     "sourceUrl": { "type": "string" },
+    "profileUrl": { "type": ["string", "null"] },
+    "profileUsername": { "type": ["string", "null"] },
+    "profileFullName": { "type": ["string", "null"] },
+    "profileBiography": { "type": ["string", "null"] },
+    "profileStats": { "type": "array", "items": { "type": "string" } },
+    "profileAvatarUrl": { "type": ["string", "null"] },
     "screenshotKey": { "type": ["string", "null"] },
     "screenshotPath": { "type": ["string", "null"] },
     "screenshotKeys": { "type": "array", "items": { "type": "string" } },
@@ -37,6 +44,7 @@
     "metadataPath": { "type": ["string", "null"] }
   },
   "required": [
+    "itemType",
     "username",
     "text",
     "isGifOnly",
@@ -44,6 +52,7 @@
     "commentLikers",
     "index",
     "sourceUrl",
+    "profileStats",
     "screenshotKeys",
     "screenshotPaths",
     "partsTotal",

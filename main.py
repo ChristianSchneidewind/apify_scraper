@@ -13,10 +13,12 @@ from src.errors import InputValidationError
 from src.constants import SCREENSHOTS_DIR
 from src.debug_tools import dump_no_comments_debug, enable_comment_network_debug
 from src.page_setup import prepare_comments_page
+from src.profile_capture import capture_profile_page
 from src.screenshots import make_post_slug
 from src.session import apply_login_session, init_session_state
 from src.ui import force_light_mode
 from src.log_events import log_event, warn_event
+from src.instagram_urls import classify_instagram_url, normalize_instagram_url
 
 if TYPE_CHECKING:
     from crawlee.crawlers import PlaywrightCrawlingContext
@@ -41,7 +43,7 @@ async def main():
         cfg = parse_input(input_data)
         urls = cfg.urls
         if not urls:
-            raise InputValidationError('Input "urls" must be a non-empty array of Instagram post URLs.')
+            raise InputValidationError('Input "urls" must be a non-empty array of Instagram URLs.')
 
         max_comments = cfg.max_comments
         max_ui_rounds = cfg.max_ui_rounds
@@ -71,6 +73,7 @@ async def main():
         max_rescan_passes = cfg.max_rescan_passes
         max_comment_likers = cfg.max_comment_likers
         liker_collection_mode = cfg.liker_collection_mode
+        profile_capture_wait_secs = cfg.profile_capture_wait_secs
         log_event(
             "config.effective",
             max_comment_likers=max_comment_likers,
@@ -137,6 +140,7 @@ async def main():
             "urls_total": len(urls),
             "urls_processed": 0,
             "comments_captured_total": 0,
+            "profile_screenshots_total": 0,
             "likers_collected_total": 0,
             "comment_processing_ms_total": 0,
             "zero_comment_urls": 0,
@@ -163,7 +167,8 @@ async def main():
             )
 
             await force_light_mode(page)
-            target_url = context.request.url.replace('/reels/', '/reel/')
+            url_kind = classify_instagram_url(context.request.url)
+            target_url = normalize_instagram_url(context.request.url)
             await page.goto(target_url, wait_until="domcontentloaded")
 
             if manual_debug_mode:
@@ -173,58 +178,74 @@ async def main():
                     log_event("request.manual_debug_only_skip")
                     return
 
-            await prepare_comments_page(
-                page=page,
-                max_ui_rounds=max_ui_rounds,
-                ui_idle_rounds=ui_idle_rounds,
-                load_timeout_secs=load_timeout_secs,
-                safe_interaction_mode=safe_interaction_mode,
-            )
-
             post_slug = make_post_slug(context.request.url)
             run_folder = f"{post_slug}/{run_id}"
-            video_meta_key = f"VIDEO_META::{post_slug}"
+            meta_key_prefix = "VIDEO_META" if url_kind == "post" else "PROFILE_META"
+            video_meta_key = f"{meta_key_prefix}::{post_slug}"
 
             video_meta = await meta_store.get_value(video_meta_key) or {
                 "postSlug": post_slug,
                 "sourceUrl": context.request.url,
                 "firstSeenAt": datetime.now(timezone.utc).isoformat(),
                 "totalCaptured": 0,
+                "itemType": url_kind,
             }
 
             url_started_at = datetime.now(timezone.utc)
             url_stats = {"comments_processed": 0, "likers_collected_total": 0}
-            count = await run_comment_capture_loop(
-                page=page,
-                context=context,
-                dataset=dataset,
-                kv_store=kv_store,
-                run_folder=run_folder,
-                screenshot_timeout_ms=screenshot_timeout_ms,
-                log_every_n_screenshots=log_every_n_screenshots,
-                max_comments=max_comments,
-                max_ui_rounds=max_ui_rounds,
-                ui_idle_rounds=ui_idle_rounds,
-                no_new_rounds_before_rescan=no_new_rounds_before_rescan,
-                max_rescan_passes=max_rescan_passes,
-                max_comment_likers=max_comment_likers,
-                liker_collection_mode=liker_collection_mode,
-                safe_interaction_mode=safe_interaction_mode,
-                stats=url_stats,
-            )
 
-            if count == 0:
-                await dump_no_comments_debug(page, kv_store, screenshot_timeout_ms)
+            if url_kind == "profile":
+                count = await capture_profile_page(
+                    page=page,
+                    dataset=dataset,
+                    kv_store=kv_store,
+                    run_folder=run_folder,
+                    source_url=context.request.url,
+                    screenshot_timeout_ms=screenshot_timeout_ms,
+                    profile_capture_wait_secs=profile_capture_wait_secs,
+                )
+                run_summary["profile_screenshots_total"] += int(count or 0)
+            else:
+                await prepare_comments_page(
+                    page=page,
+                    max_ui_rounds=max_ui_rounds,
+                    ui_idle_rounds=ui_idle_rounds,
+                    load_timeout_secs=load_timeout_secs,
+                    safe_interaction_mode=safe_interaction_mode,
+                )
+
+                count = await run_comment_capture_loop(
+                    page=page,
+                    context=context,
+                    dataset=dataset,
+                    kv_store=kv_store,
+                    run_folder=run_folder,
+                    screenshot_timeout_ms=screenshot_timeout_ms,
+                    log_every_n_screenshots=log_every_n_screenshots,
+                    max_comments=max_comments,
+                    max_ui_rounds=max_ui_rounds,
+                    ui_idle_rounds=ui_idle_rounds,
+                    no_new_rounds_before_rescan=no_new_rounds_before_rescan,
+                    max_rescan_passes=max_rescan_passes,
+                    max_comment_likers=max_comment_likers,
+                    liker_collection_mode=liker_collection_mode,
+                    safe_interaction_mode=safe_interaction_mode,
+                    stats=url_stats,
+                )
+
+                if count == 0:
+                    await dump_no_comments_debug(page, kv_store, screenshot_timeout_ms)
+
+                run_summary["comments_captured_total"] += int(count or 0)
+                run_summary["likers_collected_total"] = int(run_summary.get("likers_collected_total", 0)) + int(url_stats.get("likers_collected_total", 0))
+                if count == 0:
+                    run_summary["zero_comment_urls"] += 1
 
             run_summary["urls_processed"] += 1
-            run_summary["comments_captured_total"] += int(count or 0)
-            run_summary["likers_collected_total"] = int(run_summary.get("likers_collected_total", 0)) + int(url_stats.get("likers_collected_total", 0))
             elapsed_url_ms = int((datetime.now(timezone.utc) - url_started_at).total_seconds() * 1000)
             run_summary["comment_processing_ms_total"] = int(run_summary.get("comment_processing_ms_total", 0)) + elapsed_url_ms
-            if count == 0:
-                run_summary["zero_comment_urls"] += 1
 
-            log_event("request.captured", count=count, source_url=context.request.url)
+            log_event("request.captured", count=count, source_url=context.request.url, item_type=url_kind)
             finished_at = datetime.now(timezone.utc).isoformat()
 
             video_meta.update(
@@ -235,6 +256,7 @@ async def main():
                     "lastRunCount": count,
                     "totalCaptured": max(int(video_meta.get("totalCaptured", 0) or 0), count),
                     "screenshotBaseDir": str((SCREENSHOTS_DIR / post_slug).resolve()),
+                    "itemType": url_kind,
                 }
             )
             await meta_store.set_value(video_meta_key, video_meta, content_type="application/json")
@@ -260,6 +282,7 @@ async def main():
                 "urlsTotal": run_summary["urls_total"],
                 "urlsProcessed": run_summary["urls_processed"],
                 "commentsCapturedTotal": comments_total,
+                "profileScreenshotsTotal": run_summary["profile_screenshots_total"],
                 "likersCollectedTotal": run_summary["likers_collected_total"],
                 "avgCommentMs": avg_comment_ms,
                 "avgLikersPerComment": avg_likers_per_comment,
@@ -276,6 +299,7 @@ async def main():
                 urls_total=run_summary["urls_total"],
                 urls_processed=run_summary["urls_processed"],
                 comments_captured_total=comments_total,
+                profile_screenshots_total=run_summary["profile_screenshots_total"],
                 likers_collected_total=run_summary["likers_collected_total"],
                 avg_comment_ms=avg_comment_ms,
                 avg_likers_per_comment=avg_likers_per_comment,

@@ -3,6 +3,8 @@ from src.payloads import (
     build_metadata_payload,
     build_multipart_flags,
     build_payload_common_fields,
+    build_profile_dataset_payload,
+    build_profile_metadata_payload,
 )
 
 
@@ -38,6 +40,7 @@ def test_build_payload_common_fields_casts_defaults():
         comment_url="https://www.instagram.com/p/x/c/1/",
         comment_deep_link="https://www.instagram.com/p/x/?comment_id=1",
     )
+    assert out["itemType"] == "comment"
     assert out["likesCount"] == 0
     assert out["commentLikers"] == []
     assert out["index"] == 7
@@ -83,3 +86,37 @@ def test_build_metadata_and_dataset_payloads():
     )
     assert ds_empty["id"] is None
     assert ds_empty["screenshotKey"] is None
+
+
+def test_build_profile_dataset_and_metadata_payloads():
+    profile_data = {
+        "username": "instagram",
+        "fullName": "Instagram",
+        "biography": "Photos and videos",
+        "stats": ["10 posts", "20 followers"],
+        "avatarUrl": "https://img",
+    }
+
+    dataset_payload = build_profile_dataset_payload(
+        screenshot_uuid="u2",
+        source_url="https://www.instagram.com/instagram/",
+        screenshot_keys=["k2"],
+        screenshot_paths=["/tmp/profile.png"],
+        metadata_path="/tmp/profile.json",
+        profile_data=profile_data,
+    )
+    assert dataset_payload["itemType"] == "profile"
+    assert dataset_payload["profileUrl"] == "https://www.instagram.com/instagram/"
+    assert dataset_payload["profileUsername"] == "instagram"
+    assert dataset_payload["text"] == "Photos and videos"
+
+    metadata_payload = build_profile_metadata_payload(
+        screenshot_uuid="u2",
+        screenshot_utc="2026-01-01T00:00:00Z",
+        source_url="https://www.instagram.com/instagram/",
+        screenshot_keys=["k2"],
+        screenshot_paths=["/tmp/profile.png"],
+        profile_data=profile_data,
+    )
+    assert metadata_payload["itemType"] == "profile"
+    assert metadata_payload["profileStats"] == ["10 posts", "20 followers"]

@@ -2,6 +2,7 @@ import os
 from dataclasses import dataclass
 
 from .constants import VIEWPORT_HEIGHT, VIEWPORT_WIDTH
+from .instagram_urls import classify_instagram_url
 
 
 def _to_int(value, default: int) -> int:
@@ -31,12 +32,13 @@ def _as_bool(value, default: bool) -> bool:
 
 def _is_instagram_url(url: str) -> bool:
     lower = url.lower()
-    return (
+    has_instagram_domain = (
         lower.startswith("https://www.instagram.com/")
         or lower.startswith("https://instagram.com/")
         or lower.startswith("http://www.instagram.com/")
         or lower.startswith("http://instagram.com/")
     )
+    return has_instagram_domain and classify_instagram_url(url) in {"post", "profile"}
 
 
 def _parse_urls(value) -> list[str]:
@@ -96,6 +98,7 @@ class AppConfig:
     maximize_window: bool
     max_comment_likers: int
     liker_collection_mode: str
+    profile_capture_wait_secs: int
 
 
 def parse_input(input_data: dict) -> AppConfig:
@@ -140,4 +143,5 @@ def parse_input(input_data: dict) -> AppConfig:
         maximize_window=_as_bool(input_data.get("maximizeWindow"), True),
         max_comment_likers=_to_int_min(input_data.get("maxCommentLikers", 50), 50, 0),
         liker_collection_mode=_liker_collection_mode(input_data.get("likerCollectionMode", "best_effort")),
+        profile_capture_wait_secs=_to_int_min(input_data.get("profileCaptureWaitSecs", 3), 3, 0),
     )

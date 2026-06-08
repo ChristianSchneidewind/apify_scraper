@@ -1,10 +1,11 @@
 # Instagram Comment Scraper (Apify Actor, Python)
 
-Ein selbstgehosteter **Apify Actor** in Python, der Instagram-Kommentare im UI-Modus sammelt und pro Kommentar Screenshots mit **roter Hervorhebung** erzeugt.
+Ein selbstgehosteter **Apify Actor** in Python, der Instagram-Kommentare im UI-Modus sammelt, pro Kommentar Screenshots mit **roter Hervorhebung** erzeugt und auch **Instagram-Profile** als ganze Seite screenshotten kann.
 
 ## Features
 
 - Scraping von Kommentaren über Playwright (robuster UI-Flow)
+- Full-page Screenshots von Instagram-Profilseiten per Profil-URL
 - Optionaler Login für bessere Kommentar-Abdeckung
 - Persistenter Login-State (`LOGIN_STATE`) im Key-Value-Store
 - Pro Kommentar:
@@ -91,7 +92,10 @@ Beispiel:
 
 ```json
 {
-  "urls": ["https://www.instagram.com/p/DWHWE2vDbdr/"],
+  "urls": [
+    "https://www.instagram.com/p/DWHWE2vDbdr/",
+    "https://www.instagram.com/instagram/"
+  ],
   "maxComments": 0,
   "loginEnabled": true,
   "maxCommentLikers": 0,
@@ -149,6 +153,16 @@ Output-Schemata:
 ```
 
 ---
+
+`urls` unterstützt jetzt:
+
+- Post-URLs (`/p/.../`)
+- Reel-URLs (`/reel/.../`, `/reels/.../`)
+- Profil-URLs (`/username/`)
+
+Bei Profil-URLs wird kein Kommentar-Scraping ausgeführt; stattdessen wird die Profilseite als Full-Page-Screenshot gespeichert und als Dataset-Item mit `itemType: "profile"` ausgegeben.
+
+Vor dem Screenshot wartet der Actor standardmäßig **3 Sekunden**, damit Profilbilder und weitere Medien laden können. Das ist über `profileCaptureWaitSecs` konfigurierbar.
 
 ## Wichtige Module
 

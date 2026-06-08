@@ -115,6 +115,7 @@ def _cfg(urls):
         maximize_window=False,
         max_comment_likers=0,
         liker_collection_mode="best_effort",
+        profile_capture_wait_secs=3,
     )
 
 
@@ -159,3 +160,31 @@ def test_main_happy_path_runs_crawler(monkeypatch):
     assert crawler.kwargs["max_requests_per_crawl"] == 1
     assert actor.meta_store.set_calls
     assert any(key.startswith("RUN_SUMMARY::") and ctype == "application/json" for key, ctype in actor.default_store.set_calls)
+
+
+def test_main_profile_url_runs_profile_capture(monkeypatch):
+    m = importlib.import_module("main")
+    actor = FakeActorCM()
+    monkeypatch.setattr(m, "Actor", actor)
+    monkeypatch.setattr(m, "PlaywrightCrawler", FakeCrawler)
+    monkeypatch.setattr(m, "parse_input", lambda _i: _cfg(["https://www.instagram.com/nasa/"]))
+    monkeypatch.setattr(m, "init_session_state", lambda _s: {})
+
+    calls = []
+
+    async def _noop(*_a, **_k):
+        return None
+
+    async def _capture_profile_page(**kwargs):
+        calls.append(kwargs["source_url"])
+        return 1
+
+    monkeypatch.setattr(m, "apply_login_session", _noop)
+    monkeypatch.setattr(m, "force_light_mode", _noop)
+    monkeypatch.setattr(m, "capture_profile_page", _capture_profile_page)
+    monkeypatch.setattr(m, "make_post_slug", lambda _u: "slug")
+
+    asyncio.run(m.main())
+
+    assert calls == ["https://www.instagram.com/nasa/"]
+    assert actor.meta_store.set_calls
