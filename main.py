@@ -2,10 +2,9 @@ import asyncio
 import json
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from apify import Actor
-from crawlee import ConcurrencySettings
-from crawlee.crawlers import PlaywrightCrawler, PlaywrightCrawlingContext
 from dotenv import load_dotenv
 
 from src.scrape_loop import run_comment_capture_loop
@@ -19,10 +18,24 @@ from src.session import apply_login_session, init_session_state
 from src.ui import force_light_mode
 from src.log_events import log_event, warn_event
 
+if TYPE_CHECKING:
+    from crawlee.crawlers import PlaywrightCrawlingContext
+
+ConcurrencySettings = None
+PlaywrightCrawler = None
+
 load_dotenv()
 
 
 async def main():
+    global ConcurrencySettings, PlaywrightCrawler
+    if ConcurrencySettings is None or PlaywrightCrawler is None:
+        from crawlee import ConcurrencySettings as CrawleeConcurrencySettings
+        from crawlee.crawlers import PlaywrightCrawler as CrawleePlaywrightCrawler
+
+        ConcurrencySettings = CrawleeConcurrencySettings
+        PlaywrightCrawler = CrawleePlaywrightCrawler
+
     async with Actor:
         input_data = await Actor.get_input() or {}
         cfg = parse_input(input_data)
@@ -131,7 +144,7 @@ async def main():
         }
 
         @crawler.router.default_handler
-        async def request_handler(context: PlaywrightCrawlingContext) -> None:
+        async def request_handler(context: "PlaywrightCrawlingContext") -> None:
             page = context.page
 
             if debug_network:
