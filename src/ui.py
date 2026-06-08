@@ -1,6 +1,7 @@
 from .auth import dismiss_login_wall
 from .click_guard import build_safe_click_js_helpers, dismiss_suspicious_dialog_if_present, log_click_attempt, log_click_result
 from .constants import LOAD_MORE_TEXTS
+from .log_events import warn_suppressed_exception
 
 
 async def hide_visual_overlays(page):
@@ -73,8 +74,8 @@ async def set_screenshot_banner(page, video_url: str, utc_time: str):
 async def force_light_mode(page):
     try:
         await page.emulate_media(color_scheme="light")
-    except Exception:
-        pass
+    except Exception as exc:
+        warn_suppressed_exception("ui.force_light_mode_emulate_failed", exc)
     await page.add_init_script(
         """
         () => {
@@ -212,8 +213,8 @@ async def open_comments_panel(page, safe_mode: bool = False):
             log_click_result(source=f"open_comments_panel.selector:{selector}", action="open_comments_panel", outcome="clicked", target=selector)
             await page.wait_for_timeout(1200)
             return
-        except Exception:
-            pass
+        except Exception as exc:
+            warn_suppressed_exception("ui.open_comments_panel_click_failed", exc, selector=selector)
 
 
 async def expand_comments(page, max_clicks, safe_mode: bool = False):
@@ -464,8 +465,8 @@ async def scroll_to_element(page, element_handle, container_handle=None):
 
     try:
         await element_handle.scroll_into_view_if_needed(timeout=5000)
-    except Exception:
-        pass
+    except Exception as exc:
+        warn_suppressed_exception("ui.scroll_to_element_viewport_scroll_failed", exc)
 
     await page.evaluate(
         """
