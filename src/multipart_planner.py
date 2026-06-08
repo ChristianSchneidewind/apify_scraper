@@ -1,7 +1,7 @@
 from .click_guard import build_safe_click_js_helpers, dismiss_suspicious_dialog_if_present
 from .comment_decisions import calc_forced_parts, should_force_row_multipart, should_use_3plus_route, total_parts as calc_total_parts
 from .comment_pipeline_helpers import FORCED_MULTIPART_BASE, LONG_TEXT_THRESHOLD
-from .log_events import log_event
+from .log_events import log_event, warn_suppressed_exception
 
 
 def build_comment_locator_payload(data, element_handle):
@@ -56,8 +56,8 @@ async def plan_comment_multipart(*, page, element_handle, data, state):
                     "planned_parts_3plus": 1,
                 }
             await page.wait_for_timeout(160)
-        except Exception:
-            pass
+        except Exception as exc:
+            warn_suppressed_exception("multipart.long_text_expand_failed", exc, index=state["count"])
 
     part_plan = await page.evaluate(
         """

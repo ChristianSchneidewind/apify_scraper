@@ -1,7 +1,7 @@
 import asyncio
 
 from .auth import dismiss_login_wall
-from .log_events import log_event, warn_event
+from .log_events import log_event, warn_event, warn_suppressed_exception
 from .comment_processor import build_process_candidate
 from .comments import extract_comment_from_item, extract_comment_from_time, get_dialog_comment_rows, get_post_comment_rows
 from .instagram_dom import COMMENT_TIME_SELECTOR
@@ -43,8 +43,8 @@ async def run_comment_capture_loop(
         await expand_comments(page, 30, safe_mode=safe_interaction_mode)
         try:
             await expand_all_reply_threads(page, max_clicks=20 if safe_interaction_mode else 100)
-        except Exception:
-            pass
+        except Exception as exc:
+            warn_suppressed_exception("scrape.expand_reply_threads_failed", exc, round=round_idx + 1)
 
         is_post_page = "/p/" in context.request.url
         row_handles = await (get_post_comment_rows(page) if is_post_page else get_dialog_comment_rows(page))
@@ -132,8 +132,8 @@ async def run_comment_capture_loop(
                     comment_container,
                 )
                 await page.wait_for_timeout(1500)
-            except Exception:
-                pass
+            except Exception as exc:
+                warn_suppressed_exception("scrape.rescan_reset_scroll_failed", exc, pass_index=rescan_passes + 1)
             await open_comments_panel(page, safe_mode=safe_interaction_mode)
             await dismiss_login_wall(page)
             await expand_comments(page, 40, safe_mode=safe_interaction_mode)

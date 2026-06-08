@@ -23,3 +23,7 @@ def log_event(event: str, **fields):
 def warn_event(event: str, **fields):
     payload = _format_payload(fields)
     Actor.log.warning(f"[{event}] {payload}" if payload else f"[{event}]")
+
+
+def warn_suppressed_exception(event: str, exc: Exception, **fields):
+    warn_event(event, error_type=type(exc).__name__, error=repr(exc), **fields)
