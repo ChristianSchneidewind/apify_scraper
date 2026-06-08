@@ -16,9 +16,13 @@ The format is inspired by Keep a Changelog and follows semantic versioning in sp
   - `.actor/output_schema.json`
 - Typed scraper exceptions (`InputValidationError`, `LoginError`, etc.).
 - Per-comment performance metrics and end-of-run summary event.
+- TypeScript CLI workspace under `cli/` with centralized TypeBox schemas.
+- CLI guardrail scripts and iterative refactor loop tooling.
+- TypeScript CLI comment scrape loop with Instagram DOM selectors and structured JSON output.
 
 ### Changed
 - Split runtime and development dependencies (`requirements.txt` + `requirements-dev.txt`).
+- CI now covers both Python checks and TypeScript CLI checks.
 
 ## [1.0.0] - 2026-06-01
 

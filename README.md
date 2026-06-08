@@ -1,6 +1,29 @@
-# Instagram Comment Scraper (Apify Actor, Python)
+# Instagram Comment Scraper / Instagram CLI
 
-Ein selbstgehosteter **Apify Actor** in Python, der Instagram-Kommentare im UI-Modus sammelt und pro Kommentar Screenshots mit **roter Hervorhebung** erzeugt.
+Dieses Repository befindet sich in einer Übergangsphase und enthält aktuell zwei Implementierungen:
+
+- den bestehenden **Python Apify Actor**
+- den neuen **TypeScript CLI-Refactor** unter `cli/`
+
+Der Zielzustand ist eine **TypeScript-only CLI** mit kleiner Core-Architektur, modularen Feature-Modulen und zentralen **TypeBox**-Schemas.
+
+## Current status
+
+### Legacy runtime
+- Python Apify Actor bleibt im Repository erhalten
+- bestehende Actor-Dateien liegen weiter unter `main.py`, `src/`, `.actor/`
+
+### New CLI runtime
+- neue CLI liegt unter `cli/`
+- derzeit implementierte Befehle:
+  - `instagram auth login`
+  - `instagram scrape comments --url ...`
+  - `instagram scrape profiles --url ... --profile-slug ... --out-dir ... --json`
+- Validierung läuft über:
+  - `npm run lint`
+  - `npm run typecheck`
+  - `npm run test:coverage`
+  - `CI=1 npm run guardrails`
 
 ## Features
 
@@ -33,23 +56,27 @@ python-dotenv
 
 ```txt
 .
+├── cli/
+│   ├── src/
+│   │   ├── adapters/
+│   │   ├── core/
+│   │   ├── modules/
+│   │   └── schemas/
+│   └── tests/
 ├── main.py
 ├── INPUT_SCHEMA.json
 ├── requirements.txt
 ├── src/
-│   ├── scrape_loop.py
-│   ├── comments.py
-│   ├── comment_likers.py
-│   ├── multipart_executor.py
-│   ├── page_setup.py
-│   └── ...
 ├── tests/
+├── docs/
 └── storage/
 ```
 
 ---
 
 ## Setup
+
+### Python actor
 
 ```bash
 python3 -m venv .venv
@@ -58,10 +85,17 @@ pip install -r requirements.txt
 playwright install
 ```
 
-Für Entwicklung/Tests:
+Für Python-Entwicklung/Tests:
 
 ```bash
 pip install -r requirements-dev.txt
+```
+
+### TypeScript CLI
+
+```bash
+npm install
+npx playwright install chromium
 ```
 
 Optional `.env`:
@@ -77,8 +111,18 @@ LIKERS_DEBUG_PROGRESS=0
 
 ## Lokaler Start
 
+### Python actor
+
 ```bash
 python3 -m main
+```
+
+### TypeScript CLI
+
+```bash
+npx tsx cli/src/bin/instagram.ts auth login --browser-profile "default"
+npx tsx cli/src/bin/instagram.ts scrape comments --url "https://www.instagram.com/p/abc/"
+npx tsx cli/src/bin/instagram.ts scrape profiles --url "https://www.instagram.com/nasa/" --profile-slug "nasa" --out-dir "artifacts/profiles" --json
 ```
 
 Input liegt typischerweise unter:
@@ -123,10 +167,21 @@ LIKERS_DEBUG_PROGRESS=1 python3 -m main
 
 ## Tests
 
+Python-Actor:
+
 ```bash
 .venv/bin/pytest -q
 # optional mit Coverage:
 .venv/bin/pytest -q --cov=src --cov-report=term-missing
+```
+
+TypeScript CLI:
+
+```bash
+npm run lint
+npm run typecheck
+npm run test:coverage
+CI=1 npm run guardrails
 ```
 
 CI läuft bei Push über GitHub Actions:
@@ -180,6 +235,12 @@ if use_3plus_route:
 ```
 
 ---
+
+## CLI refactor docs
+
+- [`docs/refactor-to-cli-plan.md`](./docs/refactor-to-cli-plan.md)
+- [`docs/cli-usage.md`](./docs/cli-usage.md)
+- [`docs/cli-migration.md`](./docs/cli-migration.md)
 
 ## Troubleshooting
 

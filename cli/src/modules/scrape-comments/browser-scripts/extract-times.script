@@ -1,0 +1,42 @@
+const IGNORE_TEXTS = new Set(['Like', 'Reply', 'Log in', 'Sign up', 'Comment', 'Share', 'Save']);
+const isProfileHref = (href) => {
+  if (!href || !href.startsWith('/')) return false;
+  if (href.startsWith('/p/') || href.startsWith('/reel/') || href.startsWith('/reels/')) return false;
+  if (href.includes('/c/') || href.startsWith('/explore/') || href.startsWith('/accounts/')) return false;
+  return /^\/[A-Za-z0-9._]+\/?($|\?)/.test(href);
+};
+const isValidUsername = (username) => /^[a-zA-Z0-9._]{2,30}$/.test(username || '');
+const pickText = (node, username, timeText) => {
+  const spans = Array.from(node.querySelectorAll('span'))
+    .map((span) => span.textContent?.trim() || '')
+    .filter((text) => text.length > 0 && !IGNORE_TEXTS.has(text));
+  return spans
+    .filter((item) => item !== username && item !== timeText)
+    .sort((a, b) => b.length - a.length)
+    .find((item) => item.length >= 1) || '';
+};
+const extractOne = (timeEl) => {
+  const timeText = timeEl.textContent?.trim() ?? '';
+  let node = timeEl.parentElement;
+  for (let depth = 0; depth < 24 && node; depth += 1) {
+    const userLink = Array.from(node.querySelectorAll('a[role="link"], a'))
+      .find((link) => isProfileHref(link.getAttribute('href') || ''));
+    if (!userLink) { node = node.parentElement; continue; }
+    const username = (userLink.textContent || '').trim().replace(/\s+/g, '').replace(/verified$/i, '');
+    if (!isValidUsername(username)) { node = node.parentElement; continue; }
+    const text = pickText(node, username, timeText);
+    if (!text) { node = node.parentElement; continue; }
+    return {
+      commentPermalink: node.querySelector('a[href*="/c/"]')?.getAttribute('href') ?? null,
+      datetime: timeEl.getAttribute('datetime'),
+      text,
+      timeText,
+      username,
+      userProfilePath: userLink.getAttribute('href'),
+    };
+  }
+  return null;
+};
+return Array.from(document.querySelectorAll(timeSelector))
+  .map((timeEl) => extractOne(timeEl))
+  .filter(Boolean);

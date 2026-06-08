@@ -1,0 +1,30 @@
+{
+  "name": "instagram-cli-refactor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "instagram": "./cli/src/bin/instagram.ts"
+  },
+  "scripts": {
+    "lint": "eslint cli/src cli/tests --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "guardrails": "bash scripts/validate-cli-refactor.sh"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.41",
+    "cac": "^6.7.14",
+    "playwright": "^1.53.1"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.34.1",
+    "@typescript-eslint/parser": "^8.34.1",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^9.29.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
