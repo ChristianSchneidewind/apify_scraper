@@ -1,0 +1,27 @@
+return (payload) => {
+  const { el } = payload;
+  const target = el?.closest?.('li, [role="listitem"], article, div') || el;
+  if (!target) return false;
+
+  try {
+    const scrollParent = (() => {
+      let current = target.parentElement;
+      while (current) {
+        if (current.scrollHeight - current.clientHeight > 20) return current;
+        current = current.parentElement;
+      }
+      return null;
+    })();
+
+    if (scrollParent) {
+      const rect = target.getBoundingClientRect();
+      const parentRect = scrollParent.getBoundingClientRect();
+      const offset = rect.top - parentRect.top;
+      scrollParent.scrollTop += offset - (scrollParent.clientHeight / 2);
+    }
+
+    target.scrollIntoView({ block: 'center', inline: 'nearest' });
+    window.scrollBy(0, -120);
+  } catch (error) {}
+  return true;
+};

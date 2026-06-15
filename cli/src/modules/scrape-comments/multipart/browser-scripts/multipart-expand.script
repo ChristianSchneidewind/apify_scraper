@@ -1,0 +1,12 @@
+__HELPERS__
+const row = el?.closest?.('li, [role="listitem"], article, div') || el;
+if (!row) return;
+const textNodes = row.querySelectorAll('span, div, p');
+for (const n of textNodes) {
+  if (!(n instanceof HTMLElement)) continue;
+  n.style.setProperty('max-height', 'none', 'important');
+  n.style.setProperty('height', 'auto', 'important');
+  n.style.setProperty('overflow', 'visible', 'important');
+  n.style.setProperty('-webkit-line-clamp', 'unset', 'important');
+  n.style.setProperty('line-clamp', 'unset', 'important');
+}

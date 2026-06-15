@@ -1,60 +1,51 @@
-# Troubleshooting Playbook
+# Troubleshooting
 
-## 1) `comments_captured_total=0`
+## No comments captured
 
-Prüfen:
-- Ist `loginEnabled=true` gesetzt?
-- Sind gültige Instagram-URLs im Input (`https://www.instagram.com/...`)?
-- Gibt es Login-Walls oder UI-Blocker?
+Check:
+- valid Instagram URL
+- authenticated session if needed
+- Instagram login wall or modal blockers
 
-Empfehlung:
-- `runtimeProfile: "deep"`
-- `maxUiRounds` hochsetzen (z. B. 120)
-- `uiIdleRounds` hochsetzen (z. B. 15)
+Try:
+- increase `--max-ui-rounds`
+- increase `--ui-idle-rounds`
+- run with `--verbose`
 
----
+## Likers lower than likesCount
 
-## 2) Likers deutlich unter `likesCount`
+Notes:
+- Instagram often exposes only visible/loadable likers
+- default `--max-comment-likers 0` already means all visible likers
 
-Hinweise:
-- Instagram UI liefert oft nur „sichtbar ladbare“ Likers.
-- `maxCommentLikers: 0` entfernt nur den lokalen Cap.
+Try:
+- `--liker-collection-mode strict`
+- `--verbose`
 
-Empfehlung:
-- `likerCollectionMode: "strict"`
-- `LIKERS_DEBUG_PROGRESS=1` aktivieren
-- Logs auf `strict_incomplete` prüfen
+## 0-like comments
 
----
+The CLI should not click the normal reaction button for 0-like comments.
+Deep fallback is skipped when `likesCount === 0`.
 
-## 3) Sehr langsame Runs
+## Slow runs
 
-Typische Ursache:
-- Ausklappen/Scrollen der Kommentare dominiert Laufzeit.
+Typical causes:
+- comment expansion
+- liker dialog scrolling
+- multipart screenshots
 
-Empfehlung:
-- Für Geschwindigkeit `runtimeProfile: "fast"`
-- Für Benchmark bewusst `maxComments` begrenzen
-- Benchmark-Runner mit `--warmup-runs` nutzen
+Try:
+- lower `--max-comments`
+- lower `--max-ui-rounds`
+- avoid unnecessary verbose runs
 
----
+## Validation / CI
 
-## 4) CI-Fehler bei Workflow/Schema/Lint
+Run locally:
 
-- `tests-on-push.yml` erwartet:
-  - Schema-Validator
-  - Ruff-Lint
-  - Pytest-Coverage
-- Prüfen:
-  - `.actor/dataset_schema.json`
-  - `.actor/output_schema.json`
-  - `.github/scripts/validate_actor_schemas.py`
-
----
-
-## 5) Release-Workflow
-
-- Auto-Release bei Tag `v*`
-- RC-Test per `workflow_dispatch` mit:
-  - `tag_name=vX.Y.Z-rc1`
-  - `prerelease=true`
+```bash
+npm run lint
+npm run typecheck
+npm run test:coverage
+CI=1 npm run guardrails
+```

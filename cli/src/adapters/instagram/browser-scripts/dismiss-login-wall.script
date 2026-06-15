@@ -1,0 +1,27 @@
+() => {
+  const hideDialogs = () => {
+    document.querySelectorAll('div[role="dialog"]').forEach((dialog) => {
+      const txt = (dialog.innerText || '').toLowerCase();
+      const isLoginWall =
+        txt.includes('log in') || txt.includes('login') || txt.includes('anmelden') ||
+        txt.includes('sign up') || txt.includes('registrieren') ||
+        txt.includes('see more from') || txt.includes('mehr von instagram');
+      if (!isLoginWall) return;
+
+      dialog.style.setProperty('display', 'none', 'important');
+      dialog.style.setProperty('visibility', 'hidden', 'important');
+      dialog.style.setProperty('opacity', '0', 'important');
+      const parent = dialog.parentElement;
+      if (parent) {
+        parent.style.setProperty('display', 'none', 'important');
+        parent.style.setProperty('visibility', 'hidden', 'important');
+        parent.style.setProperty('opacity', '0', 'important');
+      }
+    });
+    document.body.style.overflow = 'auto';
+  };
+
+  hideDialogs();
+  setInterval(hideDialogs, 500);
+  return true;
+}

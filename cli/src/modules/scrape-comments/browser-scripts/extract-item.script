@@ -1,0 +1,161 @@
+const ignoreTexts = new Set(['Like', 'Reply', 'Log in', 'Sign up', 'Comment', 'Share', 'Save']);
+const isProfileHref = (h) => {
+  if (!h || !h.startsWith('/')) return false;
+  if (h.startsWith('/p/') || h.startsWith('/reel/') || h.startsWith('/reels/')) return false;
+  if (h.startsWith('/explore/') || h.startsWith('/accounts/') || h.startsWith('/direct/')) return false;
+  if (h.startsWith('/stories/') || h.startsWith('/locations/')) return false;
+  if (h.includes('/c/')) return false;
+  return /^\/[A-Za-z0-9._]+\/?$/.test(h);
+};
+const isValidUsername = (username) => /^[a-zA-Z0-9._]{2,30}$/.test(username || '');
+const parseLikesInfo = (root, ownerUsername) => {
+  const scopes = [];
+  const add = (node) => { if (node && !scopes.includes(node)) scopes.push(node); };
+  add(root);
+  add(root?.parentElement);
+  add(root?.previousElementSibling);
+  add(root?.nextElementSibling);
+  let current = root;
+  for (let i = 0; i < 4 && current; i += 1) {
+    add(current.parentElement);
+    add(current.parentElement?.previousElementSibling);
+    add(current.parentElement?.nextElementSibling);
+    current = current.parentElement;
+  }
+  const raw = scopes.map((node) => (node?.innerText || '')).join(' ').replace(/\s+/g, ' ').trim();
+  const m = raw.match(/(\d+[\d.,]*)\s*likes?/i)
+    || raw.match(/(\d+[\d.,]*)\s*gefällt\s*mir(?:-angaben|\s*mal)?/i)
+    || raw.match(/gefällt\s+(\d+[\d.,]*)\s*mal/i);
+  const likesCount = m ? parseInt((m[1] || '').replace(/[.,]/g, ''), 10) || 0 : 0;
+  const seen = new Set();
+  const likers = [];
+  const links = scopes.flatMap((node) => Array.from(node?.querySelectorAll?.('a[href]') || []));
+  for (const a of links) {
+    const href = a.getAttribute('href') || '';
+    if (!isProfileHref(href)) continue;
+    const uname = (a.textContent || '').trim().replace(/\s+/g, '').replace(/verified$/i, '');
+    if (!uname || !/^[a-zA-Z0-9._]{2,30}$/.test(uname)) continue;
+    if (ownerUsername && uname.toLowerCase() === ownerUsername.toLowerCase()) continue;
+    const key = uname.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    likers.push({ username: uname, profilePath: href });
+    if (likers.length >= 10) break;
+  }
+  return { likesCount, likers };
+};
+
+const findTightRow = (start) => {
+  if (!start) return null;
+  if (start.closest) {
+    const li = start.closest('li');
+    if (li) return li;
+    const listItem = start.closest('[role="listitem"]');
+    if (listItem) return listItem;
+  }
+
+  let current = start.parentElement;
+  for (let i = 0; i < 24 && current; i += 1) {
+    const profileLink = Array.from(current.querySelectorAll('a[href]'))
+      .find((a) => isProfileHref(a.getAttribute('href') || ''));
+    const permLinks = current.querySelectorAll('a[href*="/c/"]');
+    const rect = current.getBoundingClientRect();
+    if (profileLink && permLinks.length === 1
+        && rect.width >= 220 && rect.height >= 28 && rect.height <= 520) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+
+  current = start.parentElement;
+  while (current) {
+    const txt = (current.innerText || '').trim();
+    const rect = current.getBoundingClientRect();
+    if (txt.length > 30 && rect.height >= 20 && rect.height <= 900) return current;
+    current = current.parentElement;
+  }
+
+  return start.parentElement || start;
+};
+
+const item = el;
+const links = Array.from(item.querySelectorAll('a[role="link"], a'));
+const usernameLink = links.find((a) => isProfileHref(a.getAttribute('href') || ''));
+const rawUsername = (usernameLink?.textContent || '').trim();
+const username = rawUsername.replace(/\s+/g, '').replace(/verified$/i, '');
+const userProfilePath = usernameLink?.getAttribute('href') || null;
+const commentPermalink = item.querySelector('a[href*="/c/"]')?.getAttribute('href') ?? null;
+if (!isValidUsername(username)) return null;
+
+const timeEl = item.querySelector('time');
+const timeText = timeEl?.textContent?.trim() ?? null;
+const datetime = timeEl?.getAttribute('datetime') ?? null;
+
+const spans = Array.from(item.querySelectorAll('span'))
+  .map((s) => s.textContent?.trim())
+  .filter((t) => t && !ignoreTexts.has(t));
+const textCandidates = spans
+  .filter((t) => t !== username && t !== rawUsername && t !== timeText)
+  .sort((a, b) => b.length - a.length);
+const badText = (t) => {
+  const v = (t || '').trim();
+  if (!v) return true;
+  const l = v.toLowerCase();
+  if (['reply', 'replies', 'edited', 'view all replies', 'view hidden comments'].includes(l)) return true;
+  if (/^\d+\s*(h|d|w|m|s)$/i.test(v)) return true;
+  if (/^\d+\s*likes?$/i.test(v)) return true;
+  if (/^\d+h\s*·\s*edited$/i.test(l)) return true;
+  return false;
+};
+const text = textCandidates.find((t) => !badText(t)) || null;
+
+const hasGif = Array.from(item.querySelectorAll('img, video, canvas')).some((node) => {
+  const src = (node.getAttribute?.('src') || node.getAttribute?.('poster') || '').toLowerCase();
+  const alt = (node.getAttribute?.('alt') || '').toLowerCase();
+  const aria = (node.getAttribute?.('aria-label') || '').toLowerCase();
+  const cls = String(node.getAttribute?.('class') || '').toLowerCase();
+  const r = node.getBoundingClientRect?.() || { width: 0, height: 0 };
+  if (alt.includes('profile picture') || alt.includes('profilbild') || cls.includes('avatar')) return false;
+  if (r.width <= 40 && r.height <= 40) return false;
+  return src.includes('giphy') || src.includes('.gif') || src.includes('/gif') || alt.includes('gif') || aria.includes('gif') || alt.includes('sticker') || aria.includes('sticker') || r.width >= 48 || r.height >= 48;
+});
+
+const escapeRe = (value) => String(value || '').replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+const raw = (item.innerText || '').replace(/\s+/g, ' ').trim();
+const cleaned = raw
+  .replace(new RegExp(escapeRe(username), 'ig'), '')
+  .replace(new RegExp(escapeRe(timeText), 'ig'), '')
+  .replace(/\b(Like|Reply|Replies|Log in|Sign up|Comment|Share|Save|GIF|Sticker|Gefällt|Antworten|Antwort|Ansehen|anzeigen|weiter|more|view|replies)\b/ig, '')
+  .replace(/[^\p{L}\p{N}]+/gu, ' ')
+  .replace(/\b\d+[.,]?\d*\b/g, '')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const likesInfo = parseLikesInfo(item, username);
+if (text && text.length >= 1) {
+  return {
+    username,
+    userProfilePath,
+    commentPermalink,
+    text,
+    datetime,
+    timeText,
+    likesCount: likesInfo.likesCount,
+    commentLikers: likesInfo.likers,
+    isGifOnly: false,
+  };
+}
+if (hasGif && cleaned.length === 0) {
+  return {
+    username,
+    userProfilePath,
+    commentPermalink,
+    text: '[GIF]',
+    datetime,
+    timeText,
+    likesCount: likesInfo.likesCount,
+    commentLikers: likesInfo.likers,
+    isGifOnly: true,
+  };
+}
+return null;

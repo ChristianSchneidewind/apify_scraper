@@ -1,8 +1,12 @@
-FROM apify/actor-python-playwright-chrome:latest
+FROM mcr.microsoft.com/playwright:v1.53.1-jammy
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
 
 COPY . ./
 
-CMD ["python", "-m", "main"]
+RUN npx playwright install chromium
+
+CMD ["node", "--import", "tsx", "cli/src/bin/instagram.ts", "--help"]

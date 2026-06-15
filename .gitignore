@@ -18,7 +18,11 @@ Screenshots/
 *.log
 
 # Memory
-scripts/
+scripts/*
+!scripts/refactor-to-cli-loop.sh
+!scripts/refactor-cli-phase-detect.sh
+!scripts/refactor-cli-phase-validator.sh
+!scripts/validate-cli-refactor.sh
 !.github/scripts/
 !.github/scripts/*.py
 .cursor/
@@ -35,9 +39,17 @@ Makefile
 .idea/
 
 # Local agent / tooling state
+AGENTS.md
 .agents/
 .pi/
+.instagram-cli/
+.loop/
+.ralph/
 skills-lock.json
+
+# Test artifacts
+coverage/
+artifacts/
 
 # Misc
 .python-version
