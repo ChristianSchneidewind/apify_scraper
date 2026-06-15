@@ -57,7 +57,7 @@ export const runScrapeComments = async (
   const dir = await ensureOutputDirectory(context.cwd, `${options.outDir || 'artifacts/comments'}/${makeRunFolder()}`);
   writeStage(options, `output dir: ${dir}`);
   writeStage(options, 'opening browser');
-  const session = await openBrowserSession(context, true);
+  const session = await openBrowserSession(context, options.headful);
   writeStage(options, 'navigating to post');
   await session.page.goto(options.url, { waitUntil: 'domcontentloaded' });
   writeStage(options, 'waiting for initial load');

@@ -10,6 +10,7 @@ const addGlobalOptions = (command: ReturnType<ReturnType<typeof cac>['command']>
   command.option('--browser-profile <name>', 'Browser profile', { default: 'default' });
   command.option('--cwd <path>', 'Working directory', { default: process.cwd() });
   command.option('--dry-run', 'Dry run mode');
+  command.option('--headless', 'Run browser without UI (default is headful)');
   command.option('--json', 'JSON output');
   command.option('--no-color', 'Disable color');
   command.option('--no-input', 'Disable prompts');

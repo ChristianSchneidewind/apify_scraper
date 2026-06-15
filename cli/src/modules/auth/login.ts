@@ -1,29 +1,17 @@
-import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
-import { chromium } from 'playwright';
 import type { AuthLoginOptions, AuthPage, CliOutput, RuntimeContext } from '../../schemas/index.ts';
 import { prepareAuthPage } from '../../adapters/instagram/auth.ts';
+import { closeBrowserSession, openBrowserSession } from '../../adapters/playwright/browser.ts';
 import { failResult } from '../../core/result.ts';
 
 const ensureProfileDirectory = async (context: RuntimeContext) =>
   mkdir(context.browserProfile.dir, { recursive: true });
 
-const hasStorageState = (path: string) => existsSync(path);
-
-const buildLoginContextOptions = (context: RuntimeContext) => {
-  if (hasStorageState(context.browserProfile.storageStatePath)) {
-    return { storageState: context.browserProfile.storageStatePath };
-  }
-  return {};
-};
-
-const openLoginPage = async (context: RuntimeContext) => {
-  const browser = await chromium.launch({ headless: false });
-  const browserContext = await browser.newContext(buildLoginContextOptions(context));
-  const page = await browserContext.newPage();
-  return { browser, browserContext, page: page as AuthPage };
+const openLoginPage = async (context: RuntimeContext, headful: boolean) => {
+  const session = await openBrowserSession(context, headful);
+  return { ...session, page: session.page as AuthPage };
 };
 
 const isLoggedIn = async (page: AuthPage) =>
@@ -55,22 +43,22 @@ export const runAuthLogin = async (
   input = stdin,
 ): Promise<CliOutput> => {
   await ensureProfileDirectory(context);
-  const session = await openLoginPage(context);
+  const session = await openLoginPage(context, options.headful);
   await session.page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' });
   await prepareAuthPage(session.page);
   if (await isLoggedIn(session.page)) {
     await session.browserContext.storageState({ path: context.browserProfile.storageStatePath });
-    await session.browser.close();
+    await closeBrowserSession(session.browser);
     return buildSuccess(context);
   }
   if (options.noInput || !canPromptLogin(input)) {
-    await session.browser.close();
+    await closeBrowserSession(session.browser);
     return failResult('auth.login', 'auth login requires an interactive terminal');
   }
   await session.page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'domcontentloaded' });
   await prepareAuthPage(session.page);
   await waitForLoginConfirmation();
   await session.browserContext.storageState({ path: context.browserProfile.storageStatePath });
-  await session.browser.close();
+  await closeBrowserSession(session.browser);
   return buildSuccess(context);
 };

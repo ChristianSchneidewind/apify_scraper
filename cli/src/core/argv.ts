@@ -21,6 +21,7 @@ const buildGlobals = (argv: string[]) => ({
   browserProfile: readFlag(argv, '--browser-profile') || 'default',
   cwd: readFlag(argv, '--cwd') || process.cwd(),
   dryRun: argv.includes('--dry-run'),
+  headful: !argv.includes('--headless'),
   json: argv.includes('--json'),
   noColor: argv.includes('--no-color'),
   noInput: argv.includes('--no-input'),

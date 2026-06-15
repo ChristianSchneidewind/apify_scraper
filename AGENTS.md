@@ -10,6 +10,7 @@ We are building a **self-hosted Apify Actor** in **Python** that scrapes Instagr
 
 ## Key behaviors
 - Uses Playwright to open the post page, load comments (UI mode) with aggressive scrolling / load-more.
+- Browser runs **headful by default** (`--headless` to override in the TypeScript CLI).
 - Extracts comments via `time` elements and filters out UI labels.
 - Highlights each comment element in red and takes a full-page screenshot.
 - Saves screenshots to `Screenshots/` and writes data to the Apify dataset.

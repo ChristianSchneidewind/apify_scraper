@@ -60,6 +60,31 @@ describe('parseCommandRequest', () => {
     expect(request?.options.plain).toBe(true);
   });
 
+  it('defaults to headful browser mode', () => {
+    const request = parseCommandRequest([
+      'node',
+      'instagram',
+      'scrape',
+      'comments',
+      '--url',
+      'https://www.instagram.com/p/abc/',
+    ]);
+    expect(request?.options.headful).toBe(true);
+  });
+
+  it('parses headless override', () => {
+    const request = parseCommandRequest([
+      'node',
+      'instagram',
+      'scrape',
+      'comments',
+      '--headless',
+      '--url',
+      'https://www.instagram.com/p/abc/',
+    ]);
+    expect(request?.options.headful).toBe(false);
+  });
+
   it('parses liker flags', () => {
     const request = parseCommandRequest([
       'node',

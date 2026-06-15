@@ -49,6 +49,7 @@ npx tsx cli/src/bin/instagram.ts scrape profiles \
 
 Defaults:
 
+- browser runs **headful** (visible UI); use `--headless` to override
 - `--max-comments 0` = unlimited
 - `--max-comment-likers 0` = all visible likers
 

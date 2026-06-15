@@ -5,6 +5,7 @@ const options = {
   browserProfile: 'default',
   cwd: '/tmp/project',
   dryRun: false,
+  headful: true,
   json: false,
   noColor: false,
   noInput: false,
