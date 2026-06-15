@@ -39,6 +39,7 @@ Makefile
 .idea/
 
 # Local agent / tooling state
+AGENTS.md
 .agents/
 .pi/
 .instagram-cli/
