@@ -7,6 +7,7 @@ import {
 const buildPage = (...results: unknown[]) => ({
   evaluate: vi.fn().mockImplementation(() => Promise.resolve(results.shift())),
   waitForTimeout: vi.fn().mockResolvedValue(undefined),
+  keyboard: { press: vi.fn().mockResolvedValue(undefined) },
 });
 
 describe('likers dialog', () => {
@@ -58,5 +59,18 @@ describe('likers dialog', () => {
     const result = await waitForDialogOpen(page as never);
     expect(result).toBe(true);
     expect(page.waitForTimeout).toHaveBeenCalledTimes(2);
+  });
+
+  it('nudges scrolling when the dialog stalls', async () => {
+    const page = buildPage(
+      { canScroll: false, items: [{ profilePath: '/bob/', username: 'bob' }], open: true },
+      { canScroll: false, items: [{ profilePath: '/bob/', username: 'bob' }], open: true },
+      { canScroll: false, items: [], open: false },
+    );
+
+    const result = await collectLikersFromDialog(page as never, 0);
+
+    expect(result).toEqual([{ profileUrl: 'https://www.instagram.com/bob/', username: 'bob' }]);
+    expect(page.keyboard.press).toHaveBeenCalledWith('End');
   });
 });

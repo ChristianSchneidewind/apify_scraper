@@ -44,6 +44,7 @@ export const collectLikersFromDialog = async (
   page: {
     evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
     waitForTimeout: (ms: number) => Promise<void>;
+    keyboard?: { press: (key: string) => Promise<void> };
   },
   maxCommentLikers: number,
 ) => {
@@ -59,6 +60,11 @@ export const collectLikersFromDialog = async (
     const added = mergeBatch(batch as LikersBatch, seen, likers, maxCommentLikers);
     if (maxCommentLikers && likers.length >= maxCommentLikers) break;
     stagnant = added === 0 ? stagnant + 1 : 0;
+    if (stagnant > 0 && page.keyboard?.press) {
+      await Promise.allSettled([
+        page.keyboard.press(batch.canScroll ? 'PageDown' : 'End'),
+      ]);
+    }
     if (!(batch as LikersBatch).canScroll && stagnant >= maxStagnant) break;
     await page.waitForTimeout(maxCommentLikers === 0 ? 280 : 220);
   }

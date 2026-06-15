@@ -20,19 +20,55 @@ return (() => {
     return { profilePath: href, username };
   }).filter((x) => /^[A-Za-z0-9._]{2,30}$/.test(x.username));
 
-  let scroller = null;
-  const candidates = Array.from(d.querySelectorAll('div, ul'))
+  const state = window.__igLikersScrollState || (window.__igLikersScrollState = { idx: 0 });
+  const candidates = Array.from(d.querySelectorAll('div, ul, section, main'))
     .filter((c) => c.scrollHeight > c.clientHeight + 20)
     .sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight));
-  if (candidates.length) scroller = candidates[0];
+
+  const fallbacks = [
+    d,
+    d.parentElement,
+    document.scrollingElement,
+    document.documentElement,
+    document.body,
+  ].filter(Boolean);
+
+  const targets = candidates.length ? candidates : fallbacks;
+  const start = targets.length ? (state.idx % targets.length) : 0;
+  if (targets.length) state.idx = (state.idx + 1) % targets.length;
+
+  const tryScroll = (node) => {
+    if (!node || typeof node.scrollTop !== 'number') return false;
+    const before = node.scrollTop;
+    const maxScroll = Math.max(0, (node.scrollHeight || 0) - (node.clientHeight || 0));
+    const step = Math.max(260, (node.clientHeight || 0) * 0.95);
+    node.scrollTop = Math.min(maxScroll, before + step);
+    return Math.abs(node.scrollTop - before) > 2;
+  };
 
   let canScroll = false;
-  if (scroller) {
-    const before = scroller.scrollTop;
-    const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-    const step = Math.max(260, scroller.clientHeight * 0.95);
-    scroller.scrollTop = Math.min(maxScroll, before + step);
-    canScroll = Math.abs(scroller.scrollTop - before) > 2;
+  for (let i = 0; i < targets.length && i < 4; i += 1) {
+    const target = targets[(start + i) % targets.length];
+    if (tryScroll(target)) {
+      canScroll = true;
+      break;
+    }
   }
+
+  if (!canScroll) {
+    for (const target of targets.slice(0, 3)) {
+      if (!target || typeof target.dispatchEvent !== 'function') continue;
+      try {
+        target.dispatchEvent(new WheelEvent('wheel', { deltaY: 700, bubbles: true, cancelable: true }));
+      } catch {
+        /* ignore */
+      }
+      if (tryScroll(target)) {
+        canScroll = true;
+        break;
+      }
+    }
+  }
+
   return { canScroll, items, open: true };
 })();
