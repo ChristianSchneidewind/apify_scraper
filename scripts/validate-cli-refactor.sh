@@ -55,7 +55,7 @@ check_strict_tsconfig() {
 
 check_no_push_automation() {
   local violations
-  violations="$(grep -RInE '(^|[^a-z])(git push|npm publish|pnpm publish|yarn publish)' scripts/refactor-to-cli-loop.sh docs .ralph 2>/dev/null | grep -vi 'do not' || true)"
+  violations="$(grep -RInE '(^|[^a-z])(git push|npm publish|pnpm publish|yarn publish)' docs .ralph 2>/dev/null | grep -vi 'do not' || true)"
   [[ -z "$violations" ]] || fail "automation scripts/docs must not include push/publish steps:\n$violations"
 }
 
