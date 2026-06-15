@@ -59,6 +59,7 @@ describe('runScrapeProfiles', () => {
       browserProfile: 'default',
       cwd: '/tmp/project',
       dryRun: false,
+      headful: true,
       json: true,
       noColor: false,
       noInput: false,

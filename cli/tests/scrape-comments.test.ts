@@ -65,6 +65,7 @@ describe('runScrapeComments', () => {
       browserProfile: 'default',
       cwd: '/tmp/project',
       dryRun: false,
+      headful: true,
       json: false,
       maxCommentLikers: 50,
       noColor: false,
@@ -82,6 +83,7 @@ describe('runScrapeComments', () => {
     expect(result.details.likersCount).toBe('1');
     expect(result.details.screenshotCount).toBe('1');
     expect(runCommentScrapeLoop).toHaveBeenCalled();
+    expect(openBrowserSession).toHaveBeenCalledWith(context, true);
     expect(writeJsonFile).toHaveBeenCalled();
     expect(evaluate).toHaveBeenCalled();
     expect(waitForTimeout).toHaveBeenCalled();

@@ -4,7 +4,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeBinaryFile, writeJsonFile } from '../../../adapters/filesystem/output.ts';
 import type { CapturePage, CommentRecord, ElementHandle } from '../../../schemas/index.ts';
-import { bannerText, setScreenshotBanner } from './banner.ts';
 import { buildCommentMetadataPayload } from './payloads.ts';
 
 const dir = dirname(fileURLToPath(import.meta.url));
@@ -21,29 +20,6 @@ const withTimeout = async <T>(promise: Promise<T>, ms: number) => {
 
 const runPayloadOnElement = <T>(el: Element, args: { body: string; payload: Record<string, unknown> }) =>
   (new Function(args.body)() as (payload: Record<string, unknown>) => T)({ ...args.payload, el });
-
-const isProfileHref = (h: string) => {
-  if (!h || !h.startsWith('/')) return false;
-  if (h.startsWith('/p/') || h.startsWith('/reel/') || h.startsWith('/reels/')) return false;
-  if (h.startsWith('/explore/') || h.startsWith('/accounts/') || h.startsWith('/direct/')) return false;
-  if (h.startsWith('/stories/') || h.startsWith('/locations/')) return false;
-  return !h.includes('/c/') && /^\/[A-Za-z0-9._]+\/?($|\?)/.test(h);
-};
-
-const findScreenshotTarget = (target: Element | null, fallback: Element | null, remaining: number): Element | null => {
-  if (!target || remaining <= 0) return fallback;
-  const rect = target.getBoundingClientRect();
-  const permCount = target.querySelectorAll?.('a[href*="/c/"]').length || 0;
-  const hasProfile = Array.from(target.querySelectorAll?.('a[href]') || []).some((a) => isProfileHref(a.getAttribute('href') || ''));
-  const isMatch = rect.width >= 220 && rect.height >= 28 && rect.height <= 520 && permCount === 1 && hasProfile;
-  return isMatch ? target : findScreenshotTarget(target.parentElement, fallback, remaining - 1);
-};
-
-const resolveScreenshotTarget = async (handle: ElementHandle) => {
-  if (!handle.evaluateHandle) return null;
-  return handle.evaluateHandle((el: Element) => findScreenshotTarget(el.closest('li, [role="listitem"]') || el.closest('article') || el, el, 24))
-    .catch(() => null);
-};
 
 export const savePart = async (
   outDir: string,

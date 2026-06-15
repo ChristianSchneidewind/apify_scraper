@@ -1,8 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { expandCommentForCapture } from '../../modules/scrape-comments/multipart/planner.ts';
-
 const dir = dirname(fileURLToPath(import.meta.url));
 const FORCE_LIGHT_MODE_SCRIPT = readFileSync(join(dir, 'browser-scripts/force-light-mode.script'), 'utf8');
 const HIDE_VISUAL_OVERLAYS_SCRIPT = readFileSync(join(dir, 'browser-scripts/hide-visual-overlays.script'), 'utf8');
