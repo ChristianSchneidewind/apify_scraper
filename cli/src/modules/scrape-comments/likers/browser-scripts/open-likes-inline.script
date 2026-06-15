@@ -5,18 +5,22 @@ return (payload) => {
   if (!row) return { ok: false, reason: 'row_missing' };
 
   const permalinkAnchor = commentPermalink
-    ? document.querySelector(`a[href="${commentPermalink}"]`) : null;
+    ? row.querySelector(`a[href="${commentPermalink}"]`)
+      || (row.contains?.(document.querySelector(`a[href="${commentPermalink}"]`))
+        ? document.querySelector(`a[href="${commentPermalink}"]`)
+        : null)
+    : null;
   const rowFromPermalink = permalinkAnchor?.closest?.('li, [role="listitem"], article, div')
-    || permalinkAnchor || null;
+    || (permalinkAnchor && row.contains(permalinkAnchor) ? row : null);
 
   const scopes = [];
   const add = (n) => { if (n && !scopes.includes(n)) scopes.push(n); };
   add(row);
-  add(rowFromPermalink);
+  if (rowFromPermalink && rowFromPermalink !== row) add(rowFromPermalink);
   add(row?.parentElement);
-  add(rowFromPermalink?.parentElement);
+  if (rowFromPermalink && rowFromPermalink !== row) add(rowFromPermalink.parentElement);
 
-  let cur = permalinkAnchor;
+  let cur = permalinkAnchor && row.contains(permalinkAnchor) ? permalinkAnchor : null;
   for (let i = 0; i < 4 && cur; i += 1) {
     add(cur);
     add(cur.parentElement);
