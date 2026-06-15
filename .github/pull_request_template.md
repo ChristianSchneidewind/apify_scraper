@@ -18,7 +18,9 @@
 
 ```bash
 # Beispiel
-.venv/bin/pytest -q
+npm run lint
+npm run typecheck
+npm run test:coverage
 ```
 
 ## Risks / Side Effects

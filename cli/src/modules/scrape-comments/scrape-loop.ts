@@ -96,10 +96,10 @@ export const runCommentScrapeLoop = async (
   const comments: CommentRecord[] = [];
   const state = buildProcessState();
   const processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; outDir: string; quiet?: boolean; verbose?: boolean } = {
-    likerCollectionMode: options.likerCollectionMode,
     maxCommentLikers: options.maxCommentLikers ?? 0,
     outDir: options.outDir,
   };
+  if (options.likerCollectionMode !== undefined) processOpts.likerCollectionMode = options.likerCollectionMode;
   if (options.quiet !== undefined) processOpts.quiet = options.quiet;
   if (options.verbose !== undefined) processOpts.verbose = options.verbose;
 

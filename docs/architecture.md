@@ -2,53 +2,52 @@
 
 ## Runtime Flow
 
-1. `main.py` initializes actor/crawler and input config.
-2. `scrape_loop.py` drives UI rounds and candidate extraction.
-3. `comment_processor.py` (wrapper) delegates to `comment_capture_pipeline.py`.
-4. `comment_capture_pipeline.py` orchestrates:
-   - candidate dedup/state checks
-   - visual preparation/highlight
-   - liker enrichment
-   - multipart planning/execution
-   - payload persistence
+1. `cli/src/bin/instagram.ts` is the entrypoint.
+2. `cli/src/core/app.ts` parses CLI input and dispatches commands.
+3. `cli/src/modules/auth/login.ts` handles session login.
+4. `cli/src/modules/scrape-comments/run.ts` orchestrates comment scraping.
+5. `cli/src/modules/scrape-profiles/run.ts` orchestrates profile scraping.
 
-## Module Responsibilities
+## Main areas
 
-- `comment_state.py`  
-  Dedup keys, seen-sets, counters, candidate registration.
+- `cli/src/core/`
+  - argv parsing
+  - runtime context
+  - result/output rendering
 
-- `comment_text.py`  
-  Comment URL/context helpers, lightweight text/log helpers.
+- `cli/src/adapters/`
+  - Playwright browser/session helpers
+  - Instagram DOM/browser scripts
+  - filesystem output helpers
 
-- `comment_visual_helpers.py`  
-  Visual/UI actions (expand, highlight readiness, geometry risk checks, highlight failure handling).
+- `cli/src/modules/scrape-comments/`
+  - UI loop
+  - extraction
+  - likers
+  - highlighting
+  - multipart capture
+  - artifact persistence
 
-- `multipart_planner.py`  
-  Multipart planning decisions (`mode`, `parts`, route selection).
+- `cli/src/modules/scrape-profiles/`
+  - profile extraction
+  - screenshot + JSON persistence
 
-- `multipart_executor.py`  
-  Multipart execution loop, screenshot capture per part, fallback execution, metadata write trigger.
+- `cli/src/schemas/`
+  - centralized TypeBox schemas/types
 
-- `screenshots.py`  
-  Screenshot persistence primitives, UUID/session creation, 3+ part low-level capture.
+## Comment scraping flow
 
-- `payloads.py`  
-  Dataset + metadata payload assembly.
+1. open browser/profile
+2. navigate to target post/reel
+3. prepare comments UI
+4. loop comment candidates
+5. enrich likes/likers
+6. highlight and capture screenshots
+7. write JSON artifacts
 
-- `comment_pipeline_helpers.py`  
-  Pipeline-specific helper glue (liker normalization + persist wrapper).
+## Extension points
 
-- `instagram_dom.py`  
-  Centralized Instagram selector constants.
-
-- `config.py`  
-  Input parsing, clamping, coercion.
-
-- `flow_utils.py` / `log_events.py` / `tuning.py`  
-  Cross-cutting utilities (wait/suppress, structured event logs, tuning constants).
-
-## Extension Points
-
-- Add new extraction heuristics in `comments.py` and share selectors via `instagram_dom.py`.
-- Adjust multipart behavior in `multipart_planner.py` first, then executor.
-- Keep `comment_capture_pipeline.py` thin; move implementation details into focused modules.
+- selectors/browser scripts: `cli/src/adapters/instagram/`
+- comment extraction: `cli/src/modules/scrape-comments/browser-scripts/`
+- liker handling: `cli/src/modules/scrape-comments/likers/`
+- multipart behavior: `cli/src/modules/scrape-comments/multipart/`

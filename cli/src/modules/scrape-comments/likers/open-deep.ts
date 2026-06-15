@@ -47,7 +47,7 @@ const scanLocator = async (
 
 const scanLikeTargets = async (
   page: DeepLinkPage,
-  scope: DeepLocator,
+  scope: FilterLocator | DeepLocator,
   likesCount: number,
 ) => {
   const textLoc = scope.locator('button, a, [role="button"], [tabindex="0"]').filter({ hasText: /\d+[\d.,]*\s*likes?/i });
@@ -88,21 +88,21 @@ const debugLikeScope = async (anchor: DeepLocator) => anchor.evaluate((el: Eleme
       title: (node.getAttribute('title') || '').replace(/\s+/g, ' ').trim().slice(0, 120),
     })),
   };
-});
+}, undefined as never);
 
 function runElementBody<T>(el: Element, args: { body: string }) {
   return new Function('el', args.body)(el) as T;
 }
 
-const firstLocator = <T extends { first?: T | (() => T) }>(locator: T) =>
-  typeof locator.first === 'function' ? locator.first() : locator.first as T;
+const firstLocator = (locator: { first: DeepLocator | (() => DeepLocator) }) =>
+  typeof locator.first === 'function' ? locator.first() : locator.first;
 
 export const clickLikesInCurrentPage = async (
   page: { locator: DeepLinkPage['locator']; waitForTimeout: DeepLinkPage['waitForTimeout'] },
   commentPermalink: string,
   verbose?: boolean,
 ) => {
-  const anchor: DeepLocator = firstLocator(page.locator(`a[href="${commentPermalink}"]`));
+  const anchor = firstLocator(page.locator(`a[href="${commentPermalink}"]`));
   if (await anchor.count() === 0) {
     return { clicked: false, likesCount: 0, reason: 'current_target_comment_not_found' };
   }
@@ -135,7 +135,7 @@ export const openLikesDeepLink = async (
   await page.goto(commentUrl, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3500);
 
-  const anchor: DeepLocator = firstLocator(page.locator(`a[href="${commentPermalink}"]`));
+  const anchor = firstLocator(page.locator(`a[href="${commentPermalink}"]`));
   if (await anchor.count() === 0) {
     return { clicked: false, likesCount: 0, reason: 'deep_target_comment_not_found' };
   }

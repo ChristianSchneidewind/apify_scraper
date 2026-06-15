@@ -37,7 +37,7 @@ const warnLikers = (message: string) => {
 
 const openContextPage = async (page: LikersPage) => {
   const ctx = typeof (page as { context?: unknown }).context === 'function'
-    ? (page as { context: () => { newPage: () => Promise<LikersPage> } }).context()
+    ? (page as unknown as { context: () => { newPage: () => Promise<LikersPage> } }).context()
     : (page as { context?: { newPage: () => Promise<LikersPage> } }).context;
   if (!ctx?.newPage) throw new Error('context.newPage unavailable');
   return ctx.newPage();

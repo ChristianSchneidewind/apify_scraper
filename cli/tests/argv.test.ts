@@ -73,7 +73,9 @@ describe('parseCommandRequest', () => {
       '--url',
       'https://www.instagram.com/p/abc/',
     ]);
-    expect(request?.options.likerCollectionMode).toBe('strict');
-    expect(request?.options.maxCommentLikers).toBe(25);
+    expect(request?.command).toBe('scrape.comments');
+    if (request?.command !== 'scrape.comments') throw new Error('expected scrape.comments');
+    expect(request.options.likerCollectionMode).toBe('strict');
+    expect(request.options.maxCommentLikers).toBe(25);
   });
 });
