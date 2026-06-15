@@ -67,11 +67,45 @@ const closeDialog = async (workedPage: LikersPage, likesCount: number, likers: C
   await Promise.allSettled([workedPage.keyboard.press('Escape'), workedPage.waitForTimeout(150)]);
 };
 
+const retryDialogScroll = async (page: LikersPage) => {
+  await page.evaluate(() => {
+    const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+    const dialog = dialogs[dialogs.length - 1];
+    if (!dialog) return;
+    const candidates = Array.from(dialog.querySelectorAll('div, ul')) as Array<Element & { scrollHeight: number; clientHeight: number; scrollTop: number }>;
+    for (const candidate of candidates) {
+      if (candidate.scrollHeight > candidate.clientHeight + 20) {
+        candidate.scrollTop += Math.max(300, candidate.clientHeight * 0.9);
+        break;
+      }
+    }
+  }, undefined as never);
+};
+
+const collectLikersAttempt = async (
+  page: LikersPage,
+  maxCommentLikers: number,
+  waitMs: number,
+  timeoutMs: number,
+) => {
+  if (waitMs > 0) await page.waitForTimeout(waitMs);
+  await Promise.allSettled([retryDialogScroll(page)]);
+  await page.waitForTimeout(700);
+  return withTimeout(collectLikersFromDialog(page as never, maxCommentLikers), timeoutMs).catch(() => []);
+};
+
 const collectLikers = async (page: LikersPage, maxCommentLikers: number, likesCount: number) => {
   let likers = await withTimeout(collectLikersFromDialog(page as never, maxCommentLikers), 3000).catch(() => []);
-  if (!likers.length && likesCount > 0) {
-    await page.waitForTimeout(500);
-    likers = await withTimeout(collectLikersFromDialog(page as never, maxCommentLikers), 2000).catch(() => []);
+  if (likers.length || likesCount <= 0) return likers;
+
+  const isLargeDialog = likesCount >= 50 || maxCommentLikers === 0;
+  const attempts = isLargeDialog
+    ? [[1400, 4000], [1200, 4000], [800, 3000]]
+    : [[1200, 3000], [500, 2000]];
+
+  for (const [waitMs, timeoutMs] of attempts) {
+    likers = await collectLikersAttempt(page, maxCommentLikers, waitMs, timeoutMs);
+    if (likers.length) break;
   }
   return likers;
 };

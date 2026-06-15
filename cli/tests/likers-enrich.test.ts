@@ -185,4 +185,21 @@ describe('enrichCommentLikers', () => {
     expect(result.likesCount).toBe(3);
     expect(result.commentLikers).toHaveLength(2);
   });
+
+  it('does extra collection retries for large like dialogs', async () => {
+    vi.mocked(openLikesInline).mockResolvedValue({ clicked: true, likesCount: 113, ok: true });
+    vi.mocked(waitForDialogOpen).mockResolvedValue(true);
+    vi.mocked(collectLikersFromDialog)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ profileUrl: 'https://www.instagram.com/u1/', username: 'u1' }]);
+
+    const page = buildPage();
+    const result = await enrichCommentLikers(page as never, {} as never, { ...baseData }, 0);
+
+    expect(collectLikersFromDialog).toHaveBeenCalledTimes(4);
+    expect(result.commentLikers).toEqual([{ profileUrl: 'https://www.instagram.com/u1/', username: 'u1' }]);
+    expect(result.likesCount).toBe(113);
+  });
 });
