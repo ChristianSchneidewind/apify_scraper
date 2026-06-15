@@ -28,7 +28,7 @@ describe('prepareCommentScreenshotVisuals', () => {
     await prepareCommentScreenshotVisuals(page as never, handle as never);
 
     expect(page.evaluate).toHaveBeenCalledTimes(3);
-    expect(handle.evaluate).toHaveBeenCalledTimes(4);
-    expect(page.waitForTimeout).toHaveBeenCalledTimes(5);
+    expect(handle.evaluate).toHaveBeenCalledTimes(1);
+    expect(page.waitForTimeout).toHaveBeenCalledTimes(2);
   });
 });

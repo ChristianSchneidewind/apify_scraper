@@ -41,10 +41,14 @@ Makefile
 # Local agent / tooling state
 .agents/
 .pi/
+.instagram-cli/
+.loop/
+.ralph/
 skills-lock.json
 
 # Test artifacts
 coverage/
+artifacts/
 
 # Misc
 .python-version
