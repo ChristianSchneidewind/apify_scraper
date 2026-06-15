@@ -64,9 +64,9 @@ CI=1 npm run guardrails
 - no `any`
 - no local `type` / `interface` outside centralized schema files
 
-## Python Parity (Phase 9 — approved)
+## Refactor status
 
-Validator: `SKIP_PI=1 CI=1 bash scripts/refactor-to-cli-loop.sh validate 9` → **APPROVED**.
+The TypeScript CLI is now the only runtime in this repository.
 
 Ported and usable:
 
@@ -75,4 +75,4 @@ Ported and usable:
 - Multipart capture for long comments
 - UI tuning (`--max-ui-rounds`, `--ui-idle-rounds`)
 
-Apify Dataset / KV Store stay Python-only; the CLI writes local artifacts under `--out-dir`.
+The CLI writes local artifacts under `--out-dir`.
