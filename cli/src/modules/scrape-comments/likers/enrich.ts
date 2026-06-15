@@ -99,7 +99,7 @@ const collectLikers = async (page: LikersPage, maxCommentLikers: number, likesCo
   if (likers.length || likesCount <= 0) return likers;
 
   const isLargeDialog = likesCount >= 50 || maxCommentLikers === 0;
-  const attempts = isLargeDialog
+  const attempts: Array<[number, number]> = isLargeDialog
     ? [[1400, 4000], [1200, 4000], [800, 3000]]
     : [[1200, 3000], [500, 2000]];
 
