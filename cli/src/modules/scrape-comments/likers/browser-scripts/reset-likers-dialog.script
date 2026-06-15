@@ -1,0 +1,18 @@
+return (() => {
+  delete window.__igLikersScrollState;
+
+  const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+  const d = dialogs[dialogs.length - 1];
+  if (!d) return false;
+
+  const candidates = Array.from(d.querySelectorAll('div, ul, section, main'))
+    .filter((c) => c.scrollHeight > c.clientHeight + 20);
+  const targets = candidates.length
+    ? candidates
+    : [d, d.parentElement, document.scrollingElement, document.documentElement, document.body].filter(Boolean);
+
+  for (const target of targets) {
+    if (target && typeof target.scrollTop === 'number') target.scrollTop = 0;
+  }
+  return true;
+})();

@@ -1,0 +1,27 @@
+return (() => {
+  const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+  const d = dialogs[dialogs.length - 1];
+  if (!d) return false;
+
+  const candidates = Array.from(d.querySelectorAll('div, ul, section, main'))
+    .filter((c) => c.scrollHeight > c.clientHeight + 20)
+    .sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight));
+
+  const targets = candidates.length
+    ? candidates
+    : [d, d.parentElement, document.scrollingElement, document.documentElement, document.body].filter(Boolean);
+
+  let nudged = false;
+  for (const target of targets.slice(0, 3)) {
+    if (!target || typeof target.scrollTop !== 'number') continue;
+    const maxScroll = Math.max(0, (target.scrollHeight || 0) - (target.clientHeight || 0));
+    if (maxScroll <= 20) continue;
+    const step = Math.max(180, Math.min(420, (target.clientHeight || 0) * 0.4));
+    const before = target.scrollTop;
+    target.scrollTop = maxScroll;
+    if (maxScroll > step + 24) target.scrollTop = Math.max(0, maxScroll - step);
+    target.scrollTop = maxScroll;
+    if (Math.abs(target.scrollTop - before) > 2 || target.scrollTop === maxScroll) nudged = true;
+  }
+  return nudged;
+})();

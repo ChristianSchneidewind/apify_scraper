@@ -16,7 +16,9 @@ return (() => {
     .filter((a) => isProfileHref(a.getAttribute('href') || ''));
   const items = links.map((a) => {
     const href = a.getAttribute('href') || '';
-    const username = (a.textContent || '').trim().replace(/\s+/g, '').replace(/verified$/i, '');
+    const fromHref = (href.match(/^\/([A-Za-z0-9._]+)\/?/) || [])[1] || '';
+    const fromText = (a.textContent || '').trim().replace(/\s+/g, '').replace(/verified$/i, '');
+    const username = fromText || fromHref;
     return { profilePath: href, username };
   }).filter((x) => /^[A-Za-z0-9._]{2,30}$/.test(x.username));
 
@@ -24,6 +26,14 @@ return (() => {
   const candidates = Array.from(d.querySelectorAll('div, ul, section, main'))
     .filter((c) => c.scrollHeight > c.clientHeight + 20)
     .sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight));
+
+  if (!candidates.length) {
+    const style = window.getComputedStyle(d);
+    const overflowY = style.overflowY || style.overflow || '';
+    if (d.scrollHeight > d.clientHeight + 20 || overflowY === 'auto' || overflowY === 'scroll') {
+      candidates.push(d);
+    }
+  }
 
   const fallbacks = [
     d,
@@ -37,38 +47,55 @@ return (() => {
   const start = targets.length ? (state.idx % targets.length) : 0;
   if (targets.length) state.idx = (state.idx + 1) % targets.length;
 
-  const tryScroll = (node) => {
+  const tryScroll = (node, forceEnd = false) => {
     if (!node || typeof node.scrollTop !== 'number') return false;
     const before = node.scrollTop;
     const maxScroll = Math.max(0, (node.scrollHeight || 0) - (node.clientHeight || 0));
     const step = Math.max(260, (node.clientHeight || 0) * 0.95);
-    node.scrollTop = Math.min(maxScroll, before + step);
+    const nearEnd = maxScroll > 0 && maxScroll - before <= step + 8;
+    node.scrollTop = forceEnd || nearEnd ? maxScroll : Math.min(maxScroll, before + step);
     return Math.abs(node.scrollTop - before) > 2;
   };
 
   let canScroll = false;
+  let targetIndex = -1;
   for (let i = 0; i < targets.length && i < 4; i += 1) {
-    const target = targets[(start + i) % targets.length];
+    const idx = (start + i) % targets.length;
+    const target = targets[idx];
     if (tryScroll(target)) {
       canScroll = true;
+      targetIndex = idx;
       break;
     }
   }
 
   if (!canScroll) {
-    for (const target of targets.slice(0, 3)) {
+    for (let i = 0; i < Math.min(3, targets.length); i += 1) {
+      const target = targets[i];
       if (!target || typeof target.dispatchEvent !== 'function') continue;
       try {
         target.dispatchEvent(new WheelEvent('wheel', { deltaY: 700, bubbles: true, cancelable: true }));
       } catch {
         /* ignore */
       }
-      if (tryScroll(target)) {
+      if (tryScroll(target, true)) {
         canScroll = true;
+        targetIndex = i;
         break;
       }
     }
   }
 
-  return { canScroll, items, open: true };
+  const target = targetIndex >= 0 ? targets[targetIndex] : null;
+  const summary = target ? {
+    tag: target.tagName || '',
+    role: target.getAttribute?.('role') || '',
+    cls: (target.getAttribute?.('class') || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+    scrollTop: Number(target.scrollTop || 0),
+    scrollHeight: Number(target.scrollHeight || 0),
+    clientHeight: Number(target.clientHeight || 0),
+    childCount: Number(target.children?.length || 0),
+  } : null;
+
+  return { canScroll, items, open: true, candidateCount: candidates.length, targetCount: targets.length, targetIndex, summary };
 })();

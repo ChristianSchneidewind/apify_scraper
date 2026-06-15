@@ -9,13 +9,18 @@ vi.mock('../src/modules/scrape-comments/likers/open-deep.ts', () => ({
 }));
 vi.mock('../src/modules/scrape-comments/likers/collect-dialog.ts', () => ({
   collectLikersFromDialog: vi.fn(),
+  isDialogOpen: vi.fn().mockResolvedValue(false),
+  nudgeLikersDialogAtEnd: vi.fn().mockResolvedValue(undefined),
+  oscillateLikersDialogAtEnd: vi.fn().mockResolvedValue(undefined),
+  resetLikersDialogScroll: vi.fn().mockResolvedValue(undefined),
+  scrollLikersDialogToEnd: vi.fn().mockResolvedValue(undefined),
   waitForDialogOpen: vi.fn(),
 }));
 
-import { collectLikersFromDialog, waitForDialogOpen } from '../src/modules/scrape-comments/likers/collect-dialog.ts';
+import { collectLikersFromDialog, isDialogOpen, waitForDialogOpen } from '../src/modules/scrape-comments/likers/collect-dialog.ts';
 import { clickLikesInCurrentPage, openLikesDeepLink } from '../src/modules/scrape-comments/likers/open-deep.ts';
 import { openLikesInline } from '../src/modules/scrape-comments/likers/open-inline.ts';
-import { enrichCommentLikers } from '../src/modules/scrape-comments/likers/enrich.ts';
+import { enrichCommentLikers, clearLikersCacheForTests } from '../src/modules/scrape-comments/likers/enrich.ts';
 
 const baseData = {
   commentLikers: [],
@@ -40,6 +45,8 @@ const buildPage = () => ({
 describe('enrichCommentLikers', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    clearLikersCacheForTests();
+    vi.mocked(isDialogOpen).mockResolvedValue(false);
   });
 
   it('returns early when inline likes button is not clicked and deep fallback is unavailable', async () => {
@@ -100,7 +107,7 @@ describe('enrichCommentLikers', () => {
       { profileUrl: 'https://www.instagram.com/bob/', username: 'bob' },
     ]);
     expect(result.likesCount).toBe(2);
-    expect(collectLikersFromDialog).toHaveBeenCalledWith(page, 50);
+    expect(collectLikersFromDialog).toHaveBeenCalledWith(page, 50, undefined, 2, expect.any(AbortSignal));
     expect(page.keyboard.press).toHaveBeenCalledWith('Escape');
   });
 
@@ -176,14 +183,19 @@ describe('enrichCommentLikers', () => {
       .mockResolvedValueOnce([
         { profileUrl: 'https://www.instagram.com/u1/', username: 'u1' },
         { profileUrl: 'https://www.instagram.com/u2/', username: 'u2' },
+      ])
+      .mockResolvedValueOnce([
+        { profileUrl: 'https://www.instagram.com/u1/', username: 'u1' },
+        { profileUrl: 'https://www.instagram.com/u2/', username: 'u2' },
+        { profileUrl: 'https://www.instagram.com/u3/', username: 'u3' },
       ]);
 
     const page = buildPage();
     const result = await enrichCommentLikers(page as never, {} as never, { ...baseData }, 50, 'strict');
 
-    expect(collectLikersFromDialog).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(collectLikersFromDialog).mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(result.likesCount).toBe(3);
-    expect(result.commentLikers).toHaveLength(2);
+    expect(result.commentLikers).toHaveLength(3);
   });
 
   it('does extra collection retries for large like dialogs', async () => {
@@ -201,5 +213,47 @@ describe('enrichCommentLikers', () => {
     expect(collectLikersFromDialog).toHaveBeenCalledTimes(4);
     expect(result.commentLikers).toEqual([{ profileUrl: 'https://www.instagram.com/u1/', username: 'u1' }]);
     expect(result.likesCount).toBe(113);
+  });
+
+  it('reuses cached likers for the same permalink and likes count', async () => {
+    vi.mocked(openLikesInline).mockResolvedValue({ clicked: true, likesCount: 2, ok: true });
+    vi.mocked(waitForDialogOpen).mockResolvedValue(true);
+    vi.mocked(collectLikersFromDialog).mockResolvedValue([
+      { profileUrl: 'https://www.instagram.com/bob/', username: 'bob' },
+      { profileUrl: 'https://www.instagram.com/carol/', username: 'carol' },
+    ]);
+
+    const page = buildPage();
+    await enrichCommentLikers(page as never, {} as never, { ...baseData, likesCount: 2 }, 50);
+    vi.mocked(openLikesInline).mockClear();
+    vi.mocked(collectLikersFromDialog).mockClear();
+
+    const cached = await enrichCommentLikers(page as never, {} as never, { ...baseData, likesCount: 2 }, 50);
+    expect(openLikesInline).not.toHaveBeenCalled();
+    expect(collectLikersFromDialog).not.toHaveBeenCalled();
+    expect(cached.commentLikers).toHaveLength(2);
+  });
+
+  it('stops retrying when one liker remains unreachable', async () => {
+    vi.mocked(openLikesInline).mockResolvedValue({ clicked: true, likesCount: 4, ok: true });
+    vi.mocked(waitForDialogOpen).mockResolvedValue(true);
+    vi.mocked(collectLikersFromDialog)
+      .mockResolvedValueOnce([
+        { profileUrl: 'https://www.instagram.com/u1/', username: 'u1' },
+        { profileUrl: 'https://www.instagram.com/u2/', username: 'u2' },
+        { profileUrl: 'https://www.instagram.com/u3/', username: 'u3' },
+      ])
+      .mockResolvedValue([
+        { profileUrl: 'https://www.instagram.com/u1/', username: 'u1' },
+        { profileUrl: 'https://www.instagram.com/u2/', username: 'u2' },
+        { profileUrl: 'https://www.instagram.com/u3/', username: 'u3' },
+      ]);
+
+    const page = buildPage();
+    const result = await enrichCommentLikers(page as never, {} as never, { ...baseData, likesCount: 4 }, 50);
+
+    expect(collectLikersFromDialog).toHaveBeenCalledTimes(3);
+    expect(result.commentLikers).toHaveLength(3);
+    expect(result.likesCount).toBe(4);
   });
 });

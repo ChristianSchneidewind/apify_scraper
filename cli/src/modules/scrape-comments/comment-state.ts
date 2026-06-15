@@ -60,10 +60,15 @@ export const normalizeCommentLikers = (
   raw: Array<{ profilePath?: string; profileUrl?: string; username?: string }> | undefined,
 ) => {
   const out = [];
+  const seen = new Set<string>();
   for (const lk of raw || []) {
     const username = (lk.username || '').trim();
     const profileUrl = profileUrlFrom((lk.profilePath || '').trim(), (lk.profileUrl || '').trim());
-    if (username && profileUrl) out.push({ profileUrl, username });
+    if (!username || !profileUrl) continue;
+    const key = username.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ profileUrl, username });
   }
   return out;
 };
