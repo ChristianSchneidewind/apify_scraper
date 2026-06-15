@@ -18,7 +18,7 @@ approve() {
   exit 0
 }
 
-[[ -n "$PHASE" && "$PHASE" =~ ^[1-8]$ ]] || fail "phase must be 1..8"
+[[ -n "$PHASE" && "$PHASE" =~ ^[1-9]$ ]] || fail "phase must be 1..9"
 
 exists() { [[ -f "$1" || -d "$1" ]]; }
 
@@ -27,6 +27,9 @@ check_phase_1() {
   exists scripts/validate-cli-refactor.sh || fail "missing scripts/validate-cli-refactor.sh"
   exists scripts/refactor-to-cli-loop.sh || fail "missing scripts/refactor-to-cli-loop.sh"
   exists tools/check-function-loc.mjs || fail "missing tools/check-function-loc.mjs"
+  grep -q 'phase_review_prompt' scripts/refactor-to-cli-loop.sh || fail "loop script must prompt the read-only subagent"
+  grep -q 'phase_is_approved' scripts/refactor-to-cli-loop.sh || fail "loop script must gate each phase on approval"
+  grep -q 'read-only validator' scripts/refactor-to-cli-loop.sh || fail "loop script must document the subagent review contract"
   approve
 }
 
@@ -89,6 +92,34 @@ check_phase_8() {
   approve
 }
 
+check_phase_9() {
+  for file in \
+    cli/src/modules/scrape-comments/likers/enrich.ts \
+    cli/src/modules/scrape-comments/likers/open-inline.ts \
+    cli/src/modules/scrape-comments/likers/collect-dialog.ts \
+    cli/src/adapters/instagram/highlight.ts \
+    cli/src/modules/scrape-comments/multipart/planner.ts \
+    cli/src/modules/scrape-comments/multipart/decisions.ts \
+    cli/src/modules/scrape-comments/capture/assets.ts \
+    cli/src/modules/scrape-comments/process-comment.ts; do
+    exists "$file" || fail "missing $file"
+  done
+  grep -q 'enrichCommentLikers' cli/src/modules/scrape-comments/process-comment.ts \
+    || fail "process-comment must wire likers enrichment"
+  grep -q 'ensureHighlightReady' cli/src/modules/scrape-comments/process-comment.ts \
+    || fail "process-comment must wire highlight adapter"
+  grep -q 'captureCommentAssets' cli/src/modules/scrape-comments/process-comment.ts \
+    || fail "process-comment must wire capture pipeline"
+  for test in \
+    cli/tests/multipart-decisions.test.ts \
+    cli/tests/highlight.test.ts \
+    cli/tests/likers-enrich.test.ts \
+    cli/tests/process-comment.test.ts; do
+    exists "$test" || fail "missing $test"
+  done
+  approve
+}
+
 case "$PHASE" in
   1) check_phase_1 ;;
   2) check_phase_2 ;;
@@ -98,4 +129,5 @@ case "$PHASE" in
   6) check_phase_6 ;;
   7) check_phase_7 ;;
   8) check_phase_8 ;;
+  9) check_phase_9 ;;
 esac

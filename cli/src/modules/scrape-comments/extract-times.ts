@@ -10,8 +10,9 @@ const scriptPath = join(
 );
 const EXTRACT_TIMES_BROWSER_SCRIPT = readFileSync(scriptPath, 'utf8');
 
-const runExtractPayload = (payload: { script: string; timeSelector: string }) =>
-  new Function('timeSelector', payload.script)(payload.timeSelector);
+function runExtractPayload(payload: { script: string; timeSelector: string }) {
+  return new Function('timeSelector', payload.script)(payload.timeSelector);
+}
 
 export const extractCommentsFromTimes = async (
   page: { evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T> },

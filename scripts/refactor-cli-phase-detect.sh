@@ -63,20 +63,33 @@ phase_done() {
         && exists docs/cli-usage.md \
         && exists .github/workflows/tests-on-push.yml
       ;;
+    9)
+      phase_done 8 \
+        && exists cli/src/modules/scrape-comments/likers/enrich.ts \
+        && exists cli/src/adapters/instagram/highlight.ts \
+        && exists cli/src/modules/scrape-comments/multipart/planner.ts \
+        && exists cli/src/modules/scrape-comments/multipart/decisions.ts \
+        && exists cli/src/modules/scrape-comments/capture/assets.ts \
+        && exists cli/src/modules/scrape-comments/process-comment.ts \
+        && exists cli/tests/multipart-decisions.test.ts \
+        && exists cli/tests/highlight.test.ts \
+        && exists cli/tests/likers-enrich.test.ts \
+        && exists cli/tests/process-comment.test.ts
+      ;;
     *) return 1 ;;
   esac
 }
 
 detect_phase() {
   local phase=0
-  for phase in 1 2 3 4 5 6 7 8; do
+  for phase in 1 2 3 4 5 6 7 8 9; do
     if phase_done "$phase"; then
       continue
     fi
     echo "$((phase - 1))"
     return 0
   done
-  echo 8
+  echo 9
 }
 
 phase_label() {
@@ -90,13 +103,14 @@ phase_label() {
     6) echo "scrape-comments-port" ;;
     7) echo "scrape-profiles-port" ;;
     8) echo "hardening-and-migration" ;;
+    9) echo "python-parity-likers-highlight-multipart" ;;
     *) echo "unknown" ;;
   esac
 }
 
 CURRENT="$(detect_phase)"
 NEXT=$((CURRENT + 1))
-[[ "$NEXT" -gt 8 ]] && NEXT=8
+[[ "$NEXT" -gt 9 ]] && NEXT=9
 
 case "${1:-detect}" in
   detect)

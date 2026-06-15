@@ -1,31 +1,20 @@
-import { access } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import type { RuntimeContext } from '../../schemas/index.ts';
 
-const hasStorageState = async (path: string) => {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-};
+const hasStorageState = (path: string) => existsSync(path);
 
-const buildContextOptions = async (context: RuntimeContext) => {
-  const hasState = await hasStorageState(context.browserProfile.storageStatePath);
-  return hasState
+const buildContextOptions = (context: RuntimeContext) =>
+  hasStorageState(context.browserProfile.storageStatePath)
     ? { storageState: context.browserProfile.storageStatePath }
     : {};
-};
 
 export const openBrowserSession = async (
   context: RuntimeContext,
   headful: boolean,
 ) => {
   const browser = await chromium.launch({ headless: !headful });
-  const browserContext = await browser.newContext(
-    await buildContextOptions(context),
-  );
+  const browserContext = await browser.newContext(buildContextOptions(context));
   const page = await browserContext.newPage();
   return { browser, browserContext, page };
 };

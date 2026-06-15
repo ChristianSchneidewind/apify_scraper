@@ -1,0 +1,188 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../src/modules/scrape-comments/likers/open-inline.ts', () => ({
+  openLikesInline: vi.fn(),
+}));
+vi.mock('../src/modules/scrape-comments/likers/open-deep.ts', () => ({
+  clickLikesInCurrentPage: vi.fn(),
+  openLikesDeepLink: vi.fn(),
+}));
+vi.mock('../src/modules/scrape-comments/likers/collect-dialog.ts', () => ({
+  collectLikersFromDialog: vi.fn(),
+  waitForDialogOpen: vi.fn(),
+}));
+
+import { collectLikersFromDialog, waitForDialogOpen } from '../src/modules/scrape-comments/likers/collect-dialog.ts';
+import { clickLikesInCurrentPage, openLikesDeepLink } from '../src/modules/scrape-comments/likers/open-deep.ts';
+import { openLikesInline } from '../src/modules/scrape-comments/likers/open-inline.ts';
+import { enrichCommentLikers } from '../src/modules/scrape-comments/likers/enrich.ts';
+
+const baseData = {
+  commentLikers: [],
+  commentPermalink: '/p/abc/c/1',
+  datetime: null,
+  likesCount: 0,
+  text: 'hello',
+  timeText: '1h',
+  username: 'alice',
+  userProfilePath: '/alice/',
+};
+
+const buildPage = () => ({
+  context: {
+    newPage: vi.fn(),
+  },
+  evaluate: vi.fn(),
+  keyboard: { press: vi.fn() },
+  waitForTimeout: vi.fn(),
+});
+
+describe('enrichCommentLikers', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('returns early when inline likes button is not clicked and deep fallback is unavailable', async () => {
+    vi.mocked(openLikesInline).mockResolvedValue({ clicked: false, likesCount: 0, ok: true });
+    const page = buildPage();
+
+    const result = await enrichCommentLikers(page as never, {} as never, { ...baseData, commentPermalink: null }, 50);
+    expect(result.commentLikers).toEqual([]);
+    expect(waitForDialogOpen).not.toHaveBeenCalled();
+  });
+
+  it('drops pseudo-likers from extraction when no dialog was opened', async () => {
+    vi.mocked(openLikesInline).mockResolvedValue({ clicked: false, likesCount: 0, ok: true });
+    vi.mocked(clickLikesInCurrentPage).mockResolvedValue({ clicked: false, likesCount: 0, reason: 'none' });
+    const page = buildPage();
+
+    const result = await enrichCommentLikers(page as never, {} as never, {
+      ...baseData,
+      commentLikers: [{ profileUrl: 'https://www.instagram.com/fake/', username: 'fake' }],
+      likesCount: 0,
+    }, 50);
+
+    expect(result.commentLikers).toEqual([]);
+  });
+
+  it('tries deep fallback even when inline probe reports zero', async () => {
+    vi.mocked(openLikesInline).mockResolvedValue({ clicked: false, likesCount: 0, ok: true });
+    vi.mocked(clickLikesInCurrentPage).mockResolvedValue({ clicked: false, likesCount: 0, reason: 'none' });
+    vi.mocked(openLikesDeepLink).mockResolvedValue({ clicked: true, likesCount: 4, reason: 'pw_text_click' });
+    vi.mocked(waitForDialogOpen).mockResolvedValue(true);
+    vi.mocked(collectLikersFromDialog).mockResolvedValue([
+      { profileUrl: 'https://www.instagram.com/dan/', username: 'dan' },
+    ]);
+
+    const page = buildPage();
+    const deepPage = buildPage();
+    vi.mocked(page.context.newPage).mockResolvedValue(deepPage);
+
+    const result = await enrichCommentLikers(page as never, {} as never, { ...baseData, likesCount: 4 }, 50);
+    expect(result.likesCount).toBe(4);
+    expect(openLikesDeepLink).toHaveBeenCalled();
+    expect(result.commentLikers).toEqual([
+      { profileUrl: 'https://www.instagram.com/dan/', username: 'dan' },
+    ]);
+  });
+
+  it('collects likers from dialog after inline click', async () => {
+    vi.mocked(openLikesInline).mockResolvedValue({ clicked: true, likesCount: 2, ok: true });
+    vi.mocked(waitForDialogOpen).mockResolvedValue(true);
+    vi.mocked(collectLikersFromDialog).mockResolvedValue([
+      { profileUrl: 'https://www.instagram.com/bob/', username: 'bob' },
+    ]);
+
+    const page = buildPage();
+    const result = await enrichCommentLikers(page as never, {} as never, { ...baseData }, 50);
+
+    expect(result.commentLikers).toEqual([
+      { profileUrl: 'https://www.instagram.com/bob/', username: 'bob' },
+    ]);
+    expect(result.likesCount).toBe(2);
+    expect(collectLikersFromDialog).toHaveBeenCalledWith(page, 50);
+    expect(page.keyboard.press).toHaveBeenCalledWith('Escape');
+  });
+
+  it('falls back to deep link when inline click fails', async () => {
+    const deepPage = buildPage();
+    vi.mocked(openLikesInline).mockResolvedValue({ clicked: false, likesCount: 3, ok: true });
+    vi.mocked(clickLikesInCurrentPage).mockResolvedValue({ clicked: false, likesCount: 3, reason: 'none' });
+    vi.mocked(deepPage.context.newPage).mockResolvedValue(deepPage);
+    vi.mocked(openLikesDeepLink).mockResolvedValue({ clicked: true, likesCount: 3, reason: 'pw_text_click' });
+    vi.mocked(waitForDialogOpen).mockResolvedValue(true);
+    vi.mocked(collectLikersFromDialog).mockResolvedValue([
+      { profileUrl: 'https://www.instagram.com/carol/', username: 'carol' },
+    ]);
+
+    const page = buildPage();
+    vi.mocked(page.context.newPage).mockResolvedValue(deepPage);
+
+    const result = await enrichCommentLikers(page as never, {} as never, { ...baseData }, 10);
+
+    expect(openLikesDeepLink).toHaveBeenCalled();
+    expect(result.commentLikers).toEqual([
+      { profileUrl: 'https://www.instagram.com/carol/', username: 'carol' },
+    ]);
+  });
+
+  it('keeps going when deep fallback rejects', async () => {
+    vi.mocked(openLikesInline).mockResolvedValue({ clicked: false, likesCount: 3, ok: true });
+    vi.mocked(clickLikesInCurrentPage).mockResolvedValue({ clicked: false, likesCount: 3, reason: 'none' });
+    vi.mocked(openLikesDeepLink).mockRejectedValue(new Error('boom'));
+
+    const page = buildPage();
+    vi.mocked(page.context.newPage).mockResolvedValue(buildPage());
+
+    const result = await enrichCommentLikers(page as never, {} as never, { ...baseData }, 10);
+
+    expect(result.commentLikers).toEqual([]);
+    expect(waitForDialogOpen).not.toHaveBeenCalled();
+  });
+
+  it('ignores close dialog failures', async () => {
+    vi.mocked(openLikesInline).mockResolvedValue({ clicked: true, likesCount: 2, ok: true });
+    vi.mocked(waitForDialogOpen).mockResolvedValue(true);
+    vi.mocked(collectLikersFromDialog).mockResolvedValue([]);
+
+    const page = buildPage();
+    vi.mocked(page.keyboard.press).mockRejectedValue(new Error('close failed'));
+
+    const result = await enrichCommentLikers(page as never, {} as never, { ...baseData }, 50);
+
+    expect(result.commentLikers).toEqual([]);
+  });
+
+  it('raises likesCount to at least collected liker count', async () => {
+    vi.mocked(openLikesInline).mockResolvedValue({ clicked: true, likesCount: 0, ok: true });
+    vi.mocked(waitForDialogOpen).mockResolvedValue(true);
+    vi.mocked(collectLikersFromDialog).mockResolvedValue([
+      { profileUrl: 'https://www.instagram.com/u1/', username: 'u1' },
+      { profileUrl: 'https://www.instagram.com/u2/', username: 'u2' },
+    ]);
+
+    const page = buildPage();
+    const result = await enrichCommentLikers(page as never, {} as never, { ...baseData }, 50);
+
+    expect(result.likesCount).toBe(2);
+    expect(result.commentLikers).toHaveLength(2);
+  });
+
+  it('retries dialog collection in strict mode', async () => {
+    vi.mocked(openLikesInline).mockResolvedValue({ clicked: true, likesCount: 3, ok: true });
+    vi.mocked(waitForDialogOpen).mockResolvedValue(true);
+    vi.mocked(collectLikersFromDialog)
+      .mockResolvedValueOnce([{ profileUrl: 'https://www.instagram.com/u1/', username: 'u1' }])
+      .mockResolvedValueOnce([
+        { profileUrl: 'https://www.instagram.com/u1/', username: 'u1' },
+        { profileUrl: 'https://www.instagram.com/u2/', username: 'u2' },
+      ]);
+
+    const page = buildPage();
+    const result = await enrichCommentLikers(page as never, {} as never, { ...baseData }, 50, 'strict');
+
+    expect(collectLikersFromDialog).toHaveBeenCalledTimes(2);
+    expect(result.likesCount).toBe(3);
+    expect(result.commentLikers).toHaveLength(2);
+  });
+});

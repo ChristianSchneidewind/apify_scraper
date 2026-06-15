@@ -1,0 +1,5 @@
+() => {
+  document.querySelectorAll('video').forEach((video) => {
+    try { video.pause(); } catch (error) {}
+  });
+}

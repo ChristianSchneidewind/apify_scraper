@@ -6,6 +6,7 @@ import {
   writeBinaryFile,
   writeJsonFile,
 } from '../../adapters/filesystem/output.ts';
+import { prepareProfileScreenshotVisuals } from '../../adapters/instagram/visual.ts';
 import type { ProfilePageData } from '../../schemas/index.ts';
 
 const PROFILE_WAIT_MS = 3000;
@@ -61,6 +62,7 @@ export const captureProfilePage = async (
   },
   sourceUrl: string,
 ) => {
+  await prepareProfileScreenshotVisuals(page);
   await page.waitForTimeout(PROFILE_WAIT_MS);
   const profile = await extractProfilePageData(page, sourceUrl);
   const screenshot = await page.screenshot({ fullPage: true });

@@ -1,23 +1,26 @@
-const scrollWindow = () => {
-  const before = window.scrollY;
-  window.scrollBy(0, window.innerHeight * 0.8);
-  return Math.abs(window.scrollY - before) > 10;
-};
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const scrollContainer = (container: Element) => {
-  const scrollable = container as HTMLElement;
-  const before = scrollable.scrollTop;
-  scrollable.scrollTop += scrollable.clientHeight * 0.8;
-  return Math.abs(scrollable.scrollTop - before) > 10;
-};
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+const SCROLL_SCRIPT = readFileSync(join(MODULE_DIR, 'browser-scripts/scroll-comment-container.script'), 'utf8');
 
-const scrollCommentArea = (container: Element | null) => {
-  if (!container && /\/reels?\//.test(location.pathname)) return false;
-  if (!container) return scrollWindow();
-  return scrollContainer(container);
-};
+const runScrollScript = (
+  page: { evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>; waitForTimeout: (ms: number) => Promise<void> },
+  container: Element | null,
+) => page.evaluate((args: { body: string; container: Element | null }) => new Function(`return (${args.body});`)()(args.container), { body: SCROLL_SCRIPT, container });
 
 export const scrollCommentContainer = async (
-  page: { evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T> },
+  page: { evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>; waitForTimeout: (ms: number) => Promise<void> },
   container: Element | null,
-) => page.evaluate(scrollCommentArea, container);
+  rounds = 3,
+) => {
+  let moved = false;
+  for (let i = 0; i < rounds; i += 1) {
+    const result = await runScrollScript(page, container);
+    moved = moved || Boolean(result);
+    if (!result) break;
+    await page.waitForTimeout(1200);
+  }
+  return moved;
+};

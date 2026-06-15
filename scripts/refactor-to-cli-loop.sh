@@ -45,7 +45,7 @@ Environment:
 Guardrails after every implementation step:
   1. scripts/validate-cli-refactor.sh
   2. scripts/refactor-cli-phase-validator.sh <phase>
-  3. optional pi subagent review (unless SKIP_PI=1)
+  3. read-only pi subagent review (unless SKIP_PI=1)
 EOF
 }
 
@@ -90,6 +90,7 @@ phase_goal() {
     6) echo "Port Python comment scraping into modular TypeScript adapters and scrape loop." ;;
     7) echo "Implement profile screenshot flow with slug/out-dir/json output modes." ;;
     8) echo "Finish tests, docs, migration notes, and retire obsolete Python entry path when safe." ;;
+    9) echo "Port Python likers, highlighting, and multipart capture into modular TypeScript with tests." ;;
     *) echo "No goal" ;;
   esac
 }
@@ -99,6 +100,7 @@ phase_blockers() {
     6) echo "Missing: cli/src/adapters/instagram/dom-selectors.ts, cli/src/modules/scrape-comments/scrape-loop.ts" ;;
     7) echo "Missing: cli/src/modules/scrape-profiles/capture.ts" ;;
     8) echo "Needs: broader adapter tests, migration parity notes, optional Python deprecation gate" ;;
+    9) echo "Missing: likers/, highlight.ts, multipart/, capture/, process-comment wiring, phase-9 tests" ;;
     *) echo "none" ;;
   esac
 }
@@ -113,7 +115,7 @@ print_status() {
   "$DETECT_SCRIPT" detect
   echo
   echo "[loop] saved state: CURRENT_PHASE=${CURRENT_PHASE:-unset}"
-  for phase in 1 2 3 4 5 6 7 8; do
+  for phase in 1 2 3 4 5 6 7 8 9; do
     local verdict
     verdict="$("$PHASE_VALIDATOR" "$phase" 2>/dev/null | head -n1 || true)"
     [[ -n "$verdict" ]] || verdict="REJECTED"
@@ -124,6 +126,7 @@ print_status() {
   echo "  phase 6: $(phase_blockers 6)"
   echo "  phase 7: $(phase_blockers 7)"
   echo "  phase 8: $(phase_blockers 8)"
+  echo "  phase 9: $(phase_blockers 9)"
 }
 
 init_state() {
@@ -142,22 +145,40 @@ run_local_validator() {
   "$PHASE_VALIDATOR" "$phase"
 }
 
+phase_review_prompt() {
+  local phase="$1"
+  local name
+  name="$(phase_name "$phase")"
+  cat <<EOF
+Validate phase $phase ($name) against docs/refactor-to-cli-plan.md and docs/refactor-to-cli-status.md.
+
+Requirements to verify:
+- TypeScript-only CLI
+- TypeBox is the only centralized schema/type source
+- no local type/interface declarations outside cli/src/schemas/**
+- tiny core, highly modular feature modules, adapters around dependencies
+- strict typing, no any, and guardrails for max 250 LOC/file, max 45 LOC/function, indent depth <= 2
+- command surface stays aligned with:
+  - instagram auth login
+  - instagram --browser-profile "default"
+  - instagram scrape comments --url "..."
+  - instagram scrape profiles --url "..." --profile-slug "..." --out-dir "..." --json
+- only the phase deliverables expected for phase $phase
+- do not reopen already approved phases unless there is a regression
+
+You are a read-only validator.
+If compliant, print exactly: APPROVED
+If not compliant, print exactly: REJECTED, then a short bullet list of blockers.
+EOF
+}
+
 run_pi_validator() {
   local phase="$1"
-  local name prompt
-  name="$(phase_name "$phase")"
-  prompt="Validate phase $phase ($name) against docs/refactor-to-cli-plan.md and docs/refactor-to-cli-status.md.
-
-Rules:
-- Read-only review only.
-- Check strict compliance with: TypeScript-only CLI, TypeBox-centralized typing, tiny core/modular architecture, no scattered types, file/function/indent limits, and command requirements.
-- Verify only the deliverables expected for phase $phase.
-- Known already-done phases must not be re-opened unless regressions exist.
-- If compliant, print exactly: APPROVED
-- If not compliant, print exactly: REJECTED, then a short bullet list of blockers."
+  local prompt
+  prompt="$(phase_review_prompt "$phase")"
 
   if [[ "$SKIP_PI" == "1" ]]; then
-  echo "[loop] SKIP_PI=1, using deterministic validator only" >&2
+    echo "[loop] SKIP_PI=1, using deterministic validator only" >&2
     run_local_validator "$phase"
     return
   fi
@@ -172,7 +193,7 @@ Rules:
     --model "$MODEL_REVIEW" \
     --skill "$SKILL_CLI" \
     --tools read,grep,find,ls,bash \
-    --append-system-prompt "Read-only validator. Do not modify files." \
+    --append-system-prompt "Read-only validator. Do not modify files or state." \
     "$prompt"
 }
 
@@ -238,7 +259,7 @@ checkpoint_commit() {
 
 run_phase() {
   local next_phase="$1"
-  [[ "$next_phase" =~ ^[1-8]$ ]] || fail "phase must be 1..8"
+  [[ "$next_phase" =~ ^[1-9]$ ]] || fail "phase must be 1..9"
 
   echo "[loop] implementing phase $next_phase: $(phase_name "$next_phase")"
   run_implementer "$next_phase"
@@ -249,13 +270,20 @@ run_phase() {
   echo "[loop] phase $next_phase approved"
 }
 
+phase_is_approved() {
+  local phase="$1"
+  local review
+  review="$($PHASE_VALIDATOR "$phase" 2>/dev/null || true)"
+  grep -qx 'APPROVED' <<<"$review"
+}
+
 run_all() {
   require_repo_state
   load_state
   local start="$((CURRENT_PHASE + 1))"
   local phase
-  for ((phase = start; phase <= 8; phase++)); do
-    if "$PHASE_VALIDATOR" "$phase" 2>/dev/null | grep -qx 'APPROVED'; then
+  for ((phase = start; phase <= 9; phase++)); do
+    if phase_is_approved "$phase"; then
       echo "[loop] phase $phase already approved, skipping"
       CURRENT_PHASE="$phase"
       save_state

@@ -1,0 +1,90 @@
+__HELPERS__
+return (payload) => {
+  const { el, commentPermalink } = payload;
+  const row = el?.closest?.('li, [role="listitem"], article, div') || el;
+  if (!row) return { ok: false, reason: 'row_missing' };
+
+  const permalinkAnchor = commentPermalink
+    ? document.querySelector(`a[href="${commentPermalink}"]`) : null;
+  const rowFromPermalink = permalinkAnchor?.closest?.('li, [role="listitem"], article, div')
+    || permalinkAnchor || null;
+
+  const scopes = [];
+  const add = (n) => { if (n && !scopes.includes(n)) scopes.push(n); };
+  add(row);
+  add(rowFromPermalink);
+  add(row?.parentElement);
+  add(rowFromPermalink?.parentElement);
+
+  let cur = permalinkAnchor;
+  for (let i = 0; i < 4 && cur; i += 1) {
+    add(cur);
+    add(cur.parentElement);
+    add(cur.parentElement?.nextElementSibling);
+    add(cur.parentElement?.previousElementSibling);
+    cur = cur.parentElement;
+  }
+
+  const txt = scopes.map((s) => (s?.innerText || '')).join(' ').replace(/\s+/g, ' ');
+  const m = txt.match(/(\d+[\d.,]*)\s*likes?/i)
+    || txt.match(/(\d+[\d.,]*)\s*gefällt\s*mir(?:-angaben|\s*mal)?/i);
+  const likesCount = m ? parseInt((m[1] || '').replace(/[.,]/g, ''), 10) || 0 : 0;
+
+  const controls = scopes.flatMap((s) => Array.from(
+    s?.querySelectorAll?.('button, a, [role="button"], [tabindex="0"]') || [],
+  ));
+  let likesBtn = null;
+  for (const c of controls) {
+    if (!isSaneClickTarget(c)) continue;
+    const t = (c.textContent || c.innerText || '').replace(/\s+/g, ' ').trim();
+    const aria = (c.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+    const title = (c.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
+    if (isLikeText(t) || isLikeText(title) || isLikeText(aria)) {
+      likesBtn = c;
+      break;
+    }
+  }
+
+  if (!likesBtn) {
+    const textNodes = scopes.flatMap((s) => Array.from(
+      s?.querySelectorAll?.('span, div, a, button') || [],
+    ));
+    const hit = textNodes.find((n) => isLikeText(
+      (n.textContent || n.innerText || '').replace(/\s+/g, ' ').trim(),
+    ));
+    if (hit) {
+      let p = hit;
+      for (let i = 0; i < 8 && p; i += 1) {
+        const role = (p.getAttribute?.('role') || '').toLowerCase();
+        const tab = p.getAttribute?.('tabindex');
+        if (isSaneClickTarget(p) && (
+          p.tagName === 'BUTTON' || p.tagName === 'A' || role === 'button' || tab === '0'
+        )) {
+          likesBtn = p;
+          break;
+        }
+        p = p.parentElement;
+      }
+    }
+  }
+
+  if (!likesBtn) {
+    const nearPermalink = scopes.flatMap((s) => Array.from(
+      s?.querySelectorAll?.('[aria-label], [title]') || [],
+    ));
+    likesBtn = nearPermalink.find((n) => {
+      if (!isSaneClickTarget(n)) return false;
+      const aria = (n.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+      const title = (n.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
+      return isLikeText(aria) || isLikeText(title);
+    }) || null;
+  }
+
+  if (!likesBtn) return { ok: true, likesCount, clicked: false, reason: 'likes_button_not_found' };
+  const clickEl = likesBtn.closest('button, [role="button"], a, [tabindex="0"]') || likesBtn;
+  if (!isSaneClickTarget(clickEl)) {
+    return { ok: true, likesCount, clicked: false, reason: 'likes_target_failed_sanity_check' };
+  }
+  clickEl.click();
+  return { ok: true, likesCount, clicked: true };
+};

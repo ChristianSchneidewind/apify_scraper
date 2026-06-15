@@ -1,0 +1,98 @@
+return ({ el, mode, top, partsTotal, commentPermalink, userProfilePath, username, text }) => {
+  const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const user = norm(username);
+  const txt = norm(text).slice(0, 180);
+  const rowFrom = (node) => node?.closest?.('li, [role="listitem"], article, div') || node;
+  const isCommentRow = (node) => !!node && (
+    !!node.querySelector?.('time') ||
+    !!node.querySelector?.('a[href*="/c/"]')
+  );
+  const commentScope = () =>
+    el?.closest?.('div[role="dialog"], article, main article, ul') || document;
+  const findRow = () => {
+    if (commentPermalink) {
+      const a = document.querySelector(`a[href="${commentPermalink}"]`);
+      if (a) return rowFrom(a);
+    }
+    let cur = rowFrom(el);
+    for (let i = 0; i < 24 && cur; i += 1) {
+      if (isCommentRow(cur)) return cur;
+      cur = cur.parentElement;
+    }
+    if (userProfilePath) {
+      const anchors = Array.from(commentScope().querySelectorAll(`a[href="${userProfilePath}"]`));
+      for (const a of anchors) {
+        const r = rowFrom(a);
+        if (!isCommentRow(r)) continue;
+        const content = norm(r?.innerText || '');
+        if (user && !content.includes(user)) continue;
+        if (txt && !content.includes(txt.slice(0, 80))) continue;
+        return r;
+      }
+    }
+    return null;
+  };
+  const row = findRow();
+  if (!row || !document.body.contains(row)) return { ok: false, reason: 'row_not_found' };
+  if (mode === 'inner') {
+    const candidates = Array.from(row.querySelectorAll('*')).filter((node) => {
+      if (!(node instanceof HTMLElement)) return false;
+      const cs = window.getComputedStyle(node);
+      const overflowY = (cs.overflowY || '').toLowerCase();
+      const scrollableStyle = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
+      return scrollableStyle && (node.scrollHeight - node.clientHeight > 24) && node.clientHeight >= 60;
+    });
+    if (!candidates.length) return { ok: false, reason: 'inner_scroll_missing' };
+    candidates.sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight));
+    candidates[0].scrollTop = Math.max(0, Number(top || 0));
+  }
+  const banner = document.getElementById('apify-screenshot-banner');
+  const bannerH = banner ? banner.getBoundingClientRect().height : 0;
+  const minTop = 20;
+  const maxBottom = window.innerHeight - bannerH - 20;
+  const visibleH = Math.max(220, maxBottom - minTop);
+  let rr = row.getBoundingClientRect();
+  const total = Math.max(1, Number(partsTotal || 1));
+  const overflow = Math.max(0, rr.height - visibleH);
+  const rawIndex = mode === 'inner' ? 1 : Number(top || 0) + 1;
+  const partIndex = Math.min(total, Math.max(1, rawIndex));
+  const overlapRatio = total >= 3 ? 0.22 : 0.35;
+  const stepPx = Math.max(120, visibleH * (1 - overlapRatio));
+  let segmentTop = Math.round(Math.min(overflow, Math.max(0, (partIndex - 1) * stepPx)));
+  if (partIndex >= total) segmentTop = Math.round(overflow);
+  const desiredTop = minTop - segmentTop;
+  const pickContainer = () => {
+    const candidates = [
+      row.closest('div[role="dialog"] ul'),
+      row.closest('ul'),
+      row.closest('div[role="dialog"]'),
+    ];
+    for (const node of candidates) {
+      if (node instanceof HTMLElement && node.contains(row)) {
+        if (node.scrollHeight - node.clientHeight > 20) return node;
+      }
+    }
+    return null;
+  };
+  const parent = pickContainer();
+  if (parent) {
+    const maxScroll = Math.max(0, parent.scrollHeight - parent.clientHeight);
+    for (let i = 0; i < 8; i += 1) {
+      rr = row.getBoundingClientRect();
+      const delta = rr.top - desiredTop;
+      if (Math.abs(delta) < 6) break;
+      const next = Math.max(0, Math.min(maxScroll, parent.scrollTop + delta));
+      const before = parent.scrollTop;
+      parent.scrollTop = next;
+      if (Math.abs(parent.scrollTop - before) < 2) break;
+    }
+  } else {
+    row.scrollIntoView({ block: 'center', inline: 'nearest' });
+  }
+  row.setAttribute('data-apify-highlight', '1');
+  row.style.outline = '3px solid red';
+  row.style.outlineOffset = '2px';
+  row.style.boxShadow = '0 0 0 3px red inset';
+  rr = row.getBoundingClientRect();
+  return { ok: true, rowBottom: rr.bottom, rowTop: rr.top };
+};

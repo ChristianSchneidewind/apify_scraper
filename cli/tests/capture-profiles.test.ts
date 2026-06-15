@@ -58,6 +58,7 @@ describe('captureProfilePage', () => {
       'https://www.instagram.com/nasa/',
     );
 
+    expect(waitForTimeout).toHaveBeenCalledWith(250);
     expect(waitForTimeout).toHaveBeenCalledWith(3000);
     expect(result.profile.username).toBe('nasa');
     expect(result.profile.sourceUrl).toBe('https://www.instagram.com/nasa/');

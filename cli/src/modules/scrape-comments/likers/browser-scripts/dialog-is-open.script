@@ -1,0 +1,4 @@
+return (() => {
+  const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+  return dialogs.length > 0;
+})();

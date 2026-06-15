@@ -1,0 +1,38 @@
+return (() => {
+  const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+  const d = dialogs[dialogs.length - 1];
+  if (!d) return { open: false, items: [], canScroll: false };
+
+  const isProfileHref = (h) => {
+    if (!h || !h.startsWith('/')) return false;
+    if (h.startsWith('/p/') || h.startsWith('/reel/') || h.startsWith('/reels/')) return false;
+    if (h.startsWith('/explore/') || h.startsWith('/accounts/') || h.startsWith('/direct/')) return false;
+    if (h.startsWith('/stories/') || h.startsWith('/locations/')) return false;
+    if (h.includes('/c/')) return false;
+    return /^\/[A-Za-z0-9._]+\/?($|\?)/.test(h);
+  };
+
+  const links = Array.from(d.querySelectorAll('a[href]'))
+    .filter((a) => isProfileHref(a.getAttribute('href') || ''));
+  const items = links.map((a) => {
+    const href = a.getAttribute('href') || '';
+    const username = (a.textContent || '').trim().replace(/\s+/g, '').replace(/verified$/i, '');
+    return { profilePath: href, username };
+  }).filter((x) => /^[A-Za-z0-9._]{2,30}$/.test(x.username));
+
+  let scroller = null;
+  const candidates = Array.from(d.querySelectorAll('div, ul'))
+    .filter((c) => c.scrollHeight > c.clientHeight + 20)
+    .sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight));
+  if (candidates.length) scroller = candidates[0];
+
+  let canScroll = false;
+  if (scroller) {
+    const before = scroller.scrollTop;
+    const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    const step = Math.max(260, scroller.clientHeight * 0.95);
+    scroller.scrollTop = Math.min(maxScroll, before + step);
+    canScroll = Math.abs(scroller.scrollTop - before) > 2;
+  }
+  return { canScroll, items, open: true };
+})();

@@ -6,18 +6,13 @@ vi.mock('../src/adapters/playwright/browser.ts', () => ({
 }));
 vi.mock('../src/adapters/filesystem/output.ts', () => ({
   ensureOutputDirectory: vi.fn(),
-  writeBinaryFile: vi.fn(),
   writeJsonFile: vi.fn(),
 }));
 vi.mock('../src/modules/scrape-comments/scrape-loop.ts', () => ({
   runCommentScrapeLoop: vi.fn(),
 }));
 
-import {
-  ensureOutputDirectory,
-  writeBinaryFile,
-  writeJsonFile,
-} from '../src/adapters/filesystem/output.ts';
+import { ensureOutputDirectory, writeJsonFile } from '../src/adapters/filesystem/output.ts';
 import { openBrowserSession } from '../src/adapters/playwright/browser.ts';
 import { runCommentScrapeLoop } from '../src/modules/scrape-comments/scrape-loop.ts';
 import { runScrapeComments } from '../src/modules/scrape-comments/run.ts';
@@ -38,52 +33,57 @@ beforeEach(() => {
 describe('runScrapeComments', () => {
   it('writes extracted comments to json', async () => {
     const goto = vi.fn();
-    const screenshot = vi.fn().mockResolvedValue(new Uint8Array([1, 2]));
+    const evaluate = vi.fn().mockResolvedValue(undefined);
     const waitForTimeout = vi.fn();
+    const locator = vi.fn().mockReturnValue({
+      click: vi.fn().mockResolvedValue(undefined),
+      count: vi.fn().mockResolvedValue(0),
+      elementHandles: vi.fn().mockResolvedValue([]),
+    });
     vi.mocked(openBrowserSession).mockResolvedValue({
       browser: { close: vi.fn() },
       browserContext: {},
-      page: { goto, screenshot, waitForTimeout },
+      page: { evaluate, goto, locator, waitForTimeout },
     } as never);
     vi.mocked(runCommentScrapeLoop).mockResolvedValue([
       {
+        commentLikers: [{ profileUrl: 'https://www.instagram.com/user_a/', username: 'user_a' }],
         commentPermalink: '/p/abc/c/1',
         datetime: null,
+        likesCount: 2,
+        screenshotPaths: ['/tmp/out/uuid.png'],
         text: 'hello',
         timeText: '1h',
         username: 'user_a',
         userProfilePath: '/user_a/',
       },
-      {
-        commentPermalink: '/p/abc/c/2',
-        datetime: null,
-        text: 'world',
-        timeText: '2h',
-        username: 'user_b',
-        userProfilePath: '/user_b/',
-      },
     ]);
     vi.mocked(ensureOutputDirectory).mockResolvedValue('/tmp/out');
     vi.mocked(writeJsonFile).mockResolvedValue('/tmp/out/comments.json');
-    vi.mocked(writeBinaryFile).mockResolvedValue('/tmp/out/comments.png');
 
     const result = await runScrapeComments(context, {
       browserProfile: 'default',
       cwd: '/tmp/project',
       dryRun: false,
-      headful: false,
       json: false,
+      maxCommentLikers: 50,
       noColor: false,
       noInput: false,
       outDir: 'comments',
+      plain: false,
       quiet: false,
       url: 'https://www.instagram.com/p/abc/',
       verbose: false,
     });
 
     expect(result.ok).toBe(true);
-    expect(result.details.commentsCount).toBe('2');
+    expect(result.details.commentsCount).toBe('1');
+    expect(result.details.likesCount).toBe('2');
+    expect(result.details.likersCount).toBe('1');
+    expect(result.details.screenshotCount).toBe('1');
     expect(runCommentScrapeLoop).toHaveBeenCalled();
     expect(writeJsonFile).toHaveBeenCalled();
+    expect(evaluate).toHaveBeenCalled();
+    expect(waitForTimeout).toHaveBeenCalled();
   });
 });

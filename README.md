@@ -27,6 +27,21 @@ Der Zielzustand ist eine **TypeScript-only CLI** mit kleiner Core-Architektur, m
 
 ## Features
 
+**Python Parität** = Feature-Gleichstand zwischen Python-Actor und TypeScript-CLI.
+Ziel ist **1:1-Umbau**; Phase 9 (Likers → Highlighting → Multipart) ist abgeschlossen und validiert.
+
+| Feature | Python Actor | TypeScript CLI |
+|---|---|---|
+| Kommentare scrapen (UI-Loop) | ja | ja |
+| Profile scrapen + Screenshot | — | ja |
+| Login / Session-State | ja | ja |
+| Likers-Extraktion | ja | ja (Default: alle sichtbaren Likers; optional `--max-comment-likers`) |
+| Screenshots mit roter Outline pro Kommentar | ja | ja |
+| Multipart-Capture (lange Kommentare) | ja | ja |
+| Apify Dataset / KV-Store | ja | nein (lokale Artefakte) |
+
+### Python Actor (vollständig)
+
 - Scraping von Kommentaren über Playwright (robuster UI-Flow)
 - Optionaler Login für bessere Kommentar-Abdeckung
 - Persistenter Login-State (`LOGIN_STATE`) im Key-Value-Store
@@ -37,6 +52,20 @@ Der Zielzustand ist eine **TypeScript-only CLI** mit kleiner Core-Architektur, m
 - Speicherung in:
   - **Apify Dataset** (strukturierte Daten)
   - **Screenshots/** (lokale Bilddateien)
+
+### TypeScript CLI (Kern-Befehle)
+
+- `instagram auth login` — Session-State pro Browser-Profil
+- `instagram scrape comments` — strukturierte Kommentardaten + pro-Kommentar-Screenshots (Parität Phase 9)
+- `instagram scrape profiles` — Profil-JSON + Full-Page-Screenshot
+
+### Output modes
+
+- Default: concise human-readable output
+- `--json`: one JSON object to stdout
+- `--plain`: stable line-oriented output
+- Diagnostics / warnings / validation errors: stderr
+- `auth login` requires an interactive TTY unless `--no-input` is omitted
 
 ---
 
@@ -121,7 +150,9 @@ python3 -m main
 
 ```bash
 npx tsx cli/src/bin/instagram.ts auth login --browser-profile "default"
-npx tsx cli/src/bin/instagram.ts scrape comments --url "https://www.instagram.com/p/abc/"
+npx tsx cli/src/bin/instagram.ts scrape comments \
+  --url "https://www.instagram.com/p/abc/" \
+  --out-dir "artifacts/comments"
 npx tsx cli/src/bin/instagram.ts scrape profiles --url "https://www.instagram.com/nasa/" --profile-slug "nasa" --out-dir "artifacts/profiles" --json
 ```
 
@@ -145,7 +176,7 @@ Beispiel:
 }
 ```
 
-> `maxCommentLikers: 0` = versuche alle sichtbaren Likers zu sammeln.
+> CLI-Default und Actor-Option `maxCommentLikers: 0` = versuche alle sichtbaren Likers zu sammeln.
 
 ---
 

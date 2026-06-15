@@ -17,13 +17,12 @@ const buildBrowserProfile = (browserProfile: string, cwd: string) => ({
 
 export const createRuntimeContext = (
   options: GlobalOptions,
-): RuntimeContext => {
+): RuntimeContext | null => {
   const context = {
     browserProfile: buildBrowserProfile(options.browserProfile, options.cwd),
     cwd: options.cwd,
   };
-  if (!Value.Check(runtimeContextSchema, context)) {
-    throw new Error('invalid runtime context');
-  }
-  return context;
+  return Value.Check(runtimeContextSchema, context)
+    ? context
+    : null;
 };

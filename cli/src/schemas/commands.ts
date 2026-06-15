@@ -13,24 +13,23 @@ export const globalOptionsSchema = Type.Object({
   dryRun: Type.Boolean({ default: false }),
   json: Type.Boolean({ default: false }),
   noColor: Type.Boolean({ default: false }),
+  plain: Type.Boolean({ default: false }),
   noInput: Type.Boolean({ default: false }),
   quiet: Type.Boolean({ default: false }),
   verbose: Type.Boolean({ default: false }),
 });
 
-export const authLoginOptionsSchema = Type.Composite([
-  globalOptionsSchema,
-  Type.Object({
-    headful: Type.Boolean({ default: true }),
-  }),
-]);
+export const authLoginOptionsSchema = globalOptionsSchema;
 
 export const scrapeCommentsOptionsSchema = Type.Composite([
   globalOptionsSchema,
   Type.Object({
-    headful: Type.Boolean({ default: false }),
+    likerCollectionMode: Type.Optional(Type.Union([Type.Literal('best_effort'), Type.Literal('strict')])),
+    maxCommentLikers: Type.Optional(Type.Number({ minimum: 0 })),
     maxComments: Type.Optional(Type.Number({ minimum: 0 })),
+    maxUiRounds: Type.Optional(Type.Number({ minimum: 1 })),
     outDir: Type.Optional(Type.String({ minLength: 1 })),
+    uiIdleRounds: Type.Optional(Type.Number({ minimum: 1 })),
     url: Type.String({ minLength: 1 }),
   }),
 ]);
@@ -38,7 +37,6 @@ export const scrapeCommentsOptionsSchema = Type.Composite([
 export const scrapeProfilesOptionsSchema = Type.Composite([
   globalOptionsSchema,
   Type.Object({
-    headful: Type.Boolean({ default: false }),
     outDir: Type.String({ minLength: 1 }),
     profileSlug: Type.Optional(Type.String({ minLength: 1 })),
     url: Type.String({ minLength: 1 }),

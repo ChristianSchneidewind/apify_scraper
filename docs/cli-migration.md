@@ -33,6 +33,8 @@ New:
 instagram auth login --browser-profile "default"
 ```
 
+Use `--no-input` to disable prompts; login requires an interactive terminal.
+
 ### Scrape comments
 
 Old:
@@ -78,8 +80,9 @@ instagram scrape profiles \
 - run summaries in actor storage/KV
 
 ### New
-- command stdout for human output
+- stdout for human output
 - `--json` for machine-readable output
+- `--plain` for stable line-oriented output
 - JSON artifact files in explicit output directories
 - screenshots written beside related JSON artifacts
 
@@ -89,6 +92,22 @@ instagram scrape profiles \
 - Flags replace most actor input JSON configuration.
 - Named browser profiles are explicit via `--browser-profile`.
 - Validation and architecture guardrails are enforced in the TypeScript workspace.
+
+### Python Parity (Phase 9 — done)
+
+**Python Parity** means feature parity between the Python actor and the TypeScript CLI.
+Phase 9 is complete and validated (`scripts/refactor-cli-phase-validator.sh 9` → APPROVED).
+
+| Capability | Python actor | TypeScript CLI |
+|---|---|---|
+| Comment scraping (UI loop) | yes | yes |
+| Profile scraping | — | yes |
+| Likers extraction | yes | yes (default: all visible likers; optional `--max-comment-likers`) |
+| Per-comment screenshots with red outline | yes | yes |
+| Multipart capture for long comments | yes | yes |
+| Apify dataset / KV store output | yes | no (local artifacts) |
+
+Use `python3 -m main` only when Apify dataset/KV integration is required.
 
 ## Current status
 

@@ -17,7 +17,7 @@ export const runScrapeProfiles = async (
   context: RuntimeContext,
   options: ScrapeProfilesOptions,
 ) => {
-  const session = await openBrowserSession(context, options.headful);
+  const session = await openBrowserSession(context, true);
   await session.page.goto(options.url, { waitUntil: 'domcontentloaded' });
   const slug = resolveProfileSlug(options.url, options.profileSlug);
   const { profile, screenshot } = await captureProfilePage(session.page, options.url);

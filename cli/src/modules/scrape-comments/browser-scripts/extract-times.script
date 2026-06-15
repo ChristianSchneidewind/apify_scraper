@@ -1,40 +1,171 @@
-const IGNORE_TEXTS = new Set(['Like', 'Reply', 'Log in', 'Sign up', 'Comment', 'Share', 'Save']);
-const isProfileHref = (href) => {
-  if (!href || !href.startsWith('/')) return false;
-  if (href.startsWith('/p/') || href.startsWith('/reel/') || href.startsWith('/reels/')) return false;
-  if (href.includes('/c/') || href.startsWith('/explore/') || href.startsWith('/accounts/')) return false;
-  return /^\/[A-Za-z0-9._]+\/?($|\?)/.test(href);
-};
+const ignoreTexts = new Set(['Like', 'Reply', 'Log in', 'Sign up', 'Comment', 'Share', 'Save']);
 const isValidUsername = (username) => /^[a-zA-Z0-9._]{2,30}$/.test(username || '');
+const isProfileHref = (h) => {
+  if (!h || !h.startsWith('/')) return false;
+  if (h.startsWith('/p/') || h.startsWith('/reel/') || h.startsWith('/reels/')) return false;
+  if (h.startsWith('/explore/') || h.startsWith('/accounts/') || h.startsWith('/direct/')) return false;
+  if (h.startsWith('/stories/') || h.startsWith('/locations/')) return false;
+  if (h.includes('/c/')) return false;
+  return /^\/[A-Za-z0-9._]+\/?($|\?)/.test(h);
+};
+const badText = (t) => {
+  const v = (t || '').trim();
+  if (!v) return true;
+  const l = v.toLowerCase();
+  if (['reply', 'replies', 'edited', 'view all replies', 'view hidden comments'].includes(l)) return true;
+  if (/^\d+\s*(h|d|w|m|s)$/i.test(v)) return true;
+  if (/^\d+\s*likes?$/i.test(v)) return true;
+  if (/^\d+h\s*·\s*edited$/i.test(l)) return true;
+  return false;
+};
+const parseLikesInfo = (root, ownerUsername) => {
+  const raw = (root?.innerText || '').replace(/\s+/g, ' ').trim();
+  const m = raw.match(/(\d+[\d.,]*)\s*likes?/i)
+    || raw.match(/(\d+[\d.,]*)\s*gefällt\s+mir/i)
+    || raw.match(/gefällt\s+(\d+[\d.,]*)\s*mal/i);
+  const likesCount = m ? parseInt((m[1] || '').replace(/[.,]/g, ''), 10) || 0 : 0;
+  const seen = new Set();
+  const likers = [];
+  const links = Array.from(root?.querySelectorAll?.('a[href]') || []);
+  for (const a of links) {
+    const href = a.getAttribute('href') || '';
+    if (!isProfileHref(href)) continue;
+    const uname = (a.textContent || '').trim().replace(/\s+/g, '').replace(/verified$/i, '');
+    if (!uname || !/^[a-zA-Z0-9._]{2,30}$/.test(uname)) continue;
+    if (ownerUsername && uname.toLowerCase() === ownerUsername.toLowerCase()) continue;
+    const key = uname.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    likers.push({ username: uname, profilePath: href });
+    if (likers.length >= 10) break;
+  }
+  return { likesCount, likers };
+};
 const pickText = (node, username, timeText) => {
   const spans = Array.from(node.querySelectorAll('span'))
     .map((span) => span.textContent?.trim() || '')
-    .filter((text) => text.length > 0 && !IGNORE_TEXTS.has(text));
+    .filter((text) => text.length > 0 && !ignoreTexts.has(text));
   return spans
     .filter((item) => item !== username && item !== timeText)
     .sort((a, b) => b.length - a.length)
     .find((item) => item.length >= 1) || '';
 };
-const extractOne = (timeEl) => {
-  const timeText = timeEl.textContent?.trim() ?? '';
-  let node = timeEl.parentElement;
-  for (let depth = 0; depth < 24 && node; depth += 1) {
-    const userLink = Array.from(node.querySelectorAll('a[role="link"], a'))
-      .find((link) => isProfileHref(link.getAttribute('href') || ''));
-    if (!userLink) { node = node.parentElement; continue; }
-    const username = (userLink.textContent || '').trim().replace(/\s+/g, '').replace(/verified$/i, '');
-    if (!isValidUsername(username)) { node = node.parentElement; continue; }
-    const text = pickText(node, username, timeText);
-    if (!text) { node = node.parentElement; continue; }
+const extractFromNode = (timeEl, current) => {
+  const links = Array.from(current.querySelectorAll('a[role="link"], a'));
+  const usernameLink = links.find((a) => isProfileHref(a.getAttribute('href') || ''));
+  if (!usernameLink) return null;
+  const rawUsername = (usernameLink.textContent || '').trim();
+  const username = rawUsername.replace(/\s+/g, '').replace(/verified$/i, '');
+  if (!isValidUsername(username)) return null;
+  const timeText = timeEl.textContent?.trim() ?? null;
+  const spans = Array.from(current.querySelectorAll('span'))
+    .map((span) => span.textContent?.trim())
+    .filter((text) => text && !ignoreTexts.has(text));
+  const text = spans
+    .filter((textItem) => textItem !== username && textItem !== rawUsername && textItem !== timeText)
+    .sort((a, b) => b.length - a.length)
+    .find((t) => !badText(t));
+  const hasGif = Array.from(current.querySelectorAll('img, video, canvas')).some((node) => {
+    const src = (node.getAttribute?.('src') || node.getAttribute?.('poster') || '').toLowerCase();
+    const alt = (node.getAttribute?.('alt') || '').toLowerCase();
+    const aria = (node.getAttribute?.('aria-label') || '').toLowerCase();
+    const cls = String(node.getAttribute?.('class') || '').toLowerCase();
+    const r = node.getBoundingClientRect?.() || { width: 0, height: 0 };
+    if (alt.includes('profile picture') || alt.includes('profilbild') || cls.includes('avatar')) return false;
+    if (r.width <= 40 && r.height <= 40) return false;
+    return src.includes('giphy') || src.includes('.gif') || src.includes('/gif') || alt.includes('gif') || aria.includes('gif') || alt.includes('sticker') || aria.includes('sticker') || r.width >= 48 || r.height >= 48;
+  });
+  const raw = (current.innerText || '').replace(/\s+/g, ' ').trim();
+  const cleaned = raw
+    .replace(new RegExp(username?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') || '', 'ig'), '')
+    .replace(new RegExp((timeText || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig'), '')
+    .replace(/\b(Like|Reply|Replies|Log in|Sign up|Comment|Share|Save|GIF|Sticker|Gefällt|Antworten|Antwort|Ansehen|anzeigen|weiter|more|view|replies)\b/ig, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\b\d+[.,]?\d*\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const likesInfo = parseLikesInfo(current, username);
+  if (text && text.length >= 1) {
     return {
-      commentPermalink: node.querySelector('a[href*="/c/"]')?.getAttribute('href') ?? null,
-      datetime: timeEl.getAttribute('datetime'),
-      text,
-      timeText,
       username,
-      userProfilePath: userLink.getAttribute('href'),
+      userProfilePath: usernameLink.getAttribute('href') || null,
+      commentPermalink: current.querySelector('a[href*="/c/"]')?.getAttribute('href') ?? null,
+      text,
+      datetime: timeEl.getAttribute('datetime') ?? null,
+      timeText,
+      likesCount: likesInfo.likesCount,
+      commentLikers: likesInfo.likers,
+      isGifOnly: false,
     };
   }
+  if (hasGif && cleaned.length === 0) {
+    return {
+      username,
+      userProfilePath: usernameLink.getAttribute('href') || null,
+      commentPermalink: current.querySelector('a[href*="/c/"]')?.getAttribute('href') ?? null,
+      text: '[GIF]',
+      datetime: timeEl.getAttribute('datetime') ?? null,
+      timeText,
+      likesCount: likesInfo.likesCount,
+      commentLikers: likesInfo.likers,
+      isGifOnly: true,
+    };
+  }
+  return null;
+};
+const extractOne = (timeEl) => {
+  const timeText = timeEl.textContent?.trim() ?? null;
+  let current = timeEl.parentElement;
+  for (let i = 0; i < 24 && current; i += 1) {
+    const result = extractFromNode(timeEl, current);
+    if (result) return result;
+    current = current.parentElement;
+  }
+  try {
+    const permalinkLink = timeEl.closest('a[href*="/p/"][href*="/c/"], a[href*="/reel/"][href*="/c/"], a[href*="/reels/"][href*="/c/"], a[href*="/c/"]');
+    if (permalinkLink) {
+      let row = permalinkLink;
+      for (let i = 0; i < 14 && row; i += 1) {
+        const txt = (row.innerText || '').trim();
+        if (txt.length > 20) break;
+        row = row.parentElement;
+      }
+      row = row || permalinkLink.parentElement || permalinkLink;
+      const links = Array.from(row.querySelectorAll('a[role="link"], a'));
+      const usernameLink = links.find((a) => {
+        const href = a.getAttribute('href') || '';
+        if (!isProfileHref(href)) return false;
+        const t = (a.textContent || '').replace(/\s+/g, '').replace(/verified$/i, '');
+        return isValidUsername(t);
+      });
+      const rawUsername = usernameLink?.textContent?.trim() || '';
+      const username = rawUsername.replace(/\s+/g, '').replace(/verified$/i, '');
+      const userProfilePath = usernameLink?.getAttribute('href') || null;
+      const commentPermalink = permalinkLink.getAttribute('href') || null;
+      if (!isValidUsername(username)) return null;
+      const spans = Array.from(row.querySelectorAll('span'))
+        .map((span) => span.textContent?.trim())
+        .filter((text) => text && !ignoreTexts.has(text));
+      const text = spans
+        .filter((textItem) => textItem !== rawUsername && textItem !== username && textItem !== timeText)
+        .sort((a, b) => b.length - a.length)
+        .find((t) => !badText(t));
+      if (username && text && text.length >= 1) {
+        const likesInfo = parseLikesInfo(row, username);
+        return {
+          username,
+          userProfilePath,
+          commentPermalink,
+          text,
+          datetime: timeEl.getAttribute('datetime') ?? null,
+          timeText,
+          likesCount: likesInfo.likesCount,
+          commentLikers: likesInfo.likers,
+          isGifOnly: false,
+        };
+      }
+    }
+  } catch (e) {}
   return null;
 };
 return Array.from(document.querySelectorAll(timeSelector))

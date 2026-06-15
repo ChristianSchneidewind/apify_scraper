@@ -1,0 +1,27 @@
+(node = null) => {
+  const score = (el) => el.scrollHeight - el.clientHeight;
+  const visible = (el) => el.querySelectorAll('time').length > 0;
+  const pick = (nodes) => nodes
+    .filter(visible)
+    .filter((el) => score(el) > 40)
+    .sort((a, b) => score(b) - score(a))[0];
+  const descendents = node
+    ? Array.from(node.querySelectorAll('div, ul, section, article'))
+    : [];
+  const globalNodes = Array.from(document.querySelectorAll('div, ul, section, article'));
+  const candidates = [
+    pick(descendents),
+    pick(globalNodes),
+    node,
+    document.scrollingElement,
+    document.documentElement,
+    document.body,
+  ].filter(Boolean);
+  for (const target of candidates) target.scrollTop = 0;
+  let current = candidates[0]?.parentElement || null;
+  for (let i = 0; i < 8 && current; i += 1) {
+    current.scrollTop = 0;
+    current = current.parentElement;
+  }
+  window.scrollTo(0, 0);
+}

@@ -8,6 +8,7 @@ const options = {
   json: false,
   noColor: false,
   noInput: false,
+  plain: false,
   quiet: false,
   verbose: false,
 };
@@ -15,8 +16,8 @@ const options = {
 describe('createRuntimeContext', () => {
   it('builds browser profile paths', () => {
     const context = createRuntimeContext(options);
-    expect(context.browserProfile.name).toBe('default');
-    expect(context.browserProfile.storageStatePath).toContain(
+    expect(context?.browserProfile.name).toBe('default');
+    expect(context?.browserProfile.storageStatePath).toContain(
       '.instagram-cli/profiles/default/storage-state.json',
     );
   });

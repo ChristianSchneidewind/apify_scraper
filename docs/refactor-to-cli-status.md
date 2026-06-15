@@ -4,7 +4,7 @@ Stand: automatisch gepflegt gegen Repo-Checks (`scripts/refactor-cli-phase-detec
 
 ## Ziel
 
-TypeScript-only CLI `instagram` mit:
+TypeScript-only CLI `instagram` mit **1:1-Parität** zum Python-Actor:
 
 - kleinem Core (`cli/src/core/**`)
 - modularen Features (`cli/src/modules/**`)
@@ -33,8 +33,9 @@ instagram scrape profiles --url "..." --profile-slug "..." --out-dir "..." --jso
 | 6 | scrape-comments-port | **DONE** | APPROVED |
 | 7 | scrape-profiles-port | **DONE** | APPROVED |
 | 8 | hardening-and-migration | **DONE** | APPROVED |
+| 9 | python-parity-likers-highlight-multipart | **DONE** | APPROVED |
 
-**Nächste Phase:** — (alle Phasen abgeschlossen)
+**Nächste Phase:** — (alle 9 Phasen abgeschlossen)
 
 ## Was bereits umgesetzt ist
 
@@ -52,32 +53,49 @@ instagram scrape profiles --url "..." --profile-slug "..." --out-dir "..." --jso
 
 ### Module (MVP)
 - Auth: interaktiver Login + `storage-state.json` pro Browser-Profil
-- Scrape comments: UI-Round-Loop mit DOM-Selektoren, Expand/Scroll, strukturierter Extraktion
+- Scrape comments: UI-Round-Loop mit DOM-Selektoren, Expand/Scroll, strukturierte Extraktion
 - Scrape profiles: Profil-Extraktion (Browser-Script), Screenshot, JSON/PNG-Artefakte
 
 ### Tests
-- 17 Vitest-Tests, alle grün
+- Vitest-Tests, alle grün
 - Coverage ~69 % (UI-Expand/Scroll-Adapter teils ungetestet)
 
-## Was in Phase 6 fehlt (Python → TS Port)
+## Python Parität — Phase 9 (abgeschlossen)
 
-Noch nicht portiert (optional für volle Parität):
+**Ziel:** Vollständiger Feature-Gleichstand zwischen Python-Actor und TypeScript-CLI.
+Validator: `SKIP_PI=1 CI=1 bash scripts/refactor-to-cli-loop.sh validate 9` → **APPROVED**.
+
+| Feature | Python Actor | TypeScript CLI |
+|---|---|---|
+| Kommentar-UI-Loop | ja | ja |
+| Profile scrapen | — | ja |
+| Likers-Extraktion | ja | ja (Default: alle sichtbaren Likers; optional `--max-comment-likers`) |
+| Screenshots mit Highlighting | ja | ja (rote Outline pro Kommentar) |
+| Multipart-Capture | ja | ja (Scroll + 3plus-Route) |
+| Apify Dataset / KV-Store | ja | nein (lokale Artefakte unter `--out-dir`) |
+
+Port-Reihenfolge und TS-Zielpfade:
 
 | Python | TS-Ziel |
 |---|---|
-| `comments.py`, `comment_state.py` | `modules/scrape-comments/extract-rows.ts` |
-| `comment_capture_pipeline.py` | `modules/scrape-comments/capture-pipeline.ts` |
+| `comment_likers.py` | `modules/scrape-comments/likers/` |
+| `highlighting.py`, `screenshots.py` (highlight) | `adapters/instagram/highlight.ts` |
 | `multipart_planner.py`, `multipart_executor.py` | `modules/scrape-comments/multipart/` |
-| `screenshots.py`, `highlighting.py` | `adapters/instagram/screenshots.ts` |
-| `comment_likers.py` | `modules/scrape-comments/likers.ts` |
+| `comment_capture_pipeline.py` | `modules/scrape-comments/capture/` |
 
-Bereits umgesetzt in Phase 6:
+## Phase 9 — umgesetzt
 
 | Python | TS |
 |---|---|
-| `instagram_dom.py`, `dom_selectors.py` | `adapters/instagram/dom-selectors.ts` |
+| `comment_likers.py` | `modules/scrape-comments/likers/` (`enrich.ts`, `open-inline.ts`, `open-deep.ts`, `collect-dialog.ts`) |
+| `highlighting.py` | `adapters/instagram/highlight.ts` |
+| `multipart_planner.py`, `multipart_executor.py` | `modules/scrape-comments/multipart/` + `capture/assets.ts` |
+| `comment_capture_pipeline.py` | `modules/scrape-comments/process-comment.ts` + `capture/` |
 | `scrape_loop.py` (Kern-Loop) | `modules/scrape-comments/scrape-loop.ts` |
+| `instagram_dom.py`, `dom_selectors.py` | `adapters/instagram/dom-selectors.ts` |
 | Zeit-Knoten-Extraktion | `modules/scrape-comments/extract-times.ts` + Browser-Script |
+
+Tests: `highlight.test.ts`, `likers-enrich.test.ts`, `multipart-decisions.test.ts`, `process-comment.test.ts`
 
 ## Phase 7 — umgesetzt
 
@@ -87,11 +105,10 @@ Bereits umgesetzt in Phase 6:
 | Browser-Script | `modules/scrape-profiles/browser-scripts/extract-profile.script` |
 | Artefakt-Schreiben | slug + out-dir + json/png via `persistProfileArtifacts` |
 
-## Phase 8 — umgesetzt / optional später
+## Phase 8 — umgesetzt
 
 - Migration + Usage-Docs: `docs/cli-migration.md`, `docs/cli-usage.md`
 - CI: TypeScript-Checks in `.github/workflows/tests-on-push.yml`
-- Optional später: breitere Adapter-Tests, Python-Entry deprecaten
 
 ## Loop ausführen
 
@@ -112,7 +129,7 @@ bash scripts/refactor-to-cli-loop.sh run
 bash scripts/refactor-to-cli-loop.sh run-all
 
 # Ohne pi: manuell implementieren, dann validieren
-SKIP_PI=1 bash scripts/refactor-to-cli-loop.sh validate 6
+SKIP_PI=1 bash scripts/refactor-to-cli-loop.sh validate 9
 ```
 
 ## Architektur (pi-Style)
