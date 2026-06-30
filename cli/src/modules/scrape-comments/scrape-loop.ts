@@ -15,6 +15,7 @@ const buildProcessState = () => ({
   lastScreenshotHash: null as string | null,
   newInRound: 0,
   seenLoose: new Set<string>(),
+  seenPermalink: new Set<string>(),
   seenStrict: new Set<string>(),
   seenUid: new Set<string>(),
 });
@@ -36,10 +37,9 @@ const processRound = async (
 ) => {
   state.newInRound = 0;
   const commentPage = page as unknown as Parameters<typeof listCommentRowLocators>[0];
-  const replyPass = passLabel === 'replies';
-  const rowLocators = replyPass ? [] : ((await listCommentRowLocators(commentPage)) || []);
+  const rowLocators = (await listCommentRowLocators(commentPage)) || [];
   const fallbackLocators = (await listTimeLocators(commentPage)) || [];
-  const locators = rowLocators.length ? rowLocators : fallbackLocators;
+  const locators = rowLocators.length ? [...rowLocators, ...fallbackLocators] : fallbackLocators;
   logRound(round, maxUiRounds, `${passLabel} locators ${locators.length}`, processOpts.quiet);
   for (const locator of locators) {
     const item = await processCommentCandidate(page, locator, state, processOpts);

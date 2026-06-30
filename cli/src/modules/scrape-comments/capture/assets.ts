@@ -8,6 +8,7 @@ import { buildCommentMetadataPayload } from './payloads.ts';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const VERIFY_SCRIPT = readFileSync(join(dir, '../multipart/browser-scripts/multipart-verify.script'), 'utf8');
+const TILE_3PLUS_SCRIPT = readFileSync(join(dir, '../multipart/browser-scripts/multipart-tile-3plus.script'), 'utf8');
 const PLACEHOLDER_PNG = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAQAAAC0lEQVR42mP8/x8AAwMCAO7q8JcAAAAASUVORK5CYII=', 'base64'));
 const QUICK_HIGHLIGHT_STYLE = ':scope { outline: 4px solid red !important; outline-offset: -4px !important; box-shadow: inset 0 0 0 4px red !important; }';
 
@@ -109,4 +110,4 @@ export const capturePlaceholderCommentScreenshot = async (
 };
 
 export const captureQuickCommentScreenshot = captureQuickScreenshot;
-export { PLACEHOLDER_PNG, VERIFY_SCRIPT, runPayloadOnElement };
+export { PLACEHOLDER_PNG, TILE_3PLUS_SCRIPT, VERIFY_SCRIPT, runPayloadOnElement };

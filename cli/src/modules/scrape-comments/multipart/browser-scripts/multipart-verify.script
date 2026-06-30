@@ -2,7 +2,21 @@ return ({ el, mode, top, partsTotal, commentPermalink, userProfilePath, username
   const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
   const user = norm(username);
   const txt = norm(text).slice(0, 180);
-  const rowFrom = (node) => node?.closest?.('li, [role="listitem"], article, div') || node;
+  const findRowFrom = (node) => {
+    let cur = node instanceof HTMLElement ? node : node?.parentElement;
+    let fallback = null;
+    for (let i = 0; i < 24 && cur; i += 1) {
+      const content = norm(cur.innerText || '');
+      const hasTime = !!cur.querySelector?.('time');
+      const hasProfile = !!cur.querySelector?.('a[href^="/"]');
+      if (hasTime && hasProfile) {
+        if (!fallback) fallback = cur;
+        if (!txt || content.includes(txt.slice(0, 80))) return cur;
+      }
+      cur = cur.parentElement;
+    }
+    return fallback || node;
+  };
   const isCommentRow = (node) => !!node && (
     !!node.querySelector?.('time') ||
     !!node.querySelector?.('a[href*="/c/"]')
@@ -12,9 +26,9 @@ return ({ el, mode, top, partsTotal, commentPermalink, userProfilePath, username
   const findRow = () => {
     if (commentPermalink) {
       const a = document.querySelector(`a[href="${commentPermalink}"]`);
-      if (a) return rowFrom(a);
+      if (a) return findRowFrom(a);
     }
-    let cur = rowFrom(el);
+    let cur = findRowFrom(el);
     for (let i = 0; i < 24 && cur; i += 1) {
       if (isCommentRow(cur)) return cur;
       cur = cur.parentElement;
@@ -22,7 +36,7 @@ return ({ el, mode, top, partsTotal, commentPermalink, userProfilePath, username
     if (userProfilePath) {
       const anchors = Array.from(commentScope().querySelectorAll(`a[href="${userProfilePath}"]`));
       for (const a of anchors) {
-        const r = rowFrom(a);
+        const r = findRowFrom(a);
         if (!isCommentRow(r)) continue;
         const content = norm(r?.innerText || '');
         if (user && !content.includes(user)) continue;

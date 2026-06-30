@@ -6,6 +6,7 @@ import { injectHelpers } from '../../../adapters/instagram/load-script.ts';
 import type { CommentRecord, ElementHandle, MultipartPlanResult } from '../../../schemas/index.ts';
 import {
   calcForcedParts,
+  hasMultipartEvidence,
   shouldForceRowMultipart,
   shouldUse3PlusRoute,
   totalParts,
@@ -33,8 +34,6 @@ export const planCommentMultipart = async (
   handle: ElementHandle,
   data: CommentRecord,
 ) => {
-  await expandCommentForCapture(handle);
-
   const partPlan = await handle.evaluate((el: Element, args: { body: string; payload: Record<string, unknown> }) => {
     const fn = new Function(args.body)() as (payload: Record<string, unknown>) => MultipartPlanResult;
     return fn({ ...args.payload, el });
@@ -46,9 +45,15 @@ export const planCommentMultipart = async (
 
   let scrollParts = safePlan.tops || [0];
   let mode = safePlan.mode || 'single';
+  const metrics = safePlan.metrics;
   const textLen = (data.text || '').trim().length;
 
-  if (shouldForceRowMultipart(textLen, mode)) {
+  if (!hasMultipartEvidence(mode, scrollParts, metrics)) {
+    mode = 'single';
+    scrollParts = [0];
+  }
+
+  if (shouldForceRowMultipart(textLen, mode, metrics)) {
     mode = 'row';
     scrollParts = Array.from({ length: calcForcedParts(textLen) }, (_, i) => i);
   }

@@ -54,6 +54,7 @@ export type ProcessState = {
   lastScreenshotHash: string | null;
   newInRound: number;
   seenLoose: Set<string>;
+  seenPermalink: Set<string>;
   seenStrict: Set<string>;
   seenUid: Set<string>;
 };
@@ -123,6 +124,12 @@ export type LikersBatch = {
 };
 
 export type MultipartPlanResult = {
+  metrics?: {
+    hasInnerScroll?: boolean;
+    overflow?: number;
+    rowHeight?: number;
+    visibleH?: number;
+  };
   mode?: string;
   ok?: boolean;
   sig?: string | null;

@@ -7,6 +7,7 @@ vi.mock('../src/adapters/instagram/load-script.ts', () => ({
   browserRunPayload: vi.fn(),
 }));
 vi.mock('../src/adapters/filesystem/output.ts', () => ({
+  appendTextFile: vi.fn().mockResolvedValue('/tmp/out/capture-debug.jsonl'),
   writeBinaryFile: vi.fn(),
   writeJsonFile: vi.fn(),
 }));
@@ -67,7 +68,7 @@ describe('captureCommentAssets', () => {
     } as never);
     vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: true });
     const page = buildPage([1, 2, 3]);
-    const handle = buildHandle({ ok: true });
+    const handle = buildHandle({ ok: true, clippedBottom: false, metrics: { overflow: 0, rowHeight: 240, visibleH: 600 } }, { ok: true });
     const session = baseSession();
 
     const result = await captureCommentAssets(
@@ -115,20 +116,21 @@ describe('captureCommentAssets', () => {
     expect(result.metadataPath).toBe('/tmp/out/uuid-1.json');
   });
 
-  it('captures 3plus tile screenshots', async () => {
+  it('escalates a clipped single comment to multipart full screenshots', async () => {
     vi.mocked(planCommentMultipart).mockResolvedValue({
-      mode: 'row',
-      plannedParts3plus: 3,
-      scrollParts: [0, 1],
-      totalParts: 3,
-      use3plusRoute: true,
+      baseSig: 'sig-escalate',
+      mode: 'single',
+      plannedParts3plus: 1,
+      scrollParts: [0],
+      totalParts: 1,
+      use3plusRoute: false,
     } as never);
     vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: true });
-    const page = buildPage([1, 2, 3], [4, 5, 6], [7, 8, 9]);
+    const page = buildPage([1, 2, 3], [4, 5, 6]);
     const handle = buildHandle(
-      { ok: true, clip: { x: 0, y: 0, width: 10, height: 10 } },
-      { ok: true, clip: { x: 0, y: 10, width: 10, height: 10 } },
-      { ok: true, clip: { x: 0, y: 20, width: 10, height: 10 } },
+      { ok: true, clippedBottom: true, metrics: { overflow: 180, rowHeight: 780, visibleH: 600 } },
+      { ok: true },
+      { ok: true },
     );
     const session = baseSession();
 
@@ -142,29 +144,118 @@ describe('captureCommentAssets', () => {
       null,
     );
 
-    expect(writeBinaryFile).toHaveBeenCalledTimes(3);
-    expect(page.screenshot).toHaveBeenCalledTimes(3);
-    expect(result.screenshotPaths).toEqual([
-      '/tmp/out/uuid-1-element.png',
-      '/tmp/out/uuid-1-element-part2.png',
-      '/tmp/out/uuid-1-element-part3.png',
-    ]);
+    expect(writeBinaryFile).toHaveBeenCalledTimes(2);
     expect(result.screenshotKeys).toEqual([
-      'uuid-1-element.png',
-      'uuid-1-element-part2.png',
-      'uuid-1-element-part3.png',
+      'uuid-1.png',
+      'uuid-1-part2.png',
     ]);
-    expect(writeJsonFile).toHaveBeenCalledTimes(1);
-    expect(result.metadataPath).toBe('/tmp/out/uuid-1-element.json');
+    expect(handle.evaluate).toHaveBeenNthCalledWith(1, expect.any(Function), expect.objectContaining({
+      body: expect.any(String),
+      payload: expect.objectContaining({ mode: 'single', partsTotal: 1, top: 0 }),
+    }));
+    expect(handle.evaluate).toHaveBeenNthCalledWith(2, expect.any(Function), expect.objectContaining({
+      body: expect.any(String),
+      payload: expect.objectContaining({ mode: 'row', partsTotal: 2, top: 0 }),
+    }));
+    expect(result.metadataPath).toBe('/tmp/out/uuid-1.json');
   });
 
-  it('stops when verify fails', async () => {
+  it('captures 2-part full screenshots', async () => {
     vi.mocked(planCommentMultipart).mockResolvedValue({
+      baseSig: 'sig-2',
       mode: 'row',
       plannedParts3plus: 2,
       scrollParts: [0, 1],
       totalParts: 2,
-      use3plusRoute: false,
+      use3plusRoute: true,
+    } as never);
+    vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: true });
+    const page = buildPage([1, 2, 3], [4, 5, 6]);
+    const handle = buildHandle({ ok: true }, { ok: true });
+    const session = baseSession();
+
+    const result = await captureCommentAssets(
+      page as never,
+      handle as never,
+      data as never,
+      '/tmp/out',
+      session,
+      1,
+      null,
+    );
+
+    expect(writeBinaryFile).toHaveBeenCalledTimes(2);
+    expect(result.screenshotPaths).toEqual([
+      '/tmp/out/uuid-1.png',
+      '/tmp/out/uuid-1-part2.png',
+    ]);
+    expect(result.screenshotKeys).toEqual([
+      'uuid-1.png',
+      'uuid-1-part2.png',
+    ]);
+    expect(handle.evaluate).toHaveBeenNthCalledWith(1, expect.any(Function), expect.objectContaining({
+      body: expect.any(String),
+      payload: expect.objectContaining({ mode: 'row', partsTotal: 2, top: 0 }),
+    }));
+    expect(handle.evaluate).toHaveBeenNthCalledWith(2, expect.any(Function), expect.objectContaining({
+      body: expect.any(String),
+      payload: expect.objectContaining({ mode: 'row', partsTotal: 2, top: 1 }),
+    }));
+    expect(result.metadataPath).toBe('/tmp/out/uuid-1.json');
+  });
+
+  it('captures 3plus full screenshots', async () => {
+    vi.mocked(planCommentMultipart).mockResolvedValue({
+      baseSig: 'sig-3',
+      mode: 'row',
+      plannedParts3plus: 3,
+      scrollParts: [0, 1, 2],
+      totalParts: 3,
+      use3plusRoute: true,
+    } as never);
+    vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: true });
+    const page = buildPage([1, 2, 3], [4, 5, 6], [7, 8, 9]);
+    const handle = buildHandle({ ok: true }, { ok: true }, { ok: true });
+    const session = baseSession();
+
+    const result = await captureCommentAssets(
+      page as never,
+      handle as never,
+      data as never,
+      '/tmp/out',
+      session,
+      1,
+      null,
+    );
+
+    expect(writeBinaryFile).toHaveBeenCalledTimes(3);
+    expect(handle.evaluate).toHaveBeenNthCalledWith(1, expect.any(Function), expect.objectContaining({
+      body: expect.any(String),
+      payload: expect.objectContaining({ mode: 'row', partsTotal: 3, top: 0 }),
+    }));
+    expect(page.screenshot).toHaveBeenCalledTimes(3);
+    expect(result.screenshotPaths).toEqual([
+      '/tmp/out/uuid-1.png',
+      '/tmp/out/uuid-1-part2.png',
+      '/tmp/out/uuid-1-part3.png',
+    ]);
+    expect(result.screenshotKeys).toEqual([
+      'uuid-1.png',
+      'uuid-1-part2.png',
+      'uuid-1-part3.png',
+    ]);
+    expect(writeJsonFile).toHaveBeenCalledTimes(1);
+    expect(result.metadataPath).toBe('/tmp/out/uuid-1.json');
+  });
+
+  it('stops when verify fails', async () => {
+    vi.mocked(planCommentMultipart).mockResolvedValue({
+      baseSig: 'sig-stop',
+      mode: 'row',
+      plannedParts3plus: 2,
+      scrollParts: [0, 1],
+      totalParts: 2,
+      use3plusRoute: true,
     } as never);
     vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: true });
     const page = buildPage([1, 2, 3]);

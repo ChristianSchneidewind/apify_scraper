@@ -78,17 +78,32 @@ const findTightRow = (start) => {
   return start.parentElement || start;
 };
 
+const normalizeTimeText = (value) => {
+  const raw = (value || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return null;
+  const rel = raw.match(/(\d+\s*(?:sek\.?|min\.?|std\.?|h|d|w|m|j|tag(?:e)?|wo\.?))/i);
+  if (rel) return rel[1];
+  const abs = raw.match(/(\d{1,2}\.\s*[\p{L}]+(?:\s*\d{4})?)/iu);
+  if (abs) return abs[1];
+  return raw;
+};
+const profileSlugFromHref = (href) => {
+  const m = String(href || '').match(/^\/([^/?#]+)\/?$/);
+  return (m?.[1] || '').trim().toLowerCase();
+};
+
 const item = el;
 const links = Array.from(item.querySelectorAll('a[role="link"], a'));
 const usernameLink = links.find((a) => isProfileHref(a.getAttribute('href') || ''));
 const rawUsername = (usernameLink?.textContent || '').trim();
 const username = rawUsername.replace(/\s+/g, '').replace(/verified$/i, '');
 const userProfilePath = usernameLink?.getAttribute('href') || null;
+const profileSlug = profileSlugFromHref(userProfilePath);
 const commentPermalink = item.querySelector('a[href*="/c/"]')?.getAttribute('href') ?? null;
 if (!isValidUsername(username)) return null;
 
 const timeEl = item.querySelector('time');
-const timeText = timeEl?.textContent?.trim() ?? null;
+const timeText = normalizeTimeText(timeEl?.textContent?.trim() ?? null);
 const datetime = timeEl?.getAttribute('datetime') ?? null;
 
 const spans = Array.from(item.querySelectorAll('span'))
@@ -101,10 +116,18 @@ const badText = (t) => {
   const v = (t || '').trim();
   if (!v) return true;
   const l = v.toLowerCase();
-  if (['reply', 'replies', 'edited', 'view all replies', 'view hidden comments'].includes(l)) return true;
+  if (['reply', 'replies', 'edited', 'bearbeitet', 'view all replies', 'view hidden comments'].includes(l)) return true;
   if (/^\d+\s*(h|d|w|m|s)$/i.test(v)) return true;
+  if (/^\d+\s*(std\.|tag|tage|w|wo\.|min|sek)\s*$/i.test(v)) return true;
   if (/^\d+\s*likes?$/i.test(v)) return true;
-  if (/^\d+h\s*·\s*edited$/i.test(l)) return true;
+  if (/^gefällt\s+\d+[\d.,]*\s*mal$/i.test(v)) return true;
+  if (/^(?:\d+\s*(?:sek\.?|min\.?|std\.?|h|d|w|m|j|tag(?:e)?|wo\.?)\s*)?(?:·\s*)?(edited|bearbeitet)$/i.test(l)) return true;
+  if (/^.*·\s*(edited|bearbeitet)$/i.test(l)) return true;
+  if (/^(like|reply|antworten|antwort|gefällt mir|like count)$/i.test(l)) return true;
+  if (/^[a-z0-9._]{2,30}(?:\s*verifiziert)?$/i.test(v)) {
+    const normalized = v.replace(/\s*verifiziert$/i, '').toLowerCase();
+    if (normalized === username.toLowerCase() || normalized === profileSlug) return true;
+  }
   return false;
 };
 const text = textCandidates.find((t) => !badText(t)) || null;

@@ -1,34 +1,68 @@
 return ({ el, commentContainer, partIndex, partsTotal, commentPermalink, userProfilePath, username, text, baseSig }) => {
               const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
-              const user = norm(username);
-              const txt = norm(text).slice(0, 180);
-              const rowFrom = (node) => node?.closest?.('li, [role="listitem"], article, div') || node;
-              const isCommentRow = (node) => !!node && (
-                !!node.querySelector?.('time') ||
-                !!node.querySelector?.('a[href*="/c/"]')
-              );
+              const rawUser = norm(username);
+              const userSlug = norm((userProfilePath || '').replace(/^\/+|\/+$/g, ''));
+              const user = rawUser.replace(/verifiziert$/i, '').trim() || userSlug;
+              const txtRaw = norm(text).slice(0, 180);
+              const txt = txtRaw === rawUser || txtRaw === user || txtRaw === userSlug ? '' : txtRaw;
               const commentScope = () =>
                 el?.closest?.('div[role="dialog"], article, main article, ul') || document;
+              const isCommentRow = (node) => {
+                if (!(node instanceof HTMLElement)) return false;
+                const textContent = norm(node.innerText || '');
+                if (textContent.length < 20) return false;
+                const hasTime = !!node.querySelector?.('time');
+                const hasProfile = !!node.querySelector?.('a[href^="/"]');
+                return hasTime && hasProfile;
+              };
+              const candidateScore = (node, requireText = true) => {
+                if (!(node instanceof HTMLElement)) return Number.POSITIVE_INFINITY;
+                const content = norm(node.innerText || '');
+                const rect = node.getBoundingClientRect();
+                const hasTime = !!node.querySelector?.('time');
+                const hasProfile = !!node.querySelector?.('a[href^="/"]');
+                const userMatch = user ? (content.includes(user) || (!!userSlug && content.includes(userSlug))) : true;
+                const textMatch = txt ? content.includes(txt.slice(0, 80)) : true;
+                if (!hasTime || !hasProfile || !userMatch || (requireText && !textMatch)) return Number.POSITIVE_INFINITY;
+                if (rect.height < 40 || rect.height > window.innerHeight * 1.6) return Number.POSITIVE_INFINITY;
+                return rect.height + Math.max(0, content.length - txt.length) * 0.2 + (textMatch ? 0 : 50);
+              };
+              const bestRowFrom = (node, requireText = true) => {
+                let cur = node instanceof HTMLElement ? node : node?.parentElement;
+                let best = null;
+                let bestScore = Number.POSITIVE_INFINITY;
+                for (let i = 0; i < 16 && cur && cur !== document.body; i += 1) {
+                  const score = candidateScore(cur, requireText);
+                  if (score < bestScore) {
+                    best = cur;
+                    bestScore = score;
+                  }
+                  const stop = cur.getAttribute?.('role') === 'dialog' || cur.tagName === 'UL' || cur.tagName === 'ARTICLE';
+                  if (stop) break;
+                  cur = cur.parentElement;
+                }
+                return best;
+              };
               const findRow = () => {
                 if (commentPermalink) {
                   const a = document.querySelector(`a[href="${commentPermalink}"]`);
-                  if (a) return rowFrom(a);
+                  if (a) return bestRowFrom(a, true) || bestRowFrom(a, false);
                 }
-                let cur = rowFrom(el);
-                for (let i = 0; i < 24 && cur; i += 1) {
-                  if (isCommentRow(cur)) return cur;
-                  cur = cur.parentElement;
-                }
+                const near = bestRowFrom(el, true) || bestRowFrom(el, false);
+                if (near) return near;
                 if (userProfilePath) {
                   const anchors = Array.from(commentScope().querySelectorAll(`a[href="${userProfilePath}"]`));
+                  let best = null;
+                  let bestScore = Number.POSITIVE_INFINITY;
                   for (const a of anchors) {
-                    const r = rowFrom(a);
-                    if (!isCommentRow(r)) continue;
-                    const content = norm(r?.innerText || '');
-                    if (user && !content.includes(user)) continue;
-                    if (txt && !content.includes(txt.slice(0, 80))) continue;
-                    return r;
+                    const r = bestRowFrom(a, true) || bestRowFrom(a, false);
+                    const score = candidateScore(r, false);
+                    if (score < bestScore) {
+                      best = r;
+                      bestScore = score;
+                    }
                   }
+                  return best;
                 }
                 return null;
               };
@@ -50,9 +84,18 @@ return ({ el, commentContainer, partIndex, partsTotal, commentPermalink, userPro
               const overflow = Math.max(0, r.height - visibleH);
               const overlapRatio = partsTotal >= 3 ? 0.22 : 0.35;
               const stepPx = Math.max(120, visibleH * (1 - overlapRatio));
-              let segmentTop = Math.round(Math.min(overflow, Math.max(0, (partIndex - 1) * stepPx)));
-              if (partIndex >= partsTotal) segmentTop = Math.round(overflow);
-              const desiredTop = minTop - segmentTop;
+              const syntheticChunkH = partsTotal <= 1
+                ? visibleH
+                : Math.max(180, Math.min(visibleH, r.height * (partsTotal === 2 ? 0.72 : 0.55)));
+              const syntheticTravel = Math.max(0, r.height - syntheticChunkH);
+              const effectiveTravel = overflow > 24 ? overflow : syntheticTravel;
+              let segmentTop = 0;
+              if (effectiveTravel > 0 && partsTotal > 1) {
+                const perPartStep = effectiveTravel / Math.max(1, partsTotal - 1);
+                segmentTop = Math.round(Math.min(effectiveTravel, Math.max(0, (partIndex - 1) * perPartStep)));
+              }
+              if (partIndex >= partsTotal) segmentTop = Math.round(effectiveTravel);
+              const desiredTop = minTop - Math.min(segmentTop, overflow);
 
               const parent = (() => {
                 const candidates = [
@@ -81,11 +124,15 @@ return ({ el, commentContainer, partIndex, partsTotal, commentPermalink, userPro
                 }
               } else {
                 row.scrollIntoView({ block: 'center', inline: 'nearest' });
+                window.scrollBy?.(0, r.top - desiredTop);
               }
 
               r = row.getBoundingClientRect();
-              const clipTop = Math.max(minTop, r.top - 2);
-              const clipBottom = Math.min(maxBottom, r.bottom + 2);
+              const targetChunkH = overflow > 24 ? visibleH : syntheticChunkH;
+              const sliceTop = Math.max(r.top, r.top + segmentTop);
+              const sliceBottom = Math.min(r.bottom, sliceTop + targetChunkH);
+              const clipTop = Math.max(minTop, sliceTop - 2);
+              const clipBottom = Math.min(maxBottom, sliceBottom + 2);
               const clipLeft = Math.max(0, r.left - 4);
               const clipRight = Math.min(window.innerWidth, r.right + 4);
               const w = Math.max(1, clipRight - clipLeft);
@@ -97,11 +144,13 @@ return ({ el, commentContainer, partIndex, partsTotal, commentPermalink, userPro
                 clip: useClip ? { x: clipLeft, y: clipTop, width: w, height: h } : null,
                 debug: {
                   overflow,
+                  effectiveTravel,
                   segmentTop,
                   desiredTop,
                   rowTop: r.top,
                   rowBottom: r.bottom,
                   visibleH,
+                  syntheticChunkH,
                   partIndex,
                   partsTotal,
                   parentScrollTop: parent ? parent.scrollTop : null,
