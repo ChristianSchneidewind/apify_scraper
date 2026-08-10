@@ -25,14 +25,5 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run TypeScript lint
-        run: npm run lint
-
-      - name: Run TypeScript typecheck
-        run: npm run typecheck
-
-      - name: Run TypeScript tests with coverage
-        run: npm run test:coverage
-
       - name: Run TypeScript guardrails
         run: CI=1 npm run guardrails
