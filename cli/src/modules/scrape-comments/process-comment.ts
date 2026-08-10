@@ -1,3 +1,4 @@
+import { appendTextFile } from '../../adapters/filesystem/output.ts';
 import { ensureHighlightReady } from '../../adapters/instagram/highlight.ts';
 import { prepareCommentScreenshotVisuals } from '../../adapters/instagram/visual.ts';
 import type {
@@ -19,7 +20,6 @@ import { dumpCommentDebugArtifacts } from './capture/debug.ts';
 import { initScreenshotSession } from './capture/screenshot-session.ts';
 import { computeCommentUid, extractCommentFromItem, extractCommentFromTime, resolveCommentRowHandle } from './extract-from-locator.ts';
 import { enrichCommentLikers } from './likers/enrich.ts';
-import { expandCommentForCapture } from './multipart/planner.ts';
 import { buildCommentOutputRecord } from './output.ts';
 
 const logStage = (index: number, stage: string, quiet?: boolean) => {
@@ -33,7 +33,12 @@ const fallbackCapture = async (
   index: number,
   data: CommentRecord,
   lastScreenshotHash: string | null,
+  reason: string,
 ) => {
+  process.stderr.write(`[scrape.comments] comment ${index}: capture fallback ${reason}\n`);
+  try {
+    await appendTextFile(outDir, 'capture-debug.jsonl', `${JSON.stringify({ commentIndex: index, reason, stage: 'capture fallback', ts: new Date().toISOString() })}\n`);
+  } catch {}
   await dumpCommentDebugArtifacts(page as unknown as DebugPage, outDir, index, data, 30000);
   return { lastScreenshotHash, metadataPath: null, screenshotKeys: [] as string[], screenshotPaths: [] as string[] };
 };
@@ -41,6 +46,11 @@ const fallbackCapture = async (
 const withTimeout = async <T>(promise: Promise<T>, ms: number) => {
   const timeout = new Promise<T>((_, reject) => setTimeout(() => reject(new Error('capture step timeout')), ms));
   return Promise.race([promise, timeout]);
+};
+
+const appendCaptureError = async (outDir: string, index: number, reason: string) => {
+  const item = { commentIndex: index, reason, stage: 'capture error', ts: new Date().toISOString() };
+  await appendTextFile(outDir, 'capture-debug.jsonl', `${JSON.stringify(item)}\n`).catch(() => undefined);
 };
 
 const runCapture = async (
@@ -53,24 +63,48 @@ const runCapture = async (
 ) => withTimeout(
   captureCommentAssets(page as never, handle as never, data, outDir, initScreenshotSession(), index, lastScreenshotHash, false),
   12000,
-).catch(() => fallbackCapture(page, outDir, index, data, lastScreenshotHash));
+).catch((error: unknown) => {
+  const reason = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`[scrape.comments] comment ${index}: capture error ${reason}\n`);
+  void appendCaptureError(outDir, index, reason);
+  return fallbackCapture(page, outDir, index, data, lastScreenshotHash, reason);
+});
 
 const rollbackHighlightFailure = (state: ProcessState) => {
   state.count -= 1;
   state.newInRound -= 1;
 };
 
+const clearHighlightElement = (node: Element) => {
+  if (!(node instanceof HTMLElement)) return;
+  node.style.outline = '';
+  node.style.outlineOffset = '';
+  node.style.boxShadow = '';
+  node.style.backgroundColor = '';
+  node.style.backgroundClip = '';
+  node.removeAttribute('data-apify-highlight');
+};
+
+const cleanupPreviousHighlightBrowser = () => {
+  document.querySelectorAll('[data-apify-highlight-overlay="1"]').forEach((node) => node.remove());
+  document.querySelectorAll('[data-apify-highlight="1"]').forEach(clearHighlightElement);
+  document.body.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 4, clientY: 4 }));
+  return true;
+};
+
+const cleanupPreviousHighlight = async (page: LikersPage) => {
+  if (typeof page.evaluate !== 'function') return;
+  await Promise.resolve(page.evaluate(cleanupPreviousHighlightBrowser, undefined as never)).catch(() => undefined);
+};
+
 const prepareCommentForLikers = async (
   page: LikersPage,
   rowHandle: TimeLocator,
 ) => {
+  await cleanupPreviousHighlight(page);
   if (rowHandle?.evaluate) {
-    await Promise.allSettled([
-      rowHandle.evaluate((el: Element) => (el.scrollIntoView({ block: 'center', inline: 'nearest' }), true), undefined as never),
-    ]);
+    await rowHandle.evaluate((el: Element) => (el.scrollIntoView({ block: 'center', inline: 'nearest' }), true), undefined as never).catch(() => undefined);
   }
-  if (page.waitForTimeout) await Promise.allSettled([page.waitForTimeout(250)]);
-  await Promise.allSettled([expandCommentForCapture(rowHandle as never)]);
   if (page.waitForTimeout) await Promise.allSettled([page.waitForTimeout(250)]);
 };
 
@@ -96,11 +130,11 @@ export const processCommentCandidate = async (
 ) => {
   const data = await extractCommentFromItem(locator) || await extractCommentFromTime(locator);
   if (!data) return null;
-  const { looseKey, strictKey } = buildCommentIdentity(data);
+  const { looseKey, permalink, strictKey } = buildCommentIdentity(data);
   const commentUid = await computeCommentUid(locator);
-  if (!commentUid) return null;
-  if (!shouldProcessCandidate(state, strictKey, looseKey, commentUid)) return null;
-  registerCommentSeen(state, strictKey, looseKey, commentUid);
+  if (!commentUid && !permalink) return null;
+  if (!shouldProcessCandidate(state, strictKey, looseKey, permalink || null, commentUid)) return null;
+  registerCommentSeen(state, strictKey, looseKey, permalink || null, commentUid);
   state.count += 1;
   state.newInRound += 1;
   logStage(state.count, 'extract', options.quiet);

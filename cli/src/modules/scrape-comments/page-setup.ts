@@ -1,15 +1,9 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { prepareAuthPage } from '../../adapters/instagram/auth.ts';
 import type { CommentPage } from '../../schemas/index.ts';
+import { focusFirstCommentRow, resetCommentScroll } from './comment-scroll-reset.ts';
 import { expandAllReplyThreads, expandComments } from './ui-expand.ts';
 import { getCommentContainer } from './ui-container.ts';
-import { listCommentRowLocators } from './extract-from-locator.ts';
 import { scrollCommentContainer } from './ui-scroll.ts';
-
-const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-const RESET_SCROLL_SCRIPT = readFileSync(join(MODULE_DIR, 'browser-scripts/reset-scroll.script'), 'utf8');
 
 const COMMENT_BUTTON_SELECTORS = [
   'button[aria-label="Comment"]',
@@ -56,30 +50,6 @@ const clickFirstCommentButton = async (page: CommentPage) => {
   return false;
 };
 
-const runBrowserScript = async (
-  page: CommentPage,
-  body: string,
-  container: Element | null,
-) => {
-  await page.evaluate((args: { body: string; container: Element | null }) =>
-    new Function(`return (${args.body});`)()(args.container),
-  { body, container });
-};
-
-const resetScroll = async (page: CommentPage, container: Element | null) => {
-  await runBrowserScript(page, RESET_SCROLL_SCRIPT, container);
-  await page.waitForTimeout(800);
-};
-
-const focusFirstCommentRow = async (page: CommentPage) => {
-  const rows = await listCommentRowLocators(page as never);
-  const row = rows[0];
-  if (!row?.evaluate) return false;
-  await row.evaluate((el: Element) => (el.scrollIntoView({ block: 'center', inline: 'nearest' }), true), undefined as never);
-  await page.waitForTimeout(400);
-  return true;
-};
-
 const preparePanel = async (page: CommentPage) => {
   const opened = await openCommentsPanel(page);
   if (opened) return;
@@ -113,7 +83,7 @@ export const prepareCommentsPage = async (
   await preparePanel(page);
   await loadCommentsPage(page, maxUiRounds);
   const container = await getCommentContainer(page);
-  await resetScroll(page, container);
+  await resetCommentScroll(page, container);
   await focusFirstCommentRow(page);
   await page.waitForTimeout(Math.min(1500, Math.max(500, uiIdleRounds * 250)));
 };

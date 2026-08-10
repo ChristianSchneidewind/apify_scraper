@@ -31,13 +31,7 @@ const collectLikersTimed = async (
   const timer = setTimeout(() => timeoutAbort.abort(), timeoutMs);
   const mergedSignal = timeoutAbort.signal;
   try {
-    return await collectLikersFromDialog(
-      page as never,
-      maxCommentLikers,
-      verbose,
-      likesCount,
-      mergedSignal,
-    );
+    return await collectLikersFromDialog(page as never, maxCommentLikers, verbose, likesCount, mergedSignal);
   } finally {
     clearTimeout(timer);
     session.abort.signal.removeEventListener('abort', onSessionAbort);
@@ -78,24 +72,18 @@ const resolveRetryAttempts = (
   return [[1200, retryTimeoutMs], [500, Math.max(5000, retryTimeoutMs)]];
 };
 
+const scrollDialogBrowser = () => {
+  const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+  const dialog = dialogs[dialogs.length - 1];
+  if (!dialog) return;
+  const candidates = Array.from(dialog.querySelectorAll('div, ul')) as Array<Element & { scrollHeight: number; clientHeight: number; scrollTop: number }>;
+  const target = candidates.find((candidate) => candidate.scrollHeight > candidate.clientHeight + 20);
+  if (target) target.scrollTop += Math.max(300, target.clientHeight * 0.9);
+};
+
 const retryDialogScroll = async (page: LikersPage) => {
-  await Promise.allSettled([
-    page.evaluate(() => {
-      const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
-      const dialog = dialogs[dialogs.length - 1];
-      if (!dialog) return;
-      const candidates = Array.from(dialog.querySelectorAll('div, ul')) as Array<Element & { scrollHeight: number; clientHeight: number; scrollTop: number }>;
-      for (const candidate of candidates) {
-        if (candidate.scrollHeight > candidate.clientHeight + 20) {
-          candidate.scrollTop += Math.max(300, candidate.clientHeight * 0.9);
-          break;
-        }
-      }
-    }, undefined as never),
-    scrollLikersDialogToEnd(page as never),
-    oscillateLikersDialogAtEnd(page as never),
-    nudgeLikersDialogAtEnd(page as never),
-  ]);
+  const tasks = [page.evaluate(scrollDialogBrowser, undefined as never), scrollLikersDialogToEnd(page as never), oscillateLikersDialogAtEnd(page as never), nudgeLikersDialogAtEnd(page as never)];
+  await Promise.allSettled(tasks);
 };
 
 const collectLikersAttempt = async (
@@ -115,9 +103,7 @@ const collectLikersAttempt = async (
     await collectLikersTimed(page, maxCommentLikers, likesCount, verbose, timeoutMs, session),
   );
   if (!seedLikers.length) {
-    if (verbose) {
-      process.stderr.write(`[scrape.comments][likers][debug] attempt wait=${waitMs} timeout=${timeoutMs} result=${result.length}\n`);
-    }
+    if (verbose) process.stderr.write(`[scrape.comments][likers][debug] attempt wait=${waitMs} timeout=${timeoutMs} result=${result.length}\n`);
     return result;
   }
   const merged = normalizeCommentLikers([...seedLikers, ...result]);
@@ -128,49 +114,64 @@ const collectLikersAttempt = async (
   return out;
 };
 
+const noProgressGap = (
+  likers: CommentLiker[],
+  likesCount: number,
+  maxCommentLikers: number,
+  streak: number,
+) => {
+  const missing = likerGap(likesCount, maxCommentLikers, likers.length);
+  return likers.length > 0 && missing <= 3 && streak >= 2 ? missing : null;
+};
+
+const applyAttemptResult = (
+  likers: CommentLiker[],
+  next: CommentLiker[],
+  likesCount: number,
+  maxCommentLikers: number,
+  noProgressStreak: number,
+  verbose?: boolean,
+) => {
+  if (next.length > likers.length) return { likers: next, noProgressStreak: 0, stop: false };
+  const streak = noProgressStreak + 1;
+  const missing = noProgressGap(likers, likesCount, maxCommentLikers, streak);
+  if (missing !== null && verbose) process.stderr.write(`[scrape.comments][likers][debug] stop=no_progress gap=${missing} streak=${streak}\n`);
+  return { likers, noProgressStreak: streak, stop: missing !== null };
+};
+
+const collectLikersWithRetries = async (
+  page: LikersPage,
+  maxCommentLikers: number,
+  likesCount: number,
+  likers: CommentLiker[],
+  initialTimeoutMs: number,
+  session: { abort: AbortController },
+  verbose?: boolean,
+) => {
+  const attempts = resolveRetryAttempts(likesCount, maxCommentLikers, likers.length, initialTimeoutMs);
+  let out = likers;
+  let noProgressStreak = 0;
+  for (const [waitMs, timeoutMs] of attempts) {
+    if (session.abort.signal.aborted) break;
+    const next = await collectLikersAttempt(page, maxCommentLikers, likesCount, waitMs, timeoutMs, session, verbose, out);
+    const updated = applyAttemptResult(out, next, likesCount, maxCommentLikers, noProgressStreak, verbose);
+    out = updated.likers;
+    noProgressStreak = updated.noProgressStreak;
+    if (updated.stop) break;
+    if (verbose) process.stderr.write(`[scrape.comments][likers][debug] after attempt result=${out.length} wait=${waitMs} timeout=${timeoutMs}\n`);
+    if (hasEnoughLikers(out, likesCount, maxCommentLikers)) break;
+  }
+  return out;
+};
+
 export const collectLikers = async (page: LikersPage, maxCommentLikers: number, likesCount: number, verbose?: boolean) => {
   const session = beginCollectSession(page);
   try {
     const initialTimeoutMs = likerCollectTimeoutMs(likesCount, maxCommentLikers);
-    let likers = normalizeCommentLikers(
-      await collectLikersTimed(page, maxCommentLikers, likesCount, verbose, initialTimeoutMs, session),
-    );
-    if (verbose) {
-      process.stderr.write(`[scrape.comments][likers][debug] initial result=${likers.length} likesCount=${likesCount} max=${maxCommentLikers} timeout=${initialTimeoutMs}\n`);
-    }
+    let likers = normalizeCommentLikers(await collectLikersTimed(page, maxCommentLikers, likesCount, verbose, initialTimeoutMs, session));
+    if (verbose) process.stderr.write(`[scrape.comments][likers][debug] initial result=${likers.length} likesCount=${likesCount} max=${maxCommentLikers} timeout=${initialTimeoutMs}\n`);
     if (hasEnoughLikers(likers, likesCount, maxCommentLikers) || likesCount <= 0) return likers;
-
-    const attempts = resolveRetryAttempts(likesCount, maxCommentLikers, likers.length, initialTimeoutMs);
-    let noProgressStreak = 0;
-
-    for (const [waitMs, timeoutMs] of attempts) {
-      if (session.abort.signal.aborted) break;
-      const prevLen = likers.length;
-      const next = await collectLikersAttempt(page, maxCommentLikers, likesCount, waitMs, timeoutMs, session, verbose, likers);
-      if (next.length > prevLen) {
-        likers = next;
-        noProgressStreak = 0;
-      } else {
-        noProgressStreak += 1;
-        const missing = likerGap(likesCount, maxCommentLikers, likers.length);
-        if (likers.length > 0 && missing <= 1 && noProgressStreak >= 2) {
-          if (verbose) {
-            process.stderr.write(`[scrape.comments][likers][debug] stop=no_progress gap=${missing} streak=${noProgressStreak}\n`);
-          }
-          break;
-        }
-        if (likers.length > 0 && missing <= 3 && noProgressStreak >= 2) {
-          if (verbose) {
-            process.stderr.write(`[scrape.comments][likers][debug] stop=no_progress gap=${missing} streak=${noProgressStreak}\n`);
-          }
-          break;
-        }
-      }
-      if (verbose) {
-        process.stderr.write(`[scrape.comments][likers][debug] after attempt result=${likers.length} wait=${waitMs} timeout=${timeoutMs}\n`);
-      }
-      if (hasEnoughLikers(likers, likesCount, maxCommentLikers)) break;
-    }
+    likers = await collectLikersWithRetries(page, maxCommentLikers, likesCount, likers, initialTimeoutMs, session, verbose);
     return likers;
   } finally {
     endCollectSession(page, session);
@@ -180,14 +181,9 @@ export const collectLikers = async (page: LikersPage, maxCommentLikers: number, 
 export const closeDialog = async (workedPage: LikersPage, likesCount: number, likers: CommentLiker[]) => {
   if (likesCount > 0 && likers.length === 0) await workedPage.waitForTimeout(1000);
   for (let i = 0; i < 4; i += 1) {
-    if (i > 0) {
-      const open = await Promise.resolve(isDialogOpen(workedPage as never)).catch(() => false);
-      if (!open) break;
-    }
-    await Promise.allSettled([
-      workedPage.keyboard.press('Escape'),
-      workedPage.waitForTimeout(220),
-    ]);
+    const open = i <= 0 ? true : await Promise.resolve(isDialogOpen(workedPage as never)).catch(() => false);
+    if (!open) break;
+    await Promise.allSettled([workedPage.keyboard.press('Escape'), workedPage.waitForTimeout(220)]);
   }
   await workedPage.waitForTimeout(200);
 };

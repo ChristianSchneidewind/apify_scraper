@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 export const ensureOutputDirectory = async (cwd: string, outDir: string) => {
@@ -24,5 +24,15 @@ export const writeBinaryFile = async (
 ) => {
   const path = resolve(dir, name);
   await writeFile(path, value);
+  return path;
+};
+
+export const appendTextFile = async (
+  dir: string,
+  name: string,
+  value: string,
+) => {
+  const path = resolve(dir, name);
+  await appendFile(path, value);
   return path;
 };

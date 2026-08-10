@@ -1,4 +1,4 @@
-import type { LikersBatch } from '../../../schemas/index.ts';
+import type { CommentLiker, LikersBatch, LikersDialogPage } from '../../../schemas/index.ts';
 import {
   COLLECT_SCRIPT,
   isLikelyUnrecoverableGap,
@@ -16,16 +16,12 @@ import {
 
 const collectVisibleBatch = async (page: {
   evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-}) =>
-  page.evaluate(runIifeBody<LikersBatch>, { body: COLLECT_SCRIPT });
+}) => page.evaluate(runIifeBody<LikersBatch>, { body: COLLECT_SCRIPT });
 
 export const collectTailWithNudge = async (
-  page: {
-    evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-    waitForTimeout: (ms: number) => Promise<void>;
-  },
+  page: LikersDialogPage,
   seen: Set<string>,
-  likers: Array<{ profileUrl: string; username: string }>,
+  likers: CommentLiker[],
   maxCommentLikers: number,
   targetCount = 0,
 ) => {
@@ -43,13 +39,42 @@ export const collectTailWithNudge = async (
   }
 };
 
-export const finalizeNearTarget = async (
-  page: {
-    evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-    waitForTimeout: (ms: number) => Promise<void>;
-  },
+const collectRewindRound = async (
+  page: LikersDialogPage,
   seen: Set<string>,
-  likers: Array<{ profileUrl: string; username: string }>,
+  likers: CommentLiker[],
+  maxCommentLikers: number,
+  targetCount: number,
+) => {
+  const batch = await collectVisibleBatch(page);
+  if (!batch?.open) return false;
+  const added = mergeBatch(batch, seen, likers, maxCommentLikers);
+  if (added === 0 && !batch.canScroll) return false;
+  if (batch.canScroll) return true;
+  await collectTailWithNudge(page, seen, likers, maxCommentLikers, targetCount);
+  return false;
+};
+
+const nextFailedRewinds = (current: number, before: number, failedRewinds: number) =>
+  current > before ? 0 : failedRewinds + 1;
+
+const runRewindRounds = async (
+  page: LikersDialogPage,
+  seen: Set<string>,
+  likers: CommentLiker[],
+  maxCommentLikers: number,
+  targetCount: number,
+) => {
+  for (let round = 0; round < 24 && likers.length < targetCount; round += 1) {
+    const keepGoing = await collectRewindRound(page, seen, likers, maxCommentLikers, targetCount);
+    if (!keepGoing) break;
+  }
+};
+
+export const finalizeNearTarget = async (
+  page: LikersDialogPage,
+  seen: Set<string>,
+  likers: CommentLiker[],
   maxCommentLikers: number,
   targetCount: number,
 ) => {
@@ -63,20 +88,8 @@ export const finalizeNearTarget = async (
   for (let attempt = 0; attempt < maxRewinds && likers.length < targetCount; attempt += 1) {
     const before = likers.length;
     await resetLikersDialogScroll(page);
-    for (let round = 0; round < 24 && likers.length < targetCount; round += 1) {
-      const batch = await collectVisibleBatch(page);
-      if (!batch?.open) break;
-      const added = mergeBatch(batch, seen, likers, maxCommentLikers);
-      if (added === 0 && !batch.canScroll) break;
-      if (batch.canScroll) continue;
-      await collectTailWithNudge(page, seen, likers, maxCommentLikers, targetCount);
-      break;
-    }
-    if (likers.length <= before) {
-      failedRewinds += 1;
-      if (isLikelyUnrecoverableGap(targetCount, likers.length, failedRewinds)) break;
-    } else {
-      failedRewinds = 0;
-    }
+    await runRewindRounds(page, seen, likers, maxCommentLikers, targetCount);
+    failedRewinds = nextFailedRewinds(likers.length, before, failedRewinds);
+    if (likers.length <= before && isLikelyUnrecoverableGap(targetCount, likers.length, failedRewinds)) break;
   }
 };

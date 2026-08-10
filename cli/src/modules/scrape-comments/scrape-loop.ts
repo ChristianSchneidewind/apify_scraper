@@ -15,6 +15,7 @@ const buildProcessState = () => ({
   lastScreenshotHash: null as string | null,
   newInRound: 0,
   seenLoose: new Set<string>(),
+  seenPermalink: new Set<string>(),
   seenStrict: new Set<string>(),
   seenUid: new Set<string>(),
 });
@@ -36,10 +37,9 @@ const processRound = async (
 ) => {
   state.newInRound = 0;
   const commentPage = page as unknown as Parameters<typeof listCommentRowLocators>[0];
-  const replyPass = passLabel === 'replies';
-  const rowLocators = replyPass ? [] : ((await listCommentRowLocators(commentPage)) || []);
+  const rowLocators = (await listCommentRowLocators(commentPage)) || [];
   const fallbackLocators = (await listTimeLocators(commentPage)) || [];
-  const locators = rowLocators.length ? rowLocators : fallbackLocators;
+  const locators = rowLocators.length ? [...rowLocators, ...fallbackLocators] : fallbackLocators;
   logRound(round, maxUiRounds, `${passLabel} locators ${locators.length}`, processOpts.quiet);
   for (const locator of locators) {
     const item = await processCommentCandidate(page, locator, state, processOpts);
@@ -48,6 +48,15 @@ const processRound = async (
   }
   logRound(round, maxUiRounds, `${passLabel} collected ${state.newInRound}, total ${comments.length}`, processOpts.quiet);
   return false;
+};
+
+const maybeRescanComments = async (
+  page: Parameters<typeof listTimeLocators>[0] & LikersPage,
+  needsRescan: boolean,
+) => {
+  if (!needsRescan) return;
+  await rescanComments(page as never).catch(() => undefined);
+  await Promise.resolve(page.waitForTimeout?.(1000)).catch(() => undefined);
 };
 
 const runPass = async (
@@ -77,10 +86,7 @@ const runPass = async (
     const container = await Promise.resolve(getCommentContainer(page)).catch(() => null);
     const scrolled = await Promise.resolve(scrollCommentContainer(page, container, 5)).catch(() => false);
     const needsRescan = !scrolled || state.newInRound === 0;
-    if (needsRescan) {
-      await rescanComments(page as never).catch(() => undefined);
-      await Promise.resolve(page.waitForTimeout?.(1000)).catch(() => undefined);
-    }
+    await maybeRescanComments(page, needsRescan);
 
     idleRounds = state.newInRound > 0 ? 0 : idleRounds + 1;
     logRound(round + 1, maxUiRounds, `${passLabel} idle ${idleRounds}/${uiIdleRounds}`, processOpts.quiet);

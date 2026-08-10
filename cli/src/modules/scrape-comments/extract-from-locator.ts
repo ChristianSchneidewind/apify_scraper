@@ -83,18 +83,11 @@ export const refindCommentRowHandle = async (
   data: Pick<CommentRecord, 'commentPermalink' | 'text' | 'userProfilePath' | 'username'>,
 ) => {
   if (!page.evaluateHandle) return null;
+  const payload = { commentPermalink: data.commentPermalink, text: data.text, userProfilePath: data.userProfilePath, username: data.username };
   const handle = await page.evaluateHandle((args: { body: string; payload: Record<string, unknown> }) => {
     const fn = new Function(args.body)() as (payload: Record<string, unknown>) => Element | null;
     return fn(args.payload);
-  }, {
-    body: REFIND_ROW_SCRIPT,
-    payload: {
-      commentPermalink: data.commentPermalink,
-      text: data.text,
-      userProfilePath: data.userProfilePath,
-      username: data.username,
-    },
-  }).catch(() => null);
+  }, { body: REFIND_ROW_SCRIPT, payload }).catch(() => null);
   return (handle as { asElement?: () => Element | null })?.asElement?.() as unknown as TimeLocator | null;
 };
 

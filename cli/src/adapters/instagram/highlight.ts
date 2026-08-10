@@ -25,15 +25,20 @@ const scrollIntoView = (handle: { evaluate: <T, A>(fn: (el: Element, args: A) =>
   withTimeout(handle.evaluate((el: Element) => (el.scrollIntoView({ block: 'center', inline: 'nearest' }), true), undefined as never), 1500)
     .catch(() => undefined);
 
+const runHighlightBrowser = (
+  el: Element,
+  args: { body: string; payload: ReturnType<typeof buildHighlightPayload> },
+) => {
+  const fnSource = args.body.trim().replace(/^return\s+/, '').replace(/;\s*$/, '');
+  return new Function('payload', 'return (' + fnSource + ')(payload);')({ ...args.payload, el }) as HighlightResult;
+};
+
 export const highlightComment = async (
   handle: { evaluate: <T, A>(fn: (el: Element, args: A) => T, args: A) => Promise<T> },
   data: CommentRecord,
 ) => {
   const result = await withTimeout(
-    handle.evaluate((el: Element, args: { body: string; payload: ReturnType<typeof buildHighlightPayload> }) => {
-      const fnSource = args.body.trim().replace(/^return\s+/, '').replace(/;\s*$/, '');
-      return new Function('payload', 'return (' + fnSource + ')(payload);')({ ...args.payload, el }) as HighlightResult;
-    }, { body: HIGHLIGHT_COMMENT_SCRIPT, payload: buildHighlightPayload(data) }),
+    handle.evaluate(runHighlightBrowser, { body: HIGHLIGHT_COMMENT_SCRIPT, payload: buildHighlightPayload(data) }),
     2500,
   ).catch((error) => ({ ok: false, reason: error instanceof Error ? error.message : 'highlight_error' }));
   return result || { ok: false, reason: 'invalid_result' };

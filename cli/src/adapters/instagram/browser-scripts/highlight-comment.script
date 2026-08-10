@@ -1,5 +1,6 @@
 return (payload) => {
   const { el, username, text, isGifOnly, commentPermalink, userProfilePath } = payload;
+  document.querySelectorAll('[data-apify-highlight-overlay="1"]').forEach((prev) => prev.remove());
   document.querySelectorAll('[data-apify-highlight="1"]').forEach((prev) => {
     prev.style.outline = '';
     prev.style.outlineOffset = '';
@@ -197,6 +198,27 @@ return (payload) => {
     });
   };
 
+  const hasCommentFooter = (node) => {
+    const content = (node?.innerText || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    return /gefällt\s+[0-9.]+\s+mal|[0-9,.]+\s+likes?|\blike\b|antworten|reply/.test(content);
+  };
+
+  const expandRowForFooter = (base) => {
+    let best = base;
+    const baseRect = base.getBoundingClientRect();
+    let current = base.parentElement;
+    for (let i = 0; i < 8 && current; i += 1) {
+      const r = current.getBoundingClientRect();
+      const timeCount = current.querySelectorAll?.('time')?.length || 0;
+      if (timeCount > 1) break;
+      if (r.width > baseRect.width + 120) break;
+      if (r.height > baseRect.height + 180) break;
+      if (hasCommentFooter(current)) best = current;
+      current = current.parentElement;
+    }
+    return best;
+  };
+
   let highlightTarget = finalTarget;
   if (!hasProfilePicture(highlightTarget)) {
     const baseRect = finalTarget.getBoundingClientRect();
@@ -215,6 +237,7 @@ return (payload) => {
     }
   }
 
+  highlightTarget = expandRowForFooter(highlightTarget);
   highlightTarget.setAttribute('data-apify-highlight', '1');
   highlightTarget.style.outline = '3px solid red';
   highlightTarget.style.outlineOffset = '2px';

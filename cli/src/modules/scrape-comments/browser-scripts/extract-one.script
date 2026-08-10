@@ -42,17 +42,51 @@ const parseLikesInfo = (root, ownerUsername) => {
   }
   return { likesCount, likers };
 };
-const pickText = (node, username, timeText) => {
+const badText = (value, username, timeText, profileSlug) => {
+  const text = (value || '').trim();
+  if (!text) return true;
+  const lower = text.toLowerCase();
+  const owner = (username || '').trim().toLowerCase();
+  const time = (timeText || '').trim().toLowerCase();
+  if (text === username || lower === owner || lower === time) return true;
+  if (IGNORE_TEXTS.has(text)) return true;
+  if (['reply', 'replies', 'edited', 'bearbeitet', 'antworten', 'antwort', 'gefällt mir'].includes(lower)) return true;
+  if (/^\d+\s*(h|d|w|m|s)$/i.test(text)) return true;
+  if (/^\d+\s*(std\.|tag|tage|w|wo\.|min|sek)\s*$/i.test(text)) return true;
+  if (/^\d+\s*likes?$/i.test(text)) return true;
+  if (/^gefällt\s+\d+[\d.,]*\s*mal$/i.test(text)) return true;
+  if (/^(?:\d+\s*(?:sek\.?|min\.?|std\.?|h|d|w|m|j|tag(?:e)?|wo\.?)\s*)?(?:·\s*)?(edited|bearbeitet)$/i.test(lower)) return true;
+  if (/^.*·\s*(edited|bearbeitet)$/i.test(lower)) return true;
+  if (/^[a-z0-9._]{2,30}(?:\s*verifiziert)?$/i.test(text)) {
+    const normalized = lower.replace(/\s*verifiziert$/i, '');
+    if (normalized === owner || normalized === profileSlug) return true;
+  }
+  return false;
+};
+const profileSlugFromHref = (href) => {
+  const m = String(href || '').match(/^\/([^/?#]+)\/?$/);
+  return (m?.[1] || '').trim().toLowerCase();
+};
+const normalizeTimeText = (value) => {
+  const raw = (value || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  const rel = raw.match(/(\d+\s*(?:sek\.?|min\.?|std\.?|h|d|w|m|j|tag(?:e)?|wo\.?))/i);
+  if (rel) return rel[1];
+  const abs = raw.match(/(\d{1,2}\.\s*[\p{L}]+(?:\s*\d{4})?)/iu);
+  if (abs) return abs[1];
+  return raw;
+};
+const pickText = (node, username, timeText, profileSlug) => {
   const spans = Array.from(node.querySelectorAll('span'))
     .map((span) => span.textContent?.trim() || '')
     .filter((text) => text.length > 0 && !IGNORE_TEXTS.has(text));
   return spans
-    .filter((item) => item !== username && item !== timeText)
+    .filter((item) => !badText(item, username, timeText, profileSlug))
     .sort((a, b) => b.length - a.length)
-    .find((item) => item.length >= 1) || '';
+    .find((item) => item.length >= 2) || '';
 };
 const timeEl = el;
-const timeText = timeEl.textContent?.trim() ?? '';
+const timeText = normalizeTimeText(timeEl.textContent?.trim() ?? '');
 let node = timeEl.parentElement;
 for (let depth = 0; depth < 24 && node; depth += 1) {
   const userLink = Array.from(node.querySelectorAll('a[role="link"], a'))
@@ -60,7 +94,8 @@ for (let depth = 0; depth < 24 && node; depth += 1) {
   if (!userLink) { node = node.parentElement; continue; }
   const username = (userLink.textContent || '').trim().replace(/\s+/g, '').replace(/verified$/i, '');
   if (!isValidUsername(username)) { node = node.parentElement; continue; }
-  const text = pickText(node, username, timeText);
+  const profileSlug = profileSlugFromHref(userLink.getAttribute('href'));
+  const text = pickText(node, username, timeText, profileSlug);
   if (!text) { node = node.parentElement; continue; }
   const likesInfo = parseLikesInfo(node, username);
   return {

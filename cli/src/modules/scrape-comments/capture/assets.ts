@@ -87,26 +87,5 @@ const captureQuickScreenshot = async (
   return { lastScreenshotHash: currentHash, metadataPath };
 };
 
-export const capturePlaceholderCommentScreenshot = async (
-  page: CapturePage,
-  data: CommentRecord,
-  outDir: string,
-  session: {
-    screenshotKeys: string[];
-    screenshotPaths: string[];
-    screenshotUtc: string;
-    screenshotUuid: string;
-  },
-  commentIndex: number,
-  lastHash: string | null,
-) => {
-  const buffer = PLACEHOLDER_PNG;
-  const currentHash = hashBuffer(buffer);
-  if (currentHash === lastHash) return { lastScreenshotHash: lastHash, metadataPath: null, screenshotKeys: session.screenshotKeys, screenshotPaths: session.screenshotPaths };
-  await savePart(outDir, session, `${session.screenshotUuid}.png`, buffer);
-  const metadataPath = await writeMetadata(page, outDir, data, commentIndex, session);
-  return { lastScreenshotHash: currentHash, metadataPath, screenshotKeys: session.screenshotKeys, screenshotPaths: session.screenshotPaths };
-};
-
 export const captureQuickCommentScreenshot = captureQuickScreenshot;
-export { PLACEHOLDER_PNG, VERIFY_SCRIPT, runPayloadOnElement };
+export { VERIFY_SCRIPT, runPayloadOnElement };

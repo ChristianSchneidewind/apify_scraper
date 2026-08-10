@@ -1,44 +1,39 @@
 # Project context
 
-We are building a **self-hosted Apify Actor** in **Python** that scrapes Instagram comments and takes full-page screenshots with a red outline around each comment. The project runs locally with a Python venv and Playwright.
+We are building a **TypeScript Instagram scraping CLI** with **Playwright**. The legacy Python/Apify Actor runtime has been removed; the repository now uses the CLI as the only runtime.
 
 ## Current files
-- `main.py`: Python Actor implementation
-- `INPUT_SCHEMA.json`: Actor input schema
-- `requirements.txt`: Python deps (`apify`, `playwright`, `python-dotenv`)
-- `.env`: holds `INSTAGRAM_USERNAME` and `INSTAGRAM_PASSWORD`
+- `cli/src/bin/instagram.ts`: CLI entrypoint
+- `cli/src/core/app.ts`: command dispatch
+- `cli/src/modules/scrape-comments/run.ts`: comment scraping flow
+- `cli/src/modules/scrape-profiles/run.ts`: profile scraping flow
+- `package.json`: Node/TypeScript dependencies and scripts
+- `.env`: optional `INSTAGRAM_USERNAME` and `INSTAGRAM_PASSWORD`
 
 ## Key behaviors
-- Uses Playwright to open the post page, load comments (UI mode) with aggressive scrolling / load-more.
-- Browser runs **headful by default** (`--headless` to override in the TypeScript CLI).
-- Extracts comments via `time` elements and filters out UI labels.
-- Highlights each comment element in red and takes a full-page screenshot.
-- Saves screenshots to `Screenshots/` and writes data to the Apify dataset.
-- Login state can be persisted in KV store via `LOGIN_STATE`.
+- Uses Playwright to open Instagram pages and scrape via the UI.
+- Browser runs **headful by default**; use `--headless` to override.
+- Scrapes comments, likes, likers, and profile artifacts.
+- Highlights each comment with a red outline before screenshots.
+- Supports multipart screenshots for long comments.
+- Writes local artifacts under `--out-dir`.
 
 ## Running locally
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-playwright install
-python3 -m main
+npm install
+npx playwright install chromium
+npx tsx cli/src/bin/instagram.ts auth login --browser-profile "default"
+npx tsx cli/src/bin/instagram.ts scrape comments --url "https://www.instagram.com/p/abc/" --out-dir "artifacts/comments"
 ```
 
-## Input defaults (storage/key_value_stores/default/INPUT.json)
-```json
-{
-  "urls": ["https://www.instagram.com/p/DWHWE2vDbdr/"],
-  "maxComments": 0,
-  "screenshotTimeoutSecs": 60,
-  "loginEnabled": true,
-  "loginStateKey": "LOGIN_STATE",
-  "saveLoginState": true,
-  "headful": false,
-  "maxUiRounds": 120,
-  "uiIdleRounds": 15
-}
+## Validation
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run test:coverage
+CI=1 npm run guardrails
 ```
 
 ## Known limitations
-Instagram may limit visible comments; UI scraping is stable but may not reach all comments. API mode was blocked by Instagram.
+Instagram may limit visible comments; UI scraping is the supported path and may not reach all comments in every case.

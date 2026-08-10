@@ -53,6 +53,7 @@ const buildState = () => ({
   lastScreenshotHash: null as string | null,
   newInRound: 0,
   seenLoose: new Set<string>(),
+  seenPermalink: new Set<string>(),
   seenStrict: new Set<string>(),
   seenUid: new Set<string>(),
 });
@@ -106,9 +107,26 @@ describe('processCommentCandidate', () => {
     expect(state.count).toBe(0);
     expect(state.seenStrict.size).toBe(1);
     expect(state.seenLoose.size).toBe(1);
+    expect(state.seenPermalink.size).toBe(1);
     expect(state.seenUid.size).toBe(1);
     expect(ensureHighlightReady).toHaveBeenCalledWith(expect.anything(), baseData);
     expect(prepareCommentScreenshotVisuals).not.toHaveBeenCalled();
+  });
+
+  it('skips candidates already seen by permalink', async () => {
+    vi.mocked(extractCommentFromItem).mockResolvedValue(baseData);
+    vi.mocked(computeCommentUid).mockResolvedValue('uid-2');
+
+    const state = buildState();
+    state.seenPermalink.add('/p/abc/c/1');
+    const result = await processCommentCandidate(
+      buildPage() as never,
+      {} as never,
+      state,
+      { maxCommentLikers: 25, outDir: '/tmp/out' },
+    );
+
+    expect(result).toBeNull();
   });
 
   it('wires likers enrichment and capture on success', async () => {

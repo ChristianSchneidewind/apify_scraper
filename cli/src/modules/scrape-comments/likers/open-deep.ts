@@ -80,13 +80,7 @@ const debugLikeScope = async (anchor: DeepLocator) => anchor.evaluate((el: Eleme
   const controls = broad.flatMap((node) => Array.from(node.querySelectorAll?.('button, a, [role="button"], [tabindex="0"]') || []));
   return {
     scopeText: (scope?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 240),
-    controls: controls.slice(0, 20).map((node) => ({
-      aria: (node.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim().slice(0, 120),
-      role: node.getAttribute('role') || '',
-      tag: node.tagName,
-      text: (node.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
-      title: (node.getAttribute('title') || '').replace(/\s+/g, ' ').trim().slice(0, 120),
-    })),
+    controls: controls.slice(0, 20).map((node) => ({ aria: (node.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim().slice(0, 120), role: node.getAttribute('role') || '', tag: node.tagName, text: (node.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120), title: (node.getAttribute('title') || '').replace(/\s+/g, ' ').trim().slice(0, 120) })),
   };
 }, undefined as never);
 
