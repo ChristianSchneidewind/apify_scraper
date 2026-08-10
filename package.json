@@ -7,7 +7,7 @@
     "instagram": "./cli/src/bin/instagram.ts"
   },
   "scripts": {
-    "lint": "eslint cli/src cli/tests --max-warnings 0",
+    "lint": "eslint cli/src cli/tests tools eslint.config.mjs --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
