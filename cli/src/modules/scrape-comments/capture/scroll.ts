@@ -122,7 +122,7 @@ export const captureScrollPart = async (
   }
   await logVerify(log, outDir, commentIndex, partIdx, partsTotal, top, mode, verify);
   await page.waitForTimeout(180);
-  if (!skipHighlight) {
+  if (!skipHighlight && partsTotal <= 1) {
     const highlight = await prepareScrollHighlight(handle, data, partIdx, lastHash);
     if (highlight.done) return { done: false, lastHash: highlight.lastHash };
   }

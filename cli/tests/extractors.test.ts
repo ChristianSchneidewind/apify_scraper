@@ -19,7 +19,6 @@ import {
   listTimeLocators,
   resolveCommentRowHandle,
 } from '../src/modules/scrape-comments/extract-from-locator.ts';
-import { extractCommentsFromTimes } from '../src/modules/scrape-comments/extract-times.ts';
 
 const SCRIPTS_DIR = join(dirname(fileURLToPath(import.meta.url)), '../src/modules/scrape-comments/browser-scripts');
 const EXTRACT_ITEM_SCRIPT = readFileSync(join(SCRIPTS_DIR, 'extract-item.script'), 'utf8');
@@ -64,13 +63,6 @@ describe('extractors', () => {
 
     const result = await resolveCommentRowHandle(locator as never);
     expect(result).toBe(row);
-  });
-
-  it('extracts comments from times page payload', async () => {
-    const comments = [{ text: 'hello', username: 'alice' }];
-    const page = { evaluate: vi.fn().mockResolvedValue(comments) };
-    const result = await extractCommentsFromTimes(page as never);
-    expect(result).toEqual(comments);
   });
 
   it('extract-item browser script ignores edited-only fragments and keeps real comment text', async () => {

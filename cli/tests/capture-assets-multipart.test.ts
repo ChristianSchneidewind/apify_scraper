@@ -69,9 +69,7 @@ describe('captureCommentAssets multipart captures', () => {
     const page = buildPage([1, 2, 3], [7, 7, 7], [4, 5, 6], [8, 8, 8]);
     const handle = buildHandle(
       { ok: true, clip: { height: 100, width: 200, x: 10, y: 20 } },
-      { ok: true },
       { ok: true, clip: { height: 100, width: 200, x: 10, y: 120 } },
-      { ok: true },
     );
     const session = baseSession();
 
