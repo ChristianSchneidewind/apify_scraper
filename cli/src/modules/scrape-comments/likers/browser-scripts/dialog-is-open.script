@@ -1,14 +1,4 @@
 return (() => {
-  const isProfileHref = (h) => h && h.startsWith('/') && !h.startsWith('/p/') && !h.startsWith('/reel/') && !h.includes('/c/') && /^\/[A-Za-z0-9._]+\/?($|\?)/.test(h);
-  const scoreDialog = (dialog) => {
-    const text = (dialog.innerText || '').toLowerCase().replace(/\s+/g, ' ');
-    const rect = dialog.getBoundingClientRect?.() || { width: 0, height: 0 };
-    const links = Array.from(dialog.querySelectorAll('a[href]')).filter((a) => isProfileHref(a.getAttribute('href') || '')).length;
-    const scrollables = Array.from(dialog.querySelectorAll('div, ul, section, main')).filter((c) => c.scrollHeight > c.clientHeight + 20).length;
-    const hoverPenalty = /\bbeiträge\b|\bfollower\b|\bgefolgt\b|\bfolgt\b|\bfollowing\b/.test(text) ? 120 : 0;
-    const titleBonus = /gefällt|likes?|personen|people/.test(text) ? 45 : 0;
-    const sizeBonus = rect.height >= 300 && rect.width >= 260 ? 35 : 0;
-    return links * 25 + scrollables * 12 + titleBonus + sizeBonus - hoverPenalty;
-  };
-  return Array.from(document.querySelectorAll('[role="dialog"]')).some((dialog) => scoreDialog(dialog) >= 0);
+  const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+  return dialogs.length > 0;
 })();
