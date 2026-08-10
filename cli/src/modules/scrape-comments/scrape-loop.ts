@@ -50,6 +50,15 @@ const processRound = async (
   return false;
 };
 
+const maybeRescanComments = async (
+  page: Parameters<typeof listTimeLocators>[0] & LikersPage,
+  needsRescan: boolean,
+) => {
+  if (!needsRescan) return;
+  await rescanComments(page as never).catch(() => undefined);
+  await Promise.resolve(page.waitForTimeout?.(1000)).catch(() => undefined);
+};
+
 const runPass = async (
   page: Parameters<typeof listTimeLocators>[0] & LikersPage,
   options: ScrapeLoopOptions,
@@ -77,10 +86,7 @@ const runPass = async (
     const container = await Promise.resolve(getCommentContainer(page)).catch(() => null);
     const scrolled = await Promise.resolve(scrollCommentContainer(page, container, 5)).catch(() => false);
     const needsRescan = !scrolled || state.newInRound === 0;
-    if (needsRescan) {
-      await rescanComments(page as never).catch(() => undefined);
-      await Promise.resolve(page.waitForTimeout?.(1000)).catch(() => undefined);
-    }
+    await maybeRescanComments(page, needsRescan);
 
     idleRounds = state.newInRound > 0 ? 0 : idleRounds + 1;
     logRound(round + 1, maxUiRounds, `${passLabel} idle ${idleRounds}/${uiIdleRounds}`, processOpts.quiet);

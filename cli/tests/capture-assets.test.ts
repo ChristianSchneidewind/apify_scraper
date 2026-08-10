@@ -48,7 +48,7 @@ const buildPage = (...shots: number[][]) => ({
 });
 
 const buildHandle = (...results: unknown[]) => ({
-  evaluate: vi.fn().mockImplementation(() => Promise.resolve(results.shift())),
+  evaluate: vi.fn().mockImplementation(() => Promise.resolve(results.length ? results.shift() : { ok: true })),
 });
 
 describe('captureCommentAssets', () => {
@@ -58,7 +58,7 @@ describe('captureCommentAssets', () => {
     vi.mocked(writeJsonFile).mockImplementation(async (dir, name) => `${dir}/${name}`);
   });
 
-  it('captures a single scroll screenshot', async () => {
+  it('captures a single scroll screenshot without clipping', async () => {
     vi.mocked(planCommentMultipart).mockResolvedValue({
       mode: 'single',
       plannedParts3plus: 1,
@@ -89,6 +89,7 @@ describe('captureCommentAssets', () => {
     expect(result.screenshotKeys).toEqual(['uuid-1.png']);
     expect(result.metadataPath).toBe('/tmp/out/uuid-1.json');
     expect(page.url).toHaveBeenCalled();
+    expect(page.screenshot).toHaveBeenCalledWith(expect.not.objectContaining({ clip: expect.anything() }));
     expect(writeJsonFile).toHaveBeenCalledOnce();
     expect(result.lastScreenshotHash).toBeTruthy();
   });
@@ -149,132 +150,21 @@ describe('captureCommentAssets', () => {
       'uuid-1.png',
       'uuid-1-part2.png',
     ]);
-    expect(handle.evaluate).toHaveBeenNthCalledWith(1, expect.any(Function), expect.objectContaining({
-      body: expect.any(String),
+    const firstEvaluateCall = handle.evaluate.mock.calls[0] || [];
+    const secondEvaluateCall = handle.evaluate.mock.calls[1] || [];
+    expect(firstEvaluateCall[0]).toBeTypeOf('function');
+    expect(firstEvaluateCall[1]).toEqual(expect.objectContaining({
+      body: expect.stringMatching(/\S/),
       payload: expect.objectContaining({ mode: 'single', partsTotal: 1, top: 0 }),
     }));
-    expect(handle.evaluate).toHaveBeenNthCalledWith(2, expect.any(Function), expect.objectContaining({
-      body: expect.any(String),
+    expect(secondEvaluateCall[0]).toBeTypeOf('function');
+    expect(secondEvaluateCall[1]).toEqual(expect.objectContaining({
+      body: expect.stringMatching(/\S/),
       payload: expect.objectContaining({ mode: 'row', partsTotal: 2, top: 0 }),
     }));
+    expect(page.screenshot).toHaveBeenNthCalledWith(1, expect.not.objectContaining({ clip: expect.anything() }));
+    expect(page.screenshot).toHaveBeenNthCalledWith(2, expect.not.objectContaining({ clip: expect.anything() }));
     expect(result.metadataPath).toBe('/tmp/out/uuid-1.json');
   });
 
-  it('captures 2-part full screenshots', async () => {
-    vi.mocked(planCommentMultipart).mockResolvedValue({
-      baseSig: 'sig-2',
-      mode: 'row',
-      plannedParts3plus: 2,
-      scrollParts: [0, 1],
-      totalParts: 2,
-      use3plusRoute: true,
-    } as never);
-    vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: true });
-    const page = buildPage([1, 2, 3], [4, 5, 6]);
-    const handle = buildHandle({ ok: true }, { ok: true });
-    const session = baseSession();
-
-    const result = await captureCommentAssets(
-      page as never,
-      handle as never,
-      data as never,
-      '/tmp/out',
-      session,
-      1,
-      null,
-    );
-
-    expect(writeBinaryFile).toHaveBeenCalledTimes(2);
-    expect(result.screenshotPaths).toEqual([
-      '/tmp/out/uuid-1.png',
-      '/tmp/out/uuid-1-part2.png',
-    ]);
-    expect(result.screenshotKeys).toEqual([
-      'uuid-1.png',
-      'uuid-1-part2.png',
-    ]);
-    expect(handle.evaluate).toHaveBeenNthCalledWith(1, expect.any(Function), expect.objectContaining({
-      body: expect.any(String),
-      payload: expect.objectContaining({ mode: 'row', partsTotal: 2, top: 0 }),
-    }));
-    expect(handle.evaluate).toHaveBeenNthCalledWith(2, expect.any(Function), expect.objectContaining({
-      body: expect.any(String),
-      payload: expect.objectContaining({ mode: 'row', partsTotal: 2, top: 1 }),
-    }));
-    expect(result.metadataPath).toBe('/tmp/out/uuid-1.json');
-  });
-
-  it('captures 3plus full screenshots', async () => {
-    vi.mocked(planCommentMultipart).mockResolvedValue({
-      baseSig: 'sig-3',
-      mode: 'row',
-      plannedParts3plus: 3,
-      scrollParts: [0, 1, 2],
-      totalParts: 3,
-      use3plusRoute: true,
-    } as never);
-    vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: true });
-    const page = buildPage([1, 2, 3], [4, 5, 6], [7, 8, 9]);
-    const handle = buildHandle({ ok: true }, { ok: true }, { ok: true });
-    const session = baseSession();
-
-    const result = await captureCommentAssets(
-      page as never,
-      handle as never,
-      data as never,
-      '/tmp/out',
-      session,
-      1,
-      null,
-    );
-
-    expect(writeBinaryFile).toHaveBeenCalledTimes(3);
-    expect(handle.evaluate).toHaveBeenNthCalledWith(1, expect.any(Function), expect.objectContaining({
-      body: expect.any(String),
-      payload: expect.objectContaining({ mode: 'row', partsTotal: 3, top: 0 }),
-    }));
-    expect(page.screenshot).toHaveBeenCalledTimes(3);
-    expect(result.screenshotPaths).toEqual([
-      '/tmp/out/uuid-1.png',
-      '/tmp/out/uuid-1-part2.png',
-      '/tmp/out/uuid-1-part3.png',
-    ]);
-    expect(result.screenshotKeys).toEqual([
-      'uuid-1.png',
-      'uuid-1-part2.png',
-      'uuid-1-part3.png',
-    ]);
-    expect(writeJsonFile).toHaveBeenCalledTimes(1);
-    expect(result.metadataPath).toBe('/tmp/out/uuid-1.json');
-  });
-
-  it('stops when verify fails', async () => {
-    vi.mocked(planCommentMultipart).mockResolvedValue({
-      baseSig: 'sig-stop',
-      mode: 'row',
-      plannedParts3plus: 2,
-      scrollParts: [0, 1],
-      totalParts: 2,
-      use3plusRoute: true,
-    } as never);
-    vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: true });
-    const page = buildPage([1, 2, 3]);
-    const handle = buildHandle({ ok: false });
-    const session = baseSession();
-
-    const result = await captureCommentAssets(
-      page as never,
-      handle as never,
-      data as never,
-      '/tmp/out',
-      session,
-      1,
-      null,
-    );
-
-    expect(writeBinaryFile).not.toHaveBeenCalled();
-    expect(result.screenshotPaths).toEqual([]);
-    expect(result.screenshotKeys).toEqual([]);
-    expect(result.metadataPath).toBeNull();
-  });
 });

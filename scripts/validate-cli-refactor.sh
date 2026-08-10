@@ -13,7 +13,7 @@ require_clean_branch_name() {
   local branch
   [[ "${CI:-0}" == "1" ]] && return 0
   branch="$(git branch --show-current)"
-  [[ "$branch" == "feat/refactor-to-cli" ]] || fail "must run on branch feat/refactor-to-cli (current: $branch)"
+  [[ "$branch" =~ ^(feat|fix|chore)/ ]] || fail "must run on a work branch (current: $branch)"
 }
 
 check_file_loc() {

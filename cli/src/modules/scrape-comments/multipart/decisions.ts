@@ -1,12 +1,7 @@
+import type { MultipartMetrics } from '../../../schemas/index.ts';
+
 export const LONG_TEXT_THRESHOLD = 400;
 export const FORCED_MULTIPART_BASE = 400;
-
-export type MultipartMetrics = {
-  hasInnerScroll?: boolean;
-  overflow?: number;
-  rowHeight?: number;
-  visibleH?: number;
-};
 
 export const shouldForceRowMultipart = (textLen: number, mode: string, metrics?: MultipartMetrics) => {
   if (textLen < FORCED_MULTIPART_BASE || mode !== 'single') return false;
@@ -14,7 +9,7 @@ export const shouldForceRowMultipart = (textLen: number, mode: string, metrics?:
   const visibleH = Math.max(220, metrics.visibleH ?? 0);
   const rowHeight = Math.max(0, metrics.rowHeight ?? 0);
   const overflow = Math.max(0, metrics.overflow ?? 0);
-  return overflow > 24 || rowHeight >= Math.max(220, visibleH * 0.58);
+  return overflow > 24 || rowHeight >= Math.max(220, visibleH - 24);
 };
 
 export const calcForcedParts = (textLen: number) =>

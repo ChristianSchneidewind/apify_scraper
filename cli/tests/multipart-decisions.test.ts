@@ -9,12 +9,13 @@ import {
 } from '../src/modules/scrape-comments/multipart/decisions.ts';
 
 describe('multipart decisions', () => {
-  it('forces row multipart for long comments with overflow or a tall enough block', () => {
+  it('forces row multipart for long comments with overflow or a nearly full-height block', () => {
     expect(shouldForceRowMultipart(FORCED_MULTIPART_BASE, 'single')).toBe(true);
     expect(shouldForceRowMultipart(FORCED_MULTIPART_BASE - 1, 'single', { overflow: 200, rowHeight: 900, visibleH: 500 })).toBe(false);
     expect(shouldForceRowMultipart(FORCED_MULTIPART_BASE, 'row', { overflow: 200, rowHeight: 900, visibleH: 500 })).toBe(false);
     expect(shouldForceRowMultipart(FORCED_MULTIPART_BASE, 'single', { overflow: 200, rowHeight: 900, visibleH: 500 })).toBe(true);
-    expect(shouldForceRowMultipart(FORCED_MULTIPART_BASE, 'single', { overflow: 0, rowHeight: 380, visibleH: 620 })).toBe(true);
+    expect(shouldForceRowMultipart(FORCED_MULTIPART_BASE, 'single', { overflow: 0, rowHeight: 380, visibleH: 620 })).toBe(false);
+    expect(shouldForceRowMultipart(FORCED_MULTIPART_BASE, 'single', { overflow: 0, rowHeight: 600, visibleH: 620 })).toBe(true);
   });
 
   it('uses the 400-character boundary', () => {

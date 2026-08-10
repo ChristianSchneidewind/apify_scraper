@@ -69,6 +69,12 @@ export type ProcessOptions = {
 
 export type CommentContainer = Element | null;
 
+export type LikersDialogPage = {
+  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
+  keyboard?: { press: (key: string) => Promise<void> };
+  waitForTimeout: (ms: number) => Promise<void>;
+};
+
 export type LikersPage = {
   context: { newPage: () => Promise<LikersPage> };
   evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
@@ -161,3 +167,40 @@ export type DeepLinkPage = {
 };
 
 export type EnrichedComment = CommentRecord & { screenshotPaths: string[] };
+
+export type CaptureSession = {
+  screenshotKeys: string[];
+  screenshotPaths: string[];
+  screenshotUtc: string;
+  screenshotUuid: string;
+};
+
+export type CapturePlan = {
+  baseSig?: string | null;
+  mode: string;
+  plannedParts3plus: number;
+  scrollParts: number[];
+  totalParts: number;
+  use3plusRoute: boolean;
+};
+
+export type CapturePartResult = {
+  done: boolean;
+  lastHash: string | null;
+};
+
+export type CaptureDebugLog = (
+  outDir: string,
+  commentIndex: number,
+  stage: string,
+  extra?: Record<string, unknown>,
+) => Promise<void>;
+
+export type CapturePayloadBase = Record<string, unknown>;
+
+export type MultipartMetrics = {
+  hasInnerScroll?: boolean;
+  overflow?: number;
+  rowHeight?: number;
+  visibleH?: number;
+};

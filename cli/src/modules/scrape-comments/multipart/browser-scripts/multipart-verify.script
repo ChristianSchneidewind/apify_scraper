@@ -1,4 +1,5 @@
 return ({ el, mode, top, partsTotal, commentPermalink, userProfilePath, username, text }) => {
+  document.querySelectorAll('[data-apify-highlight-overlay="1"]').forEach((node) => node.remove());
   const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
   const user = norm(username);
   const txt = norm(text).slice(0, 180);
@@ -46,8 +47,28 @@ return ({ el, mode, top, partsTotal, commentPermalink, userProfilePath, username
     }
     return null;
   };
-  const row = findRow();
+  let row = findRow();
   if (!row || !document.body.contains(row)) return { ok: false, reason: 'row_not_found' };
+  const hasCommentFooter = (node) => {
+    const content = norm(node?.innerText || '');
+    return /gefällt\s+[0-9.]+\s+mal|[0-9,.]+\s+likes?|\blike\b|antworten|reply/.test(content);
+  };
+  const expandRowForFooter = (base) => {
+    let best = base;
+    const baseRect = base.getBoundingClientRect();
+    let cur = base.parentElement;
+    for (let i = 0; i < 8 && cur; i += 1) {
+      const r = cur.getBoundingClientRect();
+      const timeCount = cur.querySelectorAll?.('time')?.length || 0;
+      if (timeCount > 1) break;
+      if (r.width > baseRect.width + 120) break;
+      if (r.height > baseRect.height + 180) break;
+      if (hasCommentFooter(cur)) best = cur;
+      cur = cur.parentElement;
+    }
+    return best;
+  };
+  row = expandRowForFooter(row);
   if (mode === 'inner') {
     const candidates = Array.from(row.querySelectorAll('*')).filter((node) => {
       if (!(node instanceof HTMLElement)) return false;
@@ -64,49 +85,140 @@ return ({ el, mode, top, partsTotal, commentPermalink, userProfilePath, username
   const bannerH = banner ? banner.getBoundingClientRect().height : 0;
   const minTop = 20;
   const maxBottom = window.innerHeight - bannerH - 20;
-  const visibleH = Math.max(220, maxBottom - minTop);
+  const isScrollable = (node) => {
+    if (!(node instanceof HTMLElement)) return false;
+    const cs = window.getComputedStyle(node);
+    const overflowY = (cs.overflowY || '').toLowerCase();
+    const scrollableStyle = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
+    return scrollableStyle && (node.scrollHeight - node.clientHeight > 20);
+  };
   let rr = row.getBoundingClientRect();
   const total = Math.max(1, Number(partsTotal || 1));
-  const overflow = Math.max(0, rr.height - visibleH);
-  const rawIndex = mode === 'inner' ? 1 : Number(top || 0) + 1;
-  const partIndex = Math.min(total, Math.max(1, rawIndex));
-  const overlapRatio = total >= 3 ? 0.22 : 0.35;
-  const stepPx = Math.max(120, visibleH * (1 - overlapRatio));
-  let segmentTop = Math.round(Math.min(overflow, Math.max(0, (partIndex - 1) * stepPx)));
-  if (partIndex >= total) segmentTop = Math.round(overflow);
-  const desiredTop = minTop - segmentTop;
   const pickContainer = () => {
+    let cur = row.parentElement;
+    while (cur) {
+      if (isScrollable(cur)) return cur;
+      cur = cur.parentElement;
+    }
     const candidates = [
       row.closest('div[role="dialog"] ul'),
       row.closest('ul'),
       row.closest('div[role="dialog"]'),
     ];
     for (const node of candidates) {
-      if (node instanceof HTMLElement && node.contains(row)) {
-        if (node.scrollHeight - node.clientHeight > 20) return node;
-      }
+      if (isScrollable(node)) return node;
     }
     return null;
   };
+  const getOffsetTopWithin = (node, ancestor) => {
+    let cur = node;
+    let total = 0;
+    while (cur && cur !== ancestor) {
+      total += cur.offsetTop || 0;
+      cur = cur.offsetParent;
+    }
+    return total;
+  };
   const parent = pickContainer();
-  if (parent) {
+  const parentRect = parent?.getBoundingClientRect?.() || null;
+  const segmentMinTop = total > 1 && parentRect ? Math.max(minTop, parentRect.top + 12) : minTop;
+  const segmentMaxBottom = total > 1 && parentRect ? Math.min(maxBottom, parentRect.bottom - 12) : maxBottom;
+  const visibleH = Math.max(220, segmentMaxBottom - segmentMinTop);
+  const overflow = Math.max(0, rr.height - visibleH);
+  const clippedBottom = rr.bottom > (segmentMaxBottom + 2);
+  const rawIndex = mode === 'inner' ? 1 : Number(top || 0) + 1;
+  const partIndex = Math.min(total, Math.max(1, rawIndex));
+  const overlapRatio = total >= 3 ? 0.22 : 0.35;
+  const stepPx = Math.max(120, visibleH * (1 - overlapRatio));
+  let segmentTop = Math.round(Math.min(overflow, Math.max(0, (partIndex - 1) * stepPx)));
+  if (partIndex >= total) segmentTop = Math.round(overflow);
+  const centerTop = segmentMinTop + Math.max(0, Math.round((visibleH - Math.min(rr.height, visibleH)) / 2));
+  const desiredTop = total <= 1
+    ? centerTop
+    : Math.round(segmentMinTop - segmentTop);
+  let debug = null;
+  if (total <= 1) {
+    row.scrollIntoView({ block: 'center', inline: 'nearest' });
+    rr = row.getBoundingClientRect();
+  } else if (parent) {
     const maxScroll = Math.max(0, parent.scrollHeight - parent.clientHeight);
+    const rowOffsetTop = getOffsetTopWithin(row, parent);
+    const targetScrollTop = Math.max(0, Math.min(maxScroll, rowOffsetTop - (desiredTop - (parentRect?.top || 0))));
+    parent.scrollTop = targetScrollTop;
     for (let i = 0; i < 8; i += 1) {
       rr = row.getBoundingClientRect();
       const delta = rr.top - desiredTop;
-      if (Math.abs(delta) < 6) break;
-      const next = Math.max(0, Math.min(maxScroll, parent.scrollTop + delta));
+      if (Math.abs(delta) < 8) break;
       const before = parent.scrollTop;
-      parent.scrollTop = next;
+      parent.scrollTop = Math.max(0, Math.min(maxScroll, parent.scrollTop + delta));
       if (Math.abs(parent.scrollTop - before) < 2) break;
     }
+    rr = row.getBoundingClientRect();
+    debug = {
+      parentScrollTop: parent.scrollTop,
+    };
   } else {
-    row.scrollIntoView({ block: 'center', inline: 'nearest' });
+    row.scrollIntoView({ block: partIndex >= total ? 'end' : 'start', inline: 'nearest' });
+    rr = row.getBoundingClientRect();
+    window.scrollBy(0, rr.top - desiredTop);
+    rr = row.getBoundingClientRect();
   }
   row.setAttribute('data-apify-highlight', '1');
-  row.style.outline = '3px solid red';
+  row.style.outline = '4px solid red';
   row.style.outlineOffset = '2px';
-  row.style.boxShadow = '0 0 0 3px red inset';
+  row.style.boxShadow = '0 0 0 4px red inset, 0 0 0 2px rgba(255,0,0,0.35)';
+  row.style.backgroundColor = 'rgba(255, 0, 0, 0.04)';
+  row.style.backgroundClip = 'padding-box';
   rr = row.getBoundingClientRect();
-  return { ok: true, rowBottom: rr.bottom, rowTop: rr.top };
+
+  const drawVisibleFrame = () => {
+    const topEdge = Math.max(segmentMinTop, rr.top);
+    const bottomEdge = Math.min(segmentMaxBottom, rr.bottom);
+    if (bottomEdge <= topEdge) return;
+    const overlay = document.createElement('div');
+    overlay.setAttribute('data-apify-highlight-overlay', '1');
+    overlay.style.position = 'fixed';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.zIndex = '2147483646';
+    overlay.style.left = `${Math.max(0, rr.left - 4)}px`;
+    overlay.style.top = `${topEdge}px`;
+    overlay.style.width = `${Math.max(1, rr.width + 8)}px`;
+    overlay.style.height = `${Math.max(1, bottomEdge - topEdge)}px`;
+    overlay.style.borderLeft = '4px solid red';
+    overlay.style.borderRight = '4px solid red';
+    overlay.style.borderTop = rr.top >= segmentMinTop - 2 ? '4px solid red' : '0';
+    overlay.style.borderBottom = rr.bottom <= segmentMaxBottom + 2 ? '4px solid red' : '0';
+    overlay.style.boxSizing = 'border-box';
+    document.body.appendChild(overlay);
+  };
+  drawVisibleFrame();
+
+  const targetChunkH = total <= 1
+    ? Math.max(1, rr.height)
+    : Math.max(180, Math.min(visibleH, Math.ceil(rr.height / total) + 80));
+  const clipTop = Math.max(0, Math.min(window.innerHeight - 1, rr.top + segmentTop - 2));
+  const clipBottom = Math.max(clipTop + 1, Math.min(window.innerHeight, clipTop + targetChunkH + 4));
+  const clipLeft = Math.max(0, rr.left - 4);
+  const clipRight = Math.min(window.innerWidth, rr.right + 4);
+
+  return {
+    ok: true,
+    clip: {
+      x: clipLeft,
+      y: clipTop,
+      width: Math.max(1, clipRight - clipLeft),
+      height: Math.max(1, clipBottom - clipTop),
+    },
+    clippedBottom,
+    maxBottom: segmentMaxBottom,
+    metrics: {
+      hasInnerScroll: mode === 'inner',
+      overflow,
+      rowHeight: rr.height,
+      visibleH,
+    },
+    debug,
+    rowBottom: rr.bottom,
+    rowTop: rr.top,
+  };
 };

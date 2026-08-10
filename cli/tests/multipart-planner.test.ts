@@ -63,9 +63,20 @@ describe('planCommentMultipart', () => {
     expect(result.use3plusRoute).toBe(false);
   });
 
-  it('forces row multipart for long single text with a tall enough block even without overflow', async () => {
+  it('does not force row multipart when a long single text is fully visible without overflow', async () => {
     const data = { ...shortData, text: 'x'.repeat(FORCED_MULTIPART_BASE * 3) };
     const handle = buildHandle({ ok: true, mode: 'single', sig: 'sig-tall', tops: [0], metrics: { overflow: 0, rowHeight: 390, visibleH: 620 } });
+
+    const result = await planCommentMultipart(handle as never, data as never);
+
+    expect(result.mode).toBe('single');
+    expect(result.scrollParts).toEqual([0]);
+    expect(result.use3plusRoute).toBe(false);
+  });
+
+  it('forces row multipart for long single text with overflow evidence', async () => {
+    const data = { ...shortData, text: 'x'.repeat(FORCED_MULTIPART_BASE * 3) };
+    const handle = buildHandle({ ok: true, mode: 'single', sig: 'sig-1', tops: [0], metrics: { overflow: 320, rowHeight: 980, visibleH: 600 } });
 
     const result = await planCommentMultipart(handle as never, data as never);
 
@@ -74,9 +85,9 @@ describe('planCommentMultipart', () => {
     expect(result.use3plusRoute).toBe(true);
   });
 
-  it('forces row multipart for long single text with overflow evidence', async () => {
+  it('forces row multipart for long single text that nearly fills the visible area', async () => {
     const data = { ...shortData, text: 'x'.repeat(FORCED_MULTIPART_BASE * 3) };
-    const handle = buildHandle({ ok: true, mode: 'single', sig: 'sig-1', tops: [0], metrics: { overflow: 320, rowHeight: 980, visibleH: 600 } });
+    const handle = buildHandle({ ok: true, mode: 'single', sig: 'sig-near-full', tops: [0], metrics: { overflow: 0, rowHeight: 600, visibleH: 620 } });
 
     const result = await planCommentMultipart(handle as never, data as never);
 

@@ -48,6 +48,11 @@ const withTimeout = async <T>(promise: Promise<T>, ms: number) => {
   return Promise.race([promise, timeout]);
 };
 
+const appendCaptureError = async (outDir: string, index: number, reason: string) => {
+  const item = { commentIndex: index, reason, stage: 'capture error', ts: new Date().toISOString() };
+  await appendTextFile(outDir, 'capture-debug.jsonl', `${JSON.stringify(item)}\n`).catch(() => undefined);
+};
+
 const runCapture = async (
   page: LikersPage,
   handle: { evaluate: <T, A>(fn: (el: Element, args: A) => T, args: A) => Promise<T> },
@@ -61,11 +66,7 @@ const runCapture = async (
 ).catch((error: unknown) => {
   const reason = error instanceof Error ? error.message : String(error);
   process.stderr.write(`[scrape.comments] comment ${index}: capture error ${reason}\n`);
-  void (async () => {
-    try {
-      await appendTextFile(outDir, 'capture-debug.jsonl', `${JSON.stringify({ commentIndex: index, reason, stage: 'capture error', ts: new Date().toISOString() })}\n`);
-    } catch {}
-  })();
+  void appendCaptureError(outDir, index, reason);
   return fallbackCapture(page, outDir, index, data, lastScreenshotHash, reason);
 });
 
@@ -74,14 +75,35 @@ const rollbackHighlightFailure = (state: ProcessState) => {
   state.newInRound -= 1;
 };
 
+const clearHighlightElement = (node: Element) => {
+  if (!(node instanceof HTMLElement)) return;
+  node.style.outline = '';
+  node.style.outlineOffset = '';
+  node.style.boxShadow = '';
+  node.style.backgroundColor = '';
+  node.style.backgroundClip = '';
+  node.removeAttribute('data-apify-highlight');
+};
+
+const cleanupPreviousHighlightBrowser = () => {
+  document.querySelectorAll('[data-apify-highlight-overlay="1"]').forEach((node) => node.remove());
+  document.querySelectorAll('[data-apify-highlight="1"]').forEach(clearHighlightElement);
+  document.body.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 4, clientY: 4 }));
+  return true;
+};
+
+const cleanupPreviousHighlight = async (page: LikersPage) => {
+  if (typeof page.evaluate !== 'function') return;
+  await Promise.resolve(page.evaluate(cleanupPreviousHighlightBrowser, undefined as never)).catch(() => undefined);
+};
+
 const prepareCommentForLikers = async (
   page: LikersPage,
   rowHandle: TimeLocator,
 ) => {
+  await cleanupPreviousHighlight(page);
   if (rowHandle?.evaluate) {
-    await Promise.allSettled([
-      rowHandle.evaluate((el: Element) => (el.scrollIntoView({ block: 'center', inline: 'nearest' }), true), undefined as never),
-    ]);
+    await rowHandle.evaluate((el: Element) => (el.scrollIntoView({ block: 'center', inline: 'nearest' }), true), undefined as never).catch(() => undefined);
   }
   if (page.waitForTimeout) await Promise.allSettled([page.waitForTimeout(250)]);
 };

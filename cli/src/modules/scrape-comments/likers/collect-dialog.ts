@@ -1,4 +1,4 @@
-import type { LikersBatch } from '../../../schemas/index.ts';
+import type { CommentLiker, LikersBatch, LikersDialogPage } from '../../../schemas/index.ts';
 import {
   COLLECT_SCRIPT,
   DIALOG_OPEN_SCRIPT,
@@ -22,21 +22,75 @@ export {
 
 const collectVisibleBatch = async (page: {
   evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-}) =>
-  page.evaluate(runIifeBody<LikersBatch>, { body: COLLECT_SCRIPT });
+}) => page.evaluate(runIifeBody<LikersBatch>, { body: COLLECT_SCRIPT });
+
+const logRoundDebug = (
+  verbose: boolean | undefined,
+  round: number,
+  batch: LikersBatch,
+  added: number,
+  total: number,
+) => {
+  if (!verbose) return;
+  const summary = batch as LikersBatch & { candidateCount?: number; targetCount?: number; targetIndex?: number; summary?: unknown };
+  process.stderr.write(`[scrape.comments][likers][debug] round=${round} open=${Boolean(summary.open)} viewport=${(summary.items || []).length} added=${added} total=${total} canScroll=${Boolean(summary.canScroll)} candidates=${summary.candidateCount ?? 'n/a'} targets=${summary.targetCount ?? 'n/a'} targetIndex=${summary.targetIndex ?? 'n/a'} summary=${JSON.stringify(summary.summary ?? null)}\n`);
+};
+
+const shouldStopAfterBatch = (
+  likers: CommentLiker[],
+  maxCommentLikers: number,
+  targetCount: number,
+) => {
+  if (maxCommentLikers && likers.length >= maxCommentLikers) return true;
+  return targetCount > 0 && likers.length >= targetCount;
+};
+
+const tryNearTargetRewind = async (
+  page: LikersDialogPage,
+  seen: Set<string>,
+  likers: CommentLiker[],
+  maxCommentLikers: number,
+  targetCount: number,
+  rewindAttempts: number,
+  failedRewinds: number,
+) => {
+  const before = likers.length;
+  const nextRewindAttempts = rewindAttempts + 1;
+  await resetLikersDialogScroll(page);
+  if (nextRewindAttempts === 1) await collectTailWithNudge(page, seen, likers, maxCommentLikers, targetCount);
+  if (likers.length >= targetCount) return { failedRewinds, rewindAttempts: nextRewindAttempts, stop: true };
+  if (likers.length > before) return { failedRewinds: 0, rewindAttempts: nextRewindAttempts, stop: false };
+  const nextFailedRewinds = failedRewinds + 1;
+  return {
+    failedRewinds: nextFailedRewinds,
+    rewindAttempts: nextRewindAttempts,
+    stop: isLikelyUnrecoverableGap(targetCount, likers.length, nextFailedRewinds),
+  };
+};
+
+const handleStagnantEnd = async (
+  page: LikersDialogPage,
+  seen: Set<string>,
+  likers: CommentLiker[],
+  maxCommentLikers: number,
+  targetCount: number,
+  rewindAttempts: number,
+  failedRewinds: number,
+) => {
+  const maxRewinds = resolveMaxRewinds(targetCount, 0);
+  if (!isNearTarget(targetCount, likers.length) || rewindAttempts >= maxRewinds) return { failedRewinds, rewindAttempts, shouldBreak: true };
+  const rewind = await tryNearTargetRewind(page, seen, likers, maxCommentLikers, targetCount, rewindAttempts, failedRewinds);
+  return { failedRewinds: rewind.failedRewinds, rewindAttempts: rewind.rewindAttempts, shouldBreak: rewind.stop };
+};
 
 export const collectLikersFromDialog = async (
-  page: {
-    evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-    waitForTimeout: (ms: number) => Promise<void>;
-    keyboard?: { press: (key: string) => Promise<void> };
-  },
+  page: LikersDialogPage,
   maxCommentLikers: number,
   verbose?: boolean,
   likesCount = 0,
   signal?: AbortSignal,
 ) => {
-  const likers: Array<{ profileUrl: string; username: string }> = [];
+  const likers: CommentLiker[] = [];
   const seen = new Set<string>();
   const targetCount = resolveTargetCount(maxCommentLikers, likesCount);
   const maxRounds = resolveMaxRounds(maxCommentLikers, likesCount);
@@ -44,61 +98,34 @@ export const collectLikersFromDialog = async (
   let stagnant = 0;
   let rewindAttempts = 0;
   let failedRewinds = 0;
-  const maxRewinds = resolveMaxRewinds(targetCount, 0);
 
   await resetLikersDialogScroll(page);
 
   for (let round = 0; round < maxRounds; round += 1) {
     if (signal?.aborted) break;
     const batch = await collectVisibleBatch(page);
-    if (!(batch as LikersBatch)?.open) break;
-    const added = mergeBatch(batch as LikersBatch, seen, likers, maxCommentLikers);
-    if (verbose) {
-      const summary = batch as LikersBatch & { candidateCount?: number; targetCount?: number; targetIndex?: number; summary?: unknown };
-      process.stderr.write(`[scrape.comments][likers][debug] round=${round} open=${Boolean(summary.open)} viewport=${(summary.items || []).length} added=${added} total=${likers.length} canScroll=${Boolean(summary.canScroll)} candidates=${summary.candidateCount ?? 'n/a'} targets=${summary.targetCount ?? 'n/a'} targetIndex=${summary.targetIndex ?? 'n/a'} summary=${JSON.stringify(summary.summary ?? null)}\n`);
-    }
-    if (maxCommentLikers && likers.length >= maxCommentLikers) break;
-    if (targetCount > 0 && likers.length >= targetCount) break;
+    if (!batch?.open) break;
+    const added = mergeBatch(batch, seen, likers, maxCommentLikers);
+    logRoundDebug(verbose, round, batch, added, likers.length);
+    if (shouldStopAfterBatch(likers, maxCommentLikers, targetCount)) break;
     stagnant = added === 0 ? stagnant + 1 : 0;
-    if (stagnant > 0 && page.keyboard?.press) {
-      await Promise.allSettled([
-        page.keyboard.press(batch.canScroll ? 'PageDown' : 'End'),
-      ]);
-    }
-    if (!(batch as LikersBatch).canScroll && stagnant >= maxStagnant) {
-      if (isNearTarget(targetCount, likers.length) && rewindAttempts < maxRewinds) {
-        const before = likers.length;
-        rewindAttempts += 1;
-        stagnant = 0;
-        await resetLikersDialogScroll(page);
-        if (rewindAttempts === 1) {
-          await collectTailWithNudge(page, seen, likers, maxCommentLikers, targetCount);
-          if (likers.length >= targetCount) break;
-        }
-        if (likers.length <= before) {
-          failedRewinds += 1;
-          if (isLikelyUnrecoverableGap(targetCount, likers.length, failedRewinds)) break;
-        } else {
-          failedRewinds = 0;
-        }
-        continue;
-      }
-      break;
-    }
+    if (stagnant > 0 && page.keyboard?.press) await page.keyboard.press(batch.canScroll ? 'PageDown' : 'End').catch(() => undefined);
+    const rewind = !batch.canScroll && stagnant >= maxStagnant ? await handleStagnantEnd(page, seen, likers, maxCommentLikers, targetCount, rewindAttempts, failedRewinds) : null;
+    rewindAttempts = rewind?.rewindAttempts ?? rewindAttempts;
+    failedRewinds = rewind?.failedRewinds ?? failedRewinds;
+    stagnant = rewind ? 0 : stagnant;
+    if (rewind?.shouldBreak) break;
+    if (rewind) continue;
     await page.waitForTimeout(maxCommentLikers === 0 ? 280 : 220);
   }
 
-  if (!signal?.aborted) {
-    await finalizeNearTarget(page, seen, likers, maxCommentLikers, targetCount);
-  }
+  if (!signal?.aborted) await finalizeNearTarget(page, seen, likers, maxCommentLikers, targetCount);
   return likers;
 };
 
-export const isDialogOpen = async (
-  page: {
-    evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-  },
-) => page.evaluate(runIifeBody<boolean>, { body: DIALOG_OPEN_SCRIPT });
+export const isDialogOpen = async (page: {
+  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
+}) => page.evaluate(runIifeBody<boolean>, { body: DIALOG_OPEN_SCRIPT });
 
 export const waitForDialogOpen = async (
   page: {

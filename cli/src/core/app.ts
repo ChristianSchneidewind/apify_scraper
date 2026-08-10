@@ -12,8 +12,8 @@ const addGlobalOptions = (command: ReturnType<ReturnType<typeof cac>['command']>
   command.option('--dry-run', 'Dry run mode');
   command.option('--headless', 'Run browser without UI (default is headful)');
   command.option('--json', 'JSON output');
-  command.option('--no-color', 'Disable color');
-  command.option('--no-input', 'Disable prompts');
+  command.option('--no-color', 'Disable color', { default: false });
+  command.option('--no-input', 'Disable prompts', { default: false });
   command.option('--plain', 'Stable line-oriented output');
   command.option('--quiet', 'Quiet output');
   command.option('--verbose', 'Verbose output');

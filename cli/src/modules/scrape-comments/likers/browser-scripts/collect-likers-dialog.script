@@ -1,8 +1,5 @@
 return (() => {
   const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
-  const d = dialogs[dialogs.length - 1];
-  if (!d) return { open: false, items: [], canScroll: false };
-
   const isProfileHref = (h) => {
     if (!h || !h.startsWith('/')) return false;
     if (h.startsWith('/p/') || h.startsWith('/reel/') || h.startsWith('/reels/')) return false;
@@ -11,9 +8,20 @@ return (() => {
     if (h.includes('/c/')) return false;
     return /^\/[A-Za-z0-9._]+\/?($|\?)/.test(h);
   };
+  const scoreDialog = (dialog) => {
+    const text = (dialog.innerText || '').toLowerCase().replace(/\s+/g, ' ');
+    const rect = dialog.getBoundingClientRect?.() || { width: 0, height: 0 };
+    const profileLinks = Array.from(dialog.querySelectorAll('a[href]')).filter((a) => isProfileHref(a.getAttribute('href') || '')).length;
+    const scrollables = Array.from(dialog.querySelectorAll('div, ul, section, main')).filter((c) => c.scrollHeight > c.clientHeight + 20).length;
+    const hoverPenalty = /\bbeiträge\b|\bfollower\b|\bgefolgt\b|\bfolgt\b|\bfollowing\b/.test(text) ? 120 : 0;
+    const titleBonus = /gefällt|likes?|personen|people/.test(text) ? 45 : 0;
+    const sizeBonus = rect.height >= 300 && rect.width >= 260 ? 35 : 0;
+    return profileLinks * 25 + scrollables * 12 + titleBonus + sizeBonus - hoverPenalty;
+  };
+  const d = dialogs.map((dialog) => ({ dialog, score: scoreDialog(dialog) })).sort((a, b) => b.score - a.score)[0]?.dialog || null;
+  if (!d || scoreDialog(d) < 0) return { open: false, items: [], canScroll: false };
 
-  const links = Array.from(d.querySelectorAll('a[href]'))
-    .filter((a) => isProfileHref(a.getAttribute('href') || ''));
+  const links = Array.from(d.querySelectorAll('a[href]')).filter((a) => isProfileHref(a.getAttribute('href') || ''));
   const items = links.map((a) => {
     const href = a.getAttribute('href') || '';
     const fromHref = (href.match(/^\/([A-Za-z0-9._]+)\/?/) || [])[1] || '';
@@ -30,19 +38,10 @@ return (() => {
   if (!candidates.length) {
     const style = window.getComputedStyle(d);
     const overflowY = style.overflowY || style.overflow || '';
-    if (d.scrollHeight > d.clientHeight + 20 || overflowY === 'auto' || overflowY === 'scroll') {
-      candidates.push(d);
-    }
+    if (d.scrollHeight > d.clientHeight + 20 || overflowY === 'auto' || overflowY === 'scroll') candidates.push(d);
   }
 
-  const fallbacks = [
-    d,
-    d.parentElement,
-    document.scrollingElement,
-    document.documentElement,
-    document.body,
-  ].filter(Boolean);
-
+  const fallbacks = [d, d.parentElement, document.scrollingElement, document.documentElement, document.body].filter(Boolean);
   const targets = candidates.length ? candidates : fallbacks;
   const start = targets.length ? (state.idx % targets.length) : 0;
   if (targets.length) state.idx = (state.idx + 1) % targets.length;
@@ -75,9 +74,7 @@ return (() => {
       if (!target || typeof target.dispatchEvent !== 'function') continue;
       try {
         target.dispatchEvent(new WheelEvent('wheel', { deltaY: 700, bubbles: true, cancelable: true }));
-      } catch {
-        /* ignore */
-      }
+      } catch {}
       if (tryScroll(target, true)) {
         canScroll = true;
         targetIndex = i;
