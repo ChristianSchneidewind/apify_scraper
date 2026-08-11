@@ -32,6 +32,8 @@ export const commentRecordSchema = Type.Object({
   index: Type.Optional(Type.Number()),
   isGifOnly: Type.Optional(Type.Boolean()),
   likesCount: Type.Optional(Type.Number()),
+  likersComplete: Type.Optional(Type.Boolean()),
+  likersReason: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   metadataPath: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   multipartFlagReason: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   multipartNeedsReview: Type.Optional(Type.Boolean()),

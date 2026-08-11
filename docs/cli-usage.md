@@ -11,6 +11,7 @@ npx tsx cli/src/bin/instagram.ts <command>
 - Default: concise human-readable output to stdout.
 - `--json`: one JSON object to stdout.
 - `--plain`: stable line-oriented text output (`OK|ERROR`, command, summary, sorted `key=value` details).
+- Successful comment scrapes report `incompleteLikersCount` and `multipartCount` in details.
 - `--headless`: run browser without visible UI (default is headful).
 - `--dry-run`: validate the command without opening a browser or writing artifacts.
 - `--resume <path>`: continue from a previous comments `checkpoint.json`.
@@ -58,6 +59,10 @@ npx tsx cli/src/bin/instagram.ts scrape profiles \
   --out-dir "artifacts/profiles" \
   --json
 ```
+
+## Versioning and release
+
+The CLI version is `0.1.0` and is exposed through `--version`. Releases are created from version tags using the repository release workflow.
 
 ## Validation commands
 
