@@ -59,6 +59,7 @@ const buildCommentsRequest = (argv: string[]) => ({
     maxUiRounds: readNumberFlag(argv, '--max-ui-rounds'),
     outDir: readFlag(argv, '--out-dir') || undefined,
     resume: readFlag(argv, '--resume') || undefined,
+    retryIncompleteLikers: argv.includes('--retry-incomplete-likers'),
     uiIdleRounds: readNumberFlag(argv, '--ui-idle-rounds'),
     url: readFlag(argv, '--url'),
   },

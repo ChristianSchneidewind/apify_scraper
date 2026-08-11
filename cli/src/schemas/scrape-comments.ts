@@ -12,6 +12,7 @@ export const scrapeLoopOptionsSchema = Type.Object({
   outDir: Type.String({ minLength: 1 }),
   quiet: Type.Optional(Type.Boolean()),
   sourceUrl: Type.Optional(Type.String()),
+  retryIncompleteLikers: Type.Optional(Type.Boolean()),
   uiIdleRounds: Type.Optional(Type.Number({ minimum: 1 })),
   verbose: Type.Optional(Type.Boolean()),
 });
