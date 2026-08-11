@@ -20,6 +20,7 @@ const buildSuccess = (
   likersCount: number,
   incompleteLikersCount: number,
   multipartCount: number,
+  durationMs: number,
 ): CliOutput => ({
   command: 'scrape.comments',
   details: {
@@ -30,6 +31,9 @@ const buildSuccess = (
     screenshotCount: String(screenshotCount),
     incompleteLikersCount: String(incompleteLikersCount),
     multipartCount: String(multipartCount),
+    durationMs: String(durationMs),
+    commentsPerSecond: String(count > 0 ? (count / (durationMs / 1000)).toFixed(2) : '0'),
+    avgCommentMs: String(count > 0 ? Math.round(durationMs / count) : 0),
   },
   ok: true,
   summary: `scraped ${count} comments`,
@@ -86,6 +90,9 @@ const buildLoopOptions = (
   sourceUrl: options.url,
   verbose: options.verbose,
   ...(options.likerCollectionMode ? { likerCollectionMode: options.likerCollectionMode } : {}),
+  ...(options.likerRetryAttempts !== undefined ? { likerRetryAttempts: options.likerRetryAttempts } : {}),
+  ...(options.likerRetryDelayMs !== undefined ? { likerRetryDelayMs: options.likerRetryDelayMs } : {}),
+  ...(options.likerTimeoutMs !== undefined ? { likerTimeoutMs: options.likerTimeoutMs } : {}),
   ...(options.maxComments !== undefined ? { maxComments: options.maxComments } : {}),
   ...(options.maxCommentLikers !== undefined ? { maxCommentLikers: options.maxCommentLikers } : {}),
   ...(options.retryIncompleteLikers ? { retryIncompleteLikers: true } : {}),
@@ -97,6 +104,7 @@ export const runScrapeComments = async (
   context: RuntimeContext,
   options: ScrapeCommentsOptions,
 ) => {
+  const startedAt = Date.now();
   const { dir, initialComments } = await prepareOutput(context, options);
   const logger = createLogger(options);
   logger.info(`output dir: ${dir}`);
@@ -130,6 +138,7 @@ export const runScrapeComments = async (
     sumLikers(comments),
     countIncompleteLikers(comments),
     countMultipart(comments),
+    Date.now() - startedAt,
     );
   } finally {
     await closeBrowserSession(session.browser);

@@ -17,6 +17,9 @@ A successful comment scrape includes details such as:
     "likersCount": "1041",
     "incompleteLikersCount": "49",
     "multipartCount": "6",
+    "durationMs": "125000",
+    "commentsPerSecond": "1.46",
+    "avgCommentMs": "687",
     "screenshotCount": "188",
     "jsonPath": "/.../comments.json"
   }
@@ -47,4 +50,4 @@ A comment with `likesCount > 0` and no visible liker links is not treated as a s
 
 ## Profile artifacts
 
-Profile scraping writes a JSON profile record and one screenshot. The JSON contains the source URL, username, biography, full name, avatar URL, title, description, and profile statistics.
+Profile scraping writes a JSON profile record and one screenshot. The CLI result includes `durationMs` for the profile run. The JSON contains the source URL, username, biography, full name, avatar URL, title, description, and profile statistics.

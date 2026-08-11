@@ -85,6 +85,9 @@ describe('runScrapeComments', () => {
     expect(result.details.screenshotCount).toBe('1');
     expect(result.details.incompleteLikersCount).toBe('0');
     expect(result.details.multipartCount).toBe('0');
+    expect(Number(result.details.durationMs)).toBeGreaterThanOrEqual(0);
+    expect(result.details.commentsPerSecond).toBeDefined();
+    expect(result.details.avgCommentMs).toBeDefined();
     expect(runCommentScrapeLoop).toHaveBeenCalled();
     expect(openBrowserSession).toHaveBeenCalledWith(context, true);
     expect(closeBrowserSession).toHaveBeenCalled();

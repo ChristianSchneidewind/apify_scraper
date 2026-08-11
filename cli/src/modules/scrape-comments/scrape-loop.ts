@@ -53,7 +53,7 @@ const processRound = async (
   state: ReturnType<typeof buildProcessState>,
   comments: CommentRecord[],
   maxComments: number,
-  processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; outDir: string; quiet?: boolean; retryIncompleteLikers?: boolean; sourceUrl?: string; verbose?: boolean },
+  processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; likerRetryAttempts?: number; likerRetryDelayMs?: number; likerTimeoutMs?: number; outDir: string; quiet?: boolean; retryIncompleteLikers?: boolean; sourceUrl?: string; verbose?: boolean },
   passLabel = 'top-level',
 ) => {
   state.newInRound = 0;
@@ -88,7 +88,7 @@ const runPass = async (
   options: ScrapeLoopOptions,
   state: ReturnType<typeof buildProcessState>,
   comments: CommentRecord[],
-  processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; outDir: string; quiet?: boolean; retryIncompleteLikers?: boolean; sourceUrl?: string; verbose?: boolean },
+  processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; likerRetryAttempts?: number; likerRetryDelayMs?: number; likerTimeoutMs?: number; outDir: string; quiet?: boolean; retryIncompleteLikers?: boolean; sourceUrl?: string; verbose?: boolean },
   passLabel: string,
   expandCommentsClicks: number,
   expandRepliesClicks: number,
@@ -132,8 +132,11 @@ export const runCommentScrapeLoop = async (
     const identity = buildCommentIdentity(comment);
     registerCommentSeen(state, identity.strictKey, identity.looseKey, identity.permalink || null, null);
   }
-  const processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; outDir: string; quiet?: boolean; retryIncompleteLikers?: boolean; sourceUrl?: string; verbose?: boolean } = {
+  const processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; likerRetryAttempts?: number; likerRetryDelayMs?: number; likerTimeoutMs?: number; outDir: string; quiet?: boolean; retryIncompleteLikers?: boolean; sourceUrl?: string; verbose?: boolean } = {
     maxCommentLikers: options.maxCommentLikers ?? 0,
+    ...(options.likerRetryAttempts !== undefined ? { likerRetryAttempts: options.likerRetryAttempts } : {}),
+    ...(options.likerRetryDelayMs !== undefined ? { likerRetryDelayMs: options.likerRetryDelayMs } : {}),
+    ...(options.likerTimeoutMs !== undefined ? { likerTimeoutMs: options.likerTimeoutMs } : {}),
     outDir: options.outDir,
     ...(options.retryIncompleteLikers ? { retryIncompleteLikers: true } : {}),
     ...(options.sourceUrl ? { sourceUrl: options.sourceUrl } : {}),

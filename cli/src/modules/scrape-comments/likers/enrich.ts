@@ -197,6 +197,7 @@ const collectFromOpenDialog = async (
   maxCommentLikers: number,
   mode: 'best_effort' | 'strict',
   verbose?: boolean,
+  retryConfig?: { retryAttempts?: number; retryDelayMs?: number; timeoutMs?: number },
 ) => {
   const dialogOpened = await withTimeout(waitForDialogOpen(workedPage as never), 4000, 'dialog_open_timeout').catch(() => false);
   logLikersDebug(verbose, `user=${data.username} dialogOpened=${dialogOpened}`);
@@ -207,7 +208,7 @@ const collectFromOpenDialog = async (
   await workedPage.waitForTimeout(300);
   const ready = await waitForDialogLikersReady(workedPage, verbose);
   if (!ready) setLikerStatus(data, [], 'no_visible_liker_links');
-  let likers = ready ? normalizeCommentLikers(await collectLikers(workedPage, maxCommentLikers, data.likesCount ?? 0, verbose)) : [];
+  let likers = ready ? normalizeCommentLikers(await collectLikers(workedPage, maxCommentLikers, data.likesCount ?? 0, verbose, retryConfig)) : [];
   if (mode === 'strict') likers = await collectStrictRetry(workedPage, maxCommentLikers, data.likesCount ?? 0, likers);
   data.commentLikers = likers;
   data.likesCount = preferPositiveCount(data.likesCount, likers.length);
@@ -226,6 +227,7 @@ export const enrichCommentLikers = async (
   maxCommentLikers = 0,
   likerCollectionMode: 'best_effort' | 'strict' = 'best_effort',
   verbose?: boolean,
+  retryConfig?: { retryAttempts?: number; retryDelayMs?: number; timeoutMs?: number },
 ) => {
   const commentPermalink = data.commentPermalink;
   const commentUrl = buildCommentUrl(commentPermalink);
@@ -241,7 +243,7 @@ export const enrichCommentLikers = async (
     logLikersDebug(verbose, `user=${data.username} stop=no_click finalLikes=${data.likesCount} reason=${deep.currentReason ?? 'n/a'}`);
     return data;
   }
-  return collectFromOpenDialog(deep.workedPage, data, commentPermalink, maxCommentLikers, likerCollectionMode, verbose);
+  return collectFromOpenDialog(deep.workedPage, data, commentPermalink, maxCommentLikers, likerCollectionMode, verbose, retryConfig);
 };
 
 export { clearLikersCacheForTests } from './enrich-cache.ts';

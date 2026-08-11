@@ -34,6 +34,9 @@ const buildCli = () => {
   addGlobalOptions(comments);
   addGlobalOptions(profiles);
   comments.option('--liker-collection-mode <mode>', 'Liker collection mode (best_effort|strict)');
+  comments.option('--liker-retry-attempts <n>', 'Additional liker collection attempts');
+  comments.option('--liker-retry-delay-ms <n>', 'Initial delay between liker retries in milliseconds');
+  comments.option('--liker-timeout-ms <n>', 'Liker collection timeout per attempt in milliseconds');
   comments.option('--max-comment-likers <n>', 'Maximum likers per comment (default: all visible; use 0 for unlimited visible)');
   comments.option('--max-comments <n>', 'Maximum comments to capture (0 = unlimited)');
   comments.option('--max-ui-rounds <n>', 'Maximum UI expand/scroll rounds');

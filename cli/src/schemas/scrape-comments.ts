@@ -5,6 +5,9 @@ import type { CommentRecord } from './outputs.ts';
 
 export const scrapeLoopOptionsSchema = Type.Object({
   likerCollectionMode: Type.Optional(Type.Union([Type.Literal('best_effort'), Type.Literal('strict')])),
+  likerRetryAttempts: Type.Optional(Type.Number({ minimum: 0 })),
+  likerRetryDelayMs: Type.Optional(Type.Number({ minimum: 0 })),
+  likerTimeoutMs: Type.Optional(Type.Number({ minimum: 1000 })),
   maxCommentLikers: Type.Optional(Type.Number({ minimum: 0 })),
   maxComments: Type.Optional(Type.Number({ minimum: 0 })),
   maxUiRounds: Type.Optional(Type.Number({ minimum: 1 })),
@@ -65,6 +68,9 @@ export type ProcessState = {
 
 export type ProcessOptions = {
   likerCollectionMode?: 'best_effort' | 'strict';
+  likerRetryAttempts?: number;
+  likerRetryDelayMs?: number;
+  likerTimeoutMs?: number;
   maxCommentLikers: number;
   outDir: string;
   quiet?: boolean;
