@@ -54,7 +54,7 @@ describe('runApp', () => {
     const output = execFileSync('node', ['--import', 'tsx', 'cli/src/bin/instagram.ts', '--version'], {
       encoding: 'utf8',
     });
-    expect(output).toContain('0.0.0');
+    expect(output).toContain('0.1.0');
   });
 
   it('renders plain output', () => {

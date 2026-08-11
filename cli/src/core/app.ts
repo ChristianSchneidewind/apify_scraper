@@ -5,6 +5,7 @@ import { runScrapeProfiles } from '../modules/scrape-profiles/run.ts';
 import { normalizeArgv, parseCommandRequest } from './argv.ts';
 import { createRuntimeContext } from './context.ts';
 import { failFromReason, failResult, okResult } from './result.ts';
+import { CLI_VERSION } from './version.ts';
 
 const addGlobalOptions = (command: ReturnType<ReturnType<typeof cac>['command']>) => {
   command.option('--browser-profile <name>', 'Browser profile', { default: 'default' });
@@ -28,7 +29,7 @@ const buildCli = () => {
   cli.example('instagram scrape comments --url "https://www.instagram.com/p/abc/"');
   cli.example('instagram scrape profiles --url "https://www.instagram.com/nasa/" --profile-slug "nasa" --out-dir "artifacts/profiles" --json');
   cli.help();
-  cli.version('0.0.0');
+  cli.version(CLI_VERSION);
   addGlobalOptions(auth);
   addGlobalOptions(comments);
   addGlobalOptions(profiles);

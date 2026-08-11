@@ -19,6 +19,12 @@
 - Removed obsolete username/password `.env` configuration documentation.
 - The CLI is now the only supported runtime.
 
+## [0.1.0] - 2026-08-11
+
+### Added
+- Explicit liker completeness metadata and run summary metrics.
+- `--retry-incomplete-likers` for delayed or unavailable liker dialogs.
+
 ## [1.0.0] - 2026-06-01
 
 ### Added

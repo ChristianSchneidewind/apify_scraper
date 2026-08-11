@@ -18,6 +18,12 @@ const preferPositiveCount = (nextCount: unknown, fallbackCount: unknown) => {
   return Math.max(next, fallback);
 };
 
+const setLikerStatus = (data: CommentRecord, likers: CommentLiker[], reason: string | null) => {
+  const likes = Number(data.likesCount ?? 0) || 0;
+  data.likersComplete = likes === 0 || likers.length >= likes;
+  data.likersReason = data.likersComplete ? null : reason;
+};
+
 const withTimeout = async <T>(promise: Promise<T>, ms: number, label = 'likers step timeout') => {
   const timeout = new Promise<T>((_, reject) => setTimeout(() => reject(new Error(label)), ms));
   return Promise.race([promise, timeout]);
@@ -75,6 +81,7 @@ const applyCachedLikers = (
   if (!cachedLikers || !hasEnoughLikers(cachedLikers, extractedLikes, maxCommentLikers)) return false;
   data.commentLikers = cachedLikers;
   data.likesCount = preferPositiveCount(extractedLikes, cachedLikers.length);
+  setLikerStatus(data, cachedLikers, null);
   logLikersDebug(verbose, `user=${data.username} cacheHit=${cachedLikers.length} finalLikes=${data.likesCount}`);
   return true;
 };
@@ -193,13 +200,18 @@ const collectFromOpenDialog = async (
 ) => {
   const dialogOpened = await withTimeout(waitForDialogOpen(workedPage as never), 4000, 'dialog_open_timeout').catch(() => false);
   logLikersDebug(verbose, `user=${data.username} dialogOpened=${dialogOpened}`);
-  if (!dialogOpened) return data;
+  if (!dialogOpened) {
+    setLikerStatus(data, [], 'dialog_open_failed');
+    return data;
+  }
   await workedPage.waitForTimeout(300);
   const ready = await waitForDialogLikersReady(workedPage, verbose);
+  if (!ready) setLikerStatus(data, [], 'no_visible_liker_links');
   let likers = ready ? normalizeCommentLikers(await collectLikers(workedPage, maxCommentLikers, data.likesCount ?? 0, verbose)) : [];
   if (mode === 'strict') likers = await collectStrictRetry(workedPage, maxCommentLikers, data.likesCount ?? 0, likers);
   data.commentLikers = likers;
   data.likesCount = preferPositiveCount(data.likesCount, likers.length);
+  setLikerStatus(data, likers, ready ? 'partial_visible_results' : 'no_visible_liker_links');
   writeLikersCache(commentPermalink, data.likesCount ?? 0, likers, maxCommentLikers);
   logLikersDebug(verbose, `user=${data.username} collected=${likers.length} finalLikes=${data.likesCount}`);
   warnStrictIncomplete(data, likers, maxCommentLikers, mode);
@@ -225,6 +237,7 @@ export const enrichCommentLikers = async (
   const current = await openCurrentIfNeeded(page, data, commentPermalink, inline.clicked, inline.currentReason, inline.inlineLikes, verbose);
   const deep = await openDeepIfNeeded(page, data, commentUrl, commentPermalink, current.clicked, current.currentReason, inline.inlineLikes, verbose);
   if (!deep.clicked) {
+    setLikerStatus(data, [], deep.currentReason ?? 'likes_dialog_not_opened');
     logLikersDebug(verbose, `user=${data.username} stop=no_click finalLikes=${data.likesCount} reason=${deep.currentReason ?? 'n/a'}`);
     return data;
   }

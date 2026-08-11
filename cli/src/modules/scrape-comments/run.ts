@@ -18,6 +18,8 @@ const buildSuccess = (
   screenshotCount: number,
   likesCount: number,
   likersCount: number,
+  incompleteLikersCount: number,
+  multipartCount: number,
 ): CliOutput => ({
   command: 'scrape.comments',
   details: {
@@ -26,6 +28,8 @@ const buildSuccess = (
     likersCount: String(likersCount),
     likesCount: String(likesCount),
     screenshotCount: String(screenshotCount),
+    incompleteLikersCount: String(incompleteLikersCount),
+    multipartCount: String(multipartCount),
   },
   ok: true,
   summary: `scraped ${count} comments`,
@@ -39,6 +43,12 @@ const sumLikes = (comments: Array<{ likesCount?: number }>) =>
 
 const sumLikers = (comments: Array<{ commentLikers?: Array<unknown> }>) =>
   comments.reduce((sum, item) => sum + (item.commentLikers?.length || 0), 0);
+
+const countIncompleteLikers = (comments: Array<{ likersComplete?: boolean; likesCount?: number; commentLikers?: Array<unknown> }>) =>
+  comments.filter((item) => item.likersComplete === false || ((Number(item.likesCount) || 0) > 0 && !item.commentLikers?.length)).length;
+
+const countMultipart = (comments: Array<{ screenshotPaths?: string[] }>) =>
+  comments.filter((item) => (item.screenshotPaths?.length || 0) > 1).length;
 
 const makeRunFolder = () => {
   const now = new Date();
@@ -118,6 +128,8 @@ export const runScrapeComments = async (
     countScreenshots(comments),
     sumLikes(comments),
     sumLikers(comments),
+    countIncompleteLikers(comments),
+    countMultipart(comments),
     );
   } finally {
     await closeBrowserSession(session.browser);
