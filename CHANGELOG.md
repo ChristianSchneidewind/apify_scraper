@@ -1,30 +1,22 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is inspired by Keep a Changelog and follows semantic versioning in spirit.
-
 ## [Unreleased]
 
 ### Added
-- Structured logging events (`log_event`, `warn_event`) in core flow.
-- Improved liker collection robustness for unlimited mode (`maxCommentLikers=0`).
-- Push-only CI workflow for tests.
-- Additional unit/smoke test coverage across core modules.
-- Versioned actor output schema files:
-  - `.actor/dataset_schema.json`
-  - `.actor/output_schema.json`
-- Typed scraper exceptions (`InputValidationError`, `LoginError`, etc.).
-- Per-comment performance metrics and end-of-run summary event.
-- TypeScript CLI workspace under `cli/` with centralized TypeBox schemas.
-- CLI guardrail scripts and iterative refactor loop tooling.
-- TypeScript CLI comment scrape loop with Instagram DOM selectors and structured JSON output.
+- TypeScript-only Instagram CLI for authentication, comment scraping, and profile scraping.
+- Persistent browser profiles for reusable Instagram sessions.
+- Structured CLI output with JSON, plain-text, and typed error codes.
+- Dry-run mode that validates commands without opening a browser.
+- Central logger with quiet, verbose, and structured diagnostic output.
+- Highlighted screenshots and multipart capture for long comments.
+- Likes and liker collection with best-effort and strict modes.
+- Browser lifecycle cleanup and integration tests for failure paths.
 
 ### Changed
-- Split runtime and development dependencies (`requirements.txt` + `requirements-dev.txt`).
-- CI now covers both Python checks and TypeScript CLI checks.
+- Removed obsolete username/password `.env` configuration documentation.
+- The CLI is now the only supported runtime.
 
 ## [1.0.0] - 2026-06-01
 
 ### Added
-- Initial actor implementation for Instagram comment capture with screenshots.
+- Initial Instagram comment capture implementation.

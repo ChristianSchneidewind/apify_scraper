@@ -24,13 +24,6 @@ npm install
 npx playwright install chromium
 ```
 
-Optional `.env`:
-
-```env
-INSTAGRAM_USERNAME=your_username
-INSTAGRAM_PASSWORD=your_password
-```
-
 ## Usage
 
 ```bash
@@ -50,6 +43,7 @@ npx tsx cli/src/bin/instagram.ts scrape profiles \
 Defaults:
 
 - browser runs **headful** (visible UI); use `--headless` to override
+- `--dry-run` validates the command without opening a browser or writing artifacts
 - `--max-comments 0` = unlimited
 - `--max-comment-likers 0` = all visible likers
 

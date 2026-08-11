@@ -47,6 +47,8 @@ const buildCli = () => {
   return { auth, cli, comments, profiles };
 };
 
+const dryRunSummary = (command: string) => `dry run: would execute ${command}`;
+
 const runCommand = async (argv: string[]) => {
   const request = parseCommandRequest(argv);
   if (!request) {
@@ -55,6 +57,9 @@ const runCommand = async (argv: string[]) => {
   const context = createRuntimeContext(request.options);
   if (!context) {
     return failResult(request.command, 'invalid runtime context');
+  }
+  if (request.options.dryRun) {
+    return okResult(request.command, dryRunSummary(request.command));
   }
   if (request.command === 'auth.login') {
     return runAuthLogin(context, request.options);

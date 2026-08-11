@@ -12,6 +12,7 @@ npx tsx cli/src/bin/instagram.ts <command>
 - `--json`: one JSON object to stdout.
 - `--plain`: stable line-oriented text output (`OK|ERROR`, command, summary, sorted `key=value` details).
 - `--headless`: run browser without visible UI (default is headful).
+- `--dry-run`: validate the command without opening a browser or writing artifacts.
 - Diagnostics, warnings, and validation errors go to stderr.
 - `--no-input` disables prompts; auth login requires an interactive TTY.
 
