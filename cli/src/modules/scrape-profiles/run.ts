@@ -7,9 +7,9 @@ import {
   resolveProfileSlug,
 } from './capture.ts';
 
-const buildSuccess = (jsonPath: string, screenshotPath: string): CliOutput => ({
+const buildSuccess = (jsonPath: string, screenshotPath: string, durationMs: number): CliOutput => ({
   command: 'scrape.profiles',
-  details: { jsonPath, screenshotPath },
+  details: { jsonPath, screenshotPath, durationMs: String(durationMs) },
   ok: true,
   summary: 'scraped profile artifacts',
 });
@@ -18,6 +18,7 @@ export const runScrapeProfiles = async (
   context: RuntimeContext,
   options: ScrapeProfilesOptions,
 ) => {
+  const startedAt = Date.now();
   const session = await openBrowserSession(context, options.headful);
   try {
     await session.page.goto(options.url, { waitUntil: 'domcontentloaded' });
@@ -33,7 +34,7 @@ export const runScrapeProfiles = async (
     profile,
     screenshot,
     );
-    return buildSuccess(paths.jsonPath, paths.screenshotPath);
+    return buildSuccess(paths.jsonPath, paths.screenshotPath, Date.now() - startedAt);
   } finally {
     await closeBrowserSession(session.browser);
   }

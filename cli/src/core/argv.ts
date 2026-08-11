@@ -54,6 +54,9 @@ const buildCommentsRequest = (argv: string[]) => ({
   options: {
     ...buildGlobals(argv),
     likerCollectionMode: readFlag(argv, '--liker-collection-mode') || undefined,
+    likerRetryAttempts: readNumberFlag(argv, '--liker-retry-attempts'),
+    likerRetryDelayMs: readNumberFlag(argv, '--liker-retry-delay-ms'),
+    likerTimeoutMs: readNumberFlag(argv, '--liker-timeout-ms'),
     maxCommentLikers: readNumberFlag(argv, '--max-comment-likers'),
     maxComments: readNumberFlag(argv, '--max-comments'),
     maxUiRounds: readNumberFlag(argv, '--max-ui-rounds'),

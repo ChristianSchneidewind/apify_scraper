@@ -26,6 +26,9 @@ export const scrapeCommentsOptionsSchema = Type.Composite([
   globalOptionsSchema,
   Type.Object({
     likerCollectionMode: Type.Optional(Type.Union([Type.Literal('best_effort'), Type.Literal('strict')])),
+    likerRetryAttempts: Type.Optional(Type.Number({ minimum: 0 })),
+    likerRetryDelayMs: Type.Optional(Type.Number({ minimum: 0 })),
+    likerTimeoutMs: Type.Optional(Type.Number({ minimum: 1000 })),
     maxCommentLikers: Type.Optional(Type.Number({ minimum: 0 })),
     maxComments: Type.Optional(Type.Number({ minimum: 0 })),
     maxUiRounds: Type.Optional(Type.Number({ minimum: 1 })),

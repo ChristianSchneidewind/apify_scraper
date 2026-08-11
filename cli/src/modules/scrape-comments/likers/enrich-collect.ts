@@ -55,9 +55,16 @@ const resolveRetryAttempts = (
   maxCommentLikers: number,
   collected: number,
   initialTimeoutMs: number,
+  config?: { retryAttempts?: number; retryDelayMs?: number; timeoutMs?: number },
 ): Array<[number, number]> => {
   const missing = likerGap(likesCount, maxCommentLikers, collected);
   const retryTimeoutMs = Math.max(initialTimeoutMs, 8000);
+  if (config) {
+    const count = Math.max(0, Math.floor(config.retryAttempts ?? 3));
+    const delay = Math.max(0, config.retryDelayMs ?? 1200);
+    const timeout = Math.max(1000, config.timeoutMs ?? retryTimeoutMs);
+    return Array.from({ length: count }, (_, index) => [Math.min(30000, delay * (2 ** index)), timeout] as [number, number]);
+  }
   const isLargeDialog = likesCount >= 50 || maxCommentLikers === 0;
 
   if (missing <= 1) {
@@ -147,8 +154,9 @@ const collectLikersWithRetries = async (
   initialTimeoutMs: number,
   session: { abort: AbortController },
   verbose?: boolean,
+  config?: { retryAttempts?: number; retryDelayMs?: number; timeoutMs?: number },
 ) => {
-  const attempts = resolveRetryAttempts(likesCount, maxCommentLikers, likers.length, initialTimeoutMs);
+  const attempts = resolveRetryAttempts(likesCount, maxCommentLikers, likers.length, initialTimeoutMs, config);
   let out = likers;
   let noProgressStreak = 0;
   for (const [waitMs, timeoutMs] of attempts) {
@@ -164,14 +172,20 @@ const collectLikersWithRetries = async (
   return out;
 };
 
-export const collectLikers = async (page: LikersPage, maxCommentLikers: number, likesCount: number, verbose?: boolean) => {
+export const collectLikers = async (
+  page: LikersPage,
+  maxCommentLikers: number,
+  likesCount: number,
+  verbose?: boolean,
+  config?: { retryAttempts?: number; retryDelayMs?: number; timeoutMs?: number },
+) => {
   const session = beginCollectSession(page);
   try {
-    const initialTimeoutMs = likerCollectTimeoutMs(likesCount, maxCommentLikers);
+    const initialTimeoutMs = config?.timeoutMs ?? likerCollectTimeoutMs(likesCount, maxCommentLikers);
     let likers = normalizeCommentLikers(await collectLikersTimed(page, maxCommentLikers, likesCount, verbose, initialTimeoutMs, session));
     if (verbose) process.stderr.write(`[scrape.comments][likers][debug] initial result=${likers.length} likesCount=${likesCount} max=${maxCommentLikers} timeout=${initialTimeoutMs}\n`);
     if (hasEnoughLikers(likers, likesCount, maxCommentLikers) || likesCount <= 0) return likers;
-    likers = await collectLikersWithRetries(page, maxCommentLikers, likesCount, likers, initialTimeoutMs, session, verbose);
+    likers = await collectLikersWithRetries(page, maxCommentLikers, likesCount, likers, initialTimeoutMs, session, verbose, config);
     return likers;
   } finally {
     endCollectSession(page, session);

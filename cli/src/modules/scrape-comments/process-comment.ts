@@ -148,6 +148,11 @@ export const processCommentCandidate = async (
     options.maxCommentLikers,
     options.likerCollectionMode,
     options.verbose,
+    {
+    ...(options.likerRetryAttempts !== undefined ? { retryAttempts: options.likerRetryAttempts } : {}),
+    ...(options.likerRetryDelayMs !== undefined ? { retryDelayMs: options.likerRetryDelayMs } : {}),
+    ...(options.likerTimeoutMs !== undefined ? { timeoutMs: options.likerTimeoutMs } : {}),
+    },
   );
   logStage(state.count, 'highlight', options.quiet);
   const highlight = await ensureHighlightReady(rowHandle as never, enriched);

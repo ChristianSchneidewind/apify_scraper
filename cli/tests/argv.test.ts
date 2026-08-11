@@ -85,6 +85,21 @@ describe('parseCommandRequest', () => {
     expect(request?.options.headful).toBe(false);
   });
 
+  it('parses liker retry controls', () => {
+    const request = parseCommandRequest([
+      'node', 'instagram', 'scrape', 'comments',
+      '--liker-retry-attempts', '4',
+      '--liker-retry-delay-ms', '1500',
+      '--liker-timeout-ms', '12000',
+      '--url', 'https://www.instagram.com/p/abc/',
+    ]);
+    expect(request?.command).toBe('scrape.comments');
+    if (request?.command !== 'scrape.comments') throw new Error('expected scrape.comments');
+    expect(request.options.likerRetryAttempts).toBe(4);
+    expect(request.options.likerRetryDelayMs).toBe(1500);
+    expect(request.options.likerTimeoutMs).toBe(12000);
+  });
+
   it('parses liker flags', () => {
     const request = parseCommandRequest([
       'node',

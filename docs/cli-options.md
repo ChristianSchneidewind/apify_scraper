@@ -32,6 +32,9 @@ The command opens Instagram and waits for manual login. The resulting session is
 | `--max-comments <n>` | Maximum comments; `0` means unlimited |
 | `--max-comment-likers <n>` | Maximum likers per comment; `0` means all visible |
 | `--liker-collection-mode <mode>` | `best_effort` or `strict` |
+| `--liker-retry-attempts <n>` | Additional liker attempts; default uses adaptive behavior |
+| `--liker-retry-delay-ms <n>` | Initial retry delay; subsequent retries use exponential backoff |
+| `--liker-timeout-ms <n>` | Timeout per liker collection attempt |
 | `--max-ui-rounds <n>` | Maximum comment expansion/scroll rounds |
 | `--ui-idle-rounds <n>` | Stop after this many idle rounds |
 | `--resume <path>` | Resume from a previous `checkpoint.json` |
