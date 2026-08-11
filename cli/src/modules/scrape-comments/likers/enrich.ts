@@ -171,12 +171,15 @@ const countVisibleLikerLinks = () => {
 };
 
 const waitForDialogLikersReady = async (page: LikersPage, verbose?: boolean) => {
-  for (let i = 0; i < 25; i += 1) {
+  for (let i = 0; i < 40; i += 1) {
     const count = await Promise.resolve(page.evaluate(countVisibleLikerLinks, undefined as never)).catch(() => null);
     if (count === null || count === undefined || count > 0) return true;
-    await page.waitForTimeout(400);
+    if ((i === 10 || i === 20) && page.keyboard?.press) {
+    await page.keyboard.press('PageDown').catch(() => undefined);
+    }
+    await page.waitForTimeout(500);
   }
-  logLikersDebug(verbose, 'dialogReady=false reason=no_visible_liker_links');
+  logLikersDebug(verbose, 'dialogReady=false reason=no_visible_liker_links_after_20s');
   return false;
 };
 
