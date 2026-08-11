@@ -18,16 +18,19 @@ export const runScrapeProfiles = async (
   options: ScrapeProfilesOptions,
 ) => {
   const session = await openBrowserSession(context, options.headful);
-  await session.page.goto(options.url, { waitUntil: 'domcontentloaded' });
-  const slug = resolveProfileSlug(options.url, options.profileSlug);
-  const { profile, screenshot } = await captureProfilePage(session.page, options.url);
-  await closeBrowserSession(session.browser);
-  const paths = await persistProfileArtifacts(
+  try {
+    await session.page.goto(options.url, { waitUntil: 'domcontentloaded' });
+    const slug = resolveProfileSlug(options.url, options.profileSlug);
+    const { profile, screenshot } = await captureProfilePage(session.page, options.url);
+    const paths = await persistProfileArtifacts(
     context.cwd,
     options.outDir,
     slug,
     profile,
     screenshot,
-  );
-  return buildSuccess(paths.jsonPath, paths.screenshotPath);
+    );
+    return buildSuccess(paths.jsonPath, paths.screenshotPath);
+  } finally {
+    await closeBrowserSession(session.browser);
+  }
 };

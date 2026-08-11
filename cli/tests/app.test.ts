@@ -83,6 +83,24 @@ describe('runApp', () => {
     expect(result.details.browserProfile).toBe('work');
   });
 
+  it('supports dry-run without executing the command', async () => {
+    const result = await runApp([
+      'node',
+      'instagram',
+      'scrape',
+      'comments',
+      '--url',
+      'https://www.instagram.com/p/abc/',
+      '--dry-run',
+    ]);
+    expect(result).toEqual({
+      command: 'scrape.comments',
+      details: {},
+      ok: true,
+      summary: 'dry run: would execute scrape.comments',
+    });
+  });
+
   it('routes scrape comments', async () => {
     const result = await runApp([
       'node',

@@ -13,7 +13,7 @@ vi.mock('../src/modules/scrape-comments/scrape-loop.ts', () => ({
 }));
 
 import { ensureOutputDirectory, writeJsonFile } from '../src/adapters/filesystem/output.ts';
-import { openBrowserSession } from '../src/adapters/playwright/browser.ts';
+import { closeBrowserSession, openBrowserSession } from '../src/adapters/playwright/browser.ts';
 import { runCommentScrapeLoop } from '../src/modules/scrape-comments/scrape-loop.ts';
 import { runScrapeComments } from '../src/modules/scrape-comments/run.ts';
 
@@ -84,8 +84,27 @@ describe('runScrapeComments', () => {
     expect(result.details.screenshotCount).toBe('1');
     expect(runCommentScrapeLoop).toHaveBeenCalled();
     expect(openBrowserSession).toHaveBeenCalledWith(context, true);
+    expect(closeBrowserSession).toHaveBeenCalled();
     expect(writeJsonFile).toHaveBeenCalled();
     expect(evaluate).toHaveBeenCalled();
     expect(waitForTimeout).toHaveBeenCalled();
+  });
+
+  it('closes the browser when navigation fails', async () => {
+    const close = vi.fn();
+    vi.mocked(openBrowserSession).mockResolvedValue({
+      browser: { close },
+      browserContext: {},
+      page: { goto: vi.fn().mockRejectedValue(new Error('navigation failed')) },
+    } as never);
+    vi.mocked(ensureOutputDirectory).mockResolvedValue('/tmp/out');
+
+    await expect(runScrapeComments(context, {
+      browserProfile: 'default', cwd: '/tmp/project', dryRun: false,
+      headful: true, json: false, noColor: false, noInput: false,
+      outDir: 'comments', plain: false, quiet: true,
+      url: 'https://www.instagram.com/p/abc/', verbose: false,
+    })).rejects.toThrow('navigation failed');
+    expect(closeBrowserSession).toHaveBeenCalledWith({ close });
   });
 });

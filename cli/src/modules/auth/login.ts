@@ -44,21 +44,27 @@ export const runAuthLogin = async (
 ): Promise<CliOutput> => {
   await ensureProfileDirectory(context);
   const session = await openLoginPage(context, options.headful);
-  await session.page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' });
-  await prepareAuthPage(session.page);
-  if (await isLoggedIn(session.page)) {
+  try {
+    await session.page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' });
+    await prepareAuthPage(session.page);
+    if (await isLoggedIn(session.page)) {
     await session.browserContext.storageState({ path: context.browserProfile.storageStatePath });
-    await closeBrowserSession(session.browser);
     return buildSuccess(context);
-  }
-  if (options.noInput || !canPromptLogin(input)) {
-    await closeBrowserSession(session.browser);
+    }
+    if (options.noInput || !canPromptLogin(input)) {
     return failResult('auth.login', 'auth login requires an interactive terminal');
+    }
+    await session.page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'domcontentloaded' });
+    await prepareAuthPage(session.page);
+    await waitForLoginConfirmation();
+    await session.page.waitForTimeout(1000);
+    await prepareAuthPage(session.page);
+    if (!(await isLoggedIn(session.page))) {
+    return failResult('auth.login', 'Instagram login was not completed');
+    }
+    await session.browserContext.storageState({ path: context.browserProfile.storageStatePath });
+    return buildSuccess(context);
+  } finally {
+    await closeBrowserSession(session.browser);
   }
-  await session.page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'domcontentloaded' });
-  await prepareAuthPage(session.page);
-  await waitForLoginConfirmation();
-  await session.browserContext.storageState({ path: context.browserProfile.storageStatePath });
-  await closeBrowserSession(session.browser);
-  return buildSuccess(context);
 };

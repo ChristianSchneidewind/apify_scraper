@@ -7,8 +7,17 @@ export const commentLikerSchema = Type.Object({
   username: Type.String(),
 });
 
+export const cliErrorCodeSchema = Type.Union([
+  Type.Literal('USAGE_ERROR'),
+  Type.Literal('BROWSER_ERROR'),
+  Type.Literal('AUTH_ERROR'),
+  Type.Literal('SCRAPE_ERROR'),
+  Type.Literal('INTERNAL_ERROR'),
+]);
+
 export const cliOutputSchema = Type.Object({
   command: commandNameSchema,
+  errorCode: Type.Optional(cliErrorCodeSchema),
   ok: Type.Boolean(),
   summary: Type.String(),
   details: Type.Record(Type.String(), Type.String()),
@@ -56,6 +65,7 @@ export const profilePageDataSchema = Type.Object({
   username: Type.Union([Type.String(), Type.Null()]),
 });
 
+export type CliErrorCode = Static<typeof cliErrorCodeSchema>;
 export type CliOutput = Static<typeof cliOutputSchema>;
 export type CommentLiker = Static<typeof commentLikerSchema>;
 export type CommentRecord = Static<typeof commentRecordSchema>;
