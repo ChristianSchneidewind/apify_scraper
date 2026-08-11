@@ -37,6 +37,17 @@ Try:
 The CLI should not click the normal reaction button for 0-like comments.
 Deep fallback is skipped when `likesCount === 0`.
 
+## Retry missing likers
+
+To retry comments that have likes but no collected likers, resume the checkpoint with:
+
+```bash
+npx tsx cli/src/bin/instagram.ts scrape comments \
+  --url "https://www.instagram.com/p/abc/" \
+  --resume "artifacts/comments/<run>/checkpoint.json" \
+  --retry-incomplete-likers
+```
+
 ## Resume interrupted runs
 
 Comment runs write `checkpoint.json` after each processed comment. Continue with:

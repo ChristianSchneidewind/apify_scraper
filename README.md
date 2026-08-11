@@ -36,7 +36,8 @@ npx tsx cli/src/bin/instagram.ts scrape comments \
 # Resume an interrupted run from its checkpoint
 npx tsx cli/src/bin/instagram.ts scrape comments \
   --url "https://www.instagram.com/p/abc/" \
-  --resume "artifacts/comments/<run>/checkpoint.json"
+  --resume "artifacts/comments/<run>/checkpoint.json" \
+  --retry-incomplete-likers
 
 npx tsx cli/src/bin/instagram.ts scrape profiles \
   --url "https://www.instagram.com/nasa/" \

@@ -13,6 +13,7 @@
 - Browser lifecycle cleanup and integration tests for failure paths.
 - Explicit expired-session detection with actionable `auth login` guidance.
 - Per-comment checkpoints and `--resume` support for interrupted comment runs.
+- `--retry-incomplete-likers` to retry comments with likes but no collected likers.
 
 ### Changed
 - Removed obsolete username/password `.env` configuration documentation.

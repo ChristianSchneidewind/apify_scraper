@@ -78,6 +78,7 @@ const buildLoopOptions = (
   ...(options.likerCollectionMode ? { likerCollectionMode: options.likerCollectionMode } : {}),
   ...(options.maxComments !== undefined ? { maxComments: options.maxComments } : {}),
   ...(options.maxCommentLikers !== undefined ? { maxCommentLikers: options.maxCommentLikers } : {}),
+  ...(options.retryIncompleteLikers ? { retryIncompleteLikers: true } : {}),
   ...(options.maxUiRounds !== undefined ? { maxUiRounds: options.maxUiRounds } : {}),
   ...(options.uiIdleRounds !== undefined ? { uiIdleRounds: options.uiIdleRounds } : {}),
 });
