@@ -1,5 +1,15 @@
 # Troubleshooting
 
+## Session expired / auth required
+
+If the CLI reports `Instagram session expired; run auth login first`, authenticate the same browser profile again:
+
+```bash
+npx tsx cli/src/bin/instagram.ts auth login --browser-profile "default"
+```
+
+Keep the same `--cwd` and `--browser-profile` values for subsequent scrapes.
+
 ## No comments captured
 
 Check:
@@ -26,6 +36,16 @@ Try:
 
 The CLI should not click the normal reaction button for 0-like comments.
 Deep fallback is skipped when `likesCount === 0`.
+
+## Resume interrupted runs
+
+Comment runs write `checkpoint.json` after each processed comment. Continue with:
+
+```bash
+npx tsx cli/src/bin/instagram.ts scrape comments \
+  --url "https://www.instagram.com/p/abc/" \
+  --resume "artifacts/comments/<run>/checkpoint.json"
+```
 
 ## Slow runs
 

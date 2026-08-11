@@ -11,6 +11,8 @@
 - Highlighted screenshots and multipart capture for long comments.
 - Likes and liker collection with best-effort and strict modes.
 - Browser lifecycle cleanup and integration tests for failure paths.
+- Explicit expired-session detection with actionable `auth login` guidance.
+- Per-comment checkpoints and `--resume` support for interrupted comment runs.
 
 ### Changed
 - Removed obsolete username/password `.env` configuration documentation.

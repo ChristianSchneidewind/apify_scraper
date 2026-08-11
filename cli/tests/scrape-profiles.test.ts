@@ -46,10 +46,11 @@ describe('runScrapeProfiles', () => {
       username: 'nasa',
     });
     const screenshot = vi.fn().mockResolvedValue(new Uint8Array([1, 2]));
+    const locator = vi.fn().mockReturnValue({ count: vi.fn().mockResolvedValue(0) });
     vi.mocked(openBrowserSession).mockResolvedValue({
       browser: { close: vi.fn() },
       browserContext: {},
-      page: { evaluate, goto, screenshot, waitForTimeout },
+      page: { evaluate, goto, locator, screenshot, waitForTimeout },
     } as never);
     vi.mocked(ensureOutputDirectory).mockResolvedValue('/tmp/out');
     vi.mocked(writeJsonFile).mockResolvedValue('/tmp/out/nasa.json');

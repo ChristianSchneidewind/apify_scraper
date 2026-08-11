@@ -37,6 +37,7 @@ const buildCli = () => {
   comments.option('--max-comments <n>', 'Maximum comments to capture (0 = unlimited)');
   comments.option('--max-ui-rounds <n>', 'Maximum UI expand/scroll rounds');
   comments.option('--out-dir <path>', 'Output directory');
+  comments.option('--resume <path>', 'Resume from a previous comments checkpoint');
   comments.option('--ui-idle-rounds <n>', 'Stop after N idle UI rounds');
   comments.example('instagram scrape comments --url "https://www.instagram.com/p/abc/" --out-dir "artifacts/comments"');
   comments.option('--url <url>', 'Instagram post or reel URL');

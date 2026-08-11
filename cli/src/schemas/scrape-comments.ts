@@ -1,5 +1,6 @@
 import { Type } from '@sinclair/typebox';
 import type { Static } from '@sinclair/typebox';
+import { commentRecordSchema } from './outputs.ts';
 import type { CommentRecord } from './outputs.ts';
 
 export const scrapeLoopOptionsSchema = Type.Object({
@@ -7,8 +8,10 @@ export const scrapeLoopOptionsSchema = Type.Object({
   maxCommentLikers: Type.Optional(Type.Number({ minimum: 0 })),
   maxComments: Type.Optional(Type.Number({ minimum: 0 })),
   maxUiRounds: Type.Optional(Type.Number({ minimum: 1 })),
+  initialComments: Type.Optional(Type.Array(commentRecordSchema)),
   outDir: Type.String({ minLength: 1 }),
   quiet: Type.Optional(Type.Boolean()),
+  sourceUrl: Type.Optional(Type.String()),
   uiIdleRounds: Type.Optional(Type.Number({ minimum: 1 })),
   verbose: Type.Optional(Type.Boolean()),
 });

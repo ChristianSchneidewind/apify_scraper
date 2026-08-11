@@ -1,4 +1,5 @@
 import type { CommentRecord, LikersPage, ScrapeLoopOptions } from '../../schemas/index.ts';
+import { writeJsonFile } from '../../adapters/filesystem/output.ts';
 import { listCommentRowLocators, listTimeLocators } from './extract-from-locator.ts';
 import { processCommentCandidate } from './process-comment.ts';
 import { getCommentContainer } from './ui-container.ts';
@@ -6,9 +7,14 @@ import { openCommentsPanel } from './page-setup.ts';
 import { expandAllReplyThreads, expandComments } from './ui-expand.ts';
 import { rescanComments, resetCommentsToTop } from './ui-rescan.ts';
 import { scrollCommentContainer } from './ui-scroll.ts';
+import { buildCommentIdentity, registerCommentSeen } from './comment-state.ts';
 
 const DEFAULT_MAX_UI_ROUNDS = 40;
 const DEFAULT_UI_IDLE_ROUNDS = 6;
+
+const saveCheckpoint = async (outDir: string, comments: CommentRecord[], sourceUrl?: string) => {
+  await writeJsonFile(outDir, 'checkpoint.json', { comments, sourceUrl: sourceUrl || '' }).catch(() => undefined);
+};
 
 const buildProcessState = () => ({
   count: 0,
@@ -32,7 +38,7 @@ const processRound = async (
   state: ReturnType<typeof buildProcessState>,
   comments: CommentRecord[],
   maxComments: number,
-  processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; outDir: string; quiet?: boolean; verbose?: boolean },
+  processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; outDir: string; quiet?: boolean; sourceUrl?: string; verbose?: boolean },
   passLabel = 'top-level',
 ) => {
   state.newInRound = 0;
@@ -43,7 +49,10 @@ const processRound = async (
   logRound(round, maxUiRounds, `${passLabel} locators ${locators.length}`, processOpts.quiet);
   for (const locator of locators) {
     const item = await processCommentCandidate(page, locator, state, processOpts);
-    if (item) comments.push(item);
+    if (item) {
+    comments.push(item);
+    await saveCheckpoint(processOpts.outDir, comments, processOpts.sourceUrl);
+    }
     if (maxComments && comments.length >= maxComments) return true;
   }
   logRound(round, maxUiRounds, `${passLabel} collected ${state.newInRound}, total ${comments.length}`, processOpts.quiet);
@@ -64,7 +73,7 @@ const runPass = async (
   options: ScrapeLoopOptions,
   state: ReturnType<typeof buildProcessState>,
   comments: CommentRecord[],
-  processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; outDir: string; quiet?: boolean; verbose?: boolean },
+  processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; outDir: string; quiet?: boolean; sourceUrl?: string; verbose?: boolean },
   passLabel: string,
   expandCommentsClicks: number,
   expandRepliesClicks: number,
@@ -99,11 +108,16 @@ export const runCommentScrapeLoop = async (
   page: Parameters<typeof listTimeLocators>[0] & LikersPage,
   options: ScrapeLoopOptions,
 ) => {
-  const comments: CommentRecord[] = [];
+  const comments: CommentRecord[] = [...(options.initialComments || [])];
   const state = buildProcessState();
-  const processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; outDir: string; quiet?: boolean; verbose?: boolean } = {
+  for (const comment of comments) {
+    const identity = buildCommentIdentity(comment);
+    registerCommentSeen(state, identity.strictKey, identity.looseKey, identity.permalink || null, null);
+  }
+  const processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; outDir: string; quiet?: boolean; sourceUrl?: string; verbose?: boolean } = {
     maxCommentLikers: options.maxCommentLikers ?? 0,
     outDir: options.outDir,
+    ...(options.sourceUrl ? { sourceUrl: options.sourceUrl } : {}),
   };
   if (options.likerCollectionMode !== undefined) processOpts.likerCollectionMode = options.likerCollectionMode;
   if (options.quiet !== undefined) processOpts.quiet = options.quiet;
