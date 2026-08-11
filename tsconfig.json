@@ -13,7 +13,7 @@
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "types": ["vitest/globals"]
+    "types": ["vitest/globals", "node"]
   },
   "include": ["cli/src/**/*.ts", "cli/tests/**/*.ts", "eslint.config.mjs"]
 }
