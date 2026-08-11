@@ -33,6 +33,11 @@ npx tsx cli/src/bin/instagram.ts scrape comments \
   --url "https://www.instagram.com/p/abc/" \
   --out-dir "artifacts/comments"
 
+# Resume an interrupted run from its checkpoint
+npx tsx cli/src/bin/instagram.ts scrape comments \
+  --url "https://www.instagram.com/p/abc/" \
+  --resume "artifacts/comments/<run>/checkpoint.json"
+
 npx tsx cli/src/bin/instagram.ts scrape profiles \
   --url "https://www.instagram.com/nasa/" \
   --profile-slug "nasa" \

@@ -19,11 +19,11 @@ vi.mock('../src/modules/scrape-comments/ui-scroll.ts', () => ({
   scrollCommentContainer: vi.fn(),
 }));
 
-const buildPage = () => ({
+const buildPage = (loginRequired = false) => ({
   evaluate: vi.fn().mockResolvedValue(undefined),
-  locator: vi.fn().mockImplementation(() => ({
+  locator: vi.fn().mockImplementation((selector: string) => ({
     click: vi.fn().mockResolvedValue(undefined),
-    count: vi.fn().mockResolvedValue(1),
+    count: vi.fn().mockResolvedValue(selector.includes('input[name') ? Number(loginRequired) : 1),
     elementHandles: vi.fn().mockResolvedValue([]),
   })),
   waitForTimeout: vi.fn().mockResolvedValue(undefined),
@@ -48,5 +48,10 @@ describe('prepareCommentsPage', () => {
     expect(page.evaluate).toHaveBeenCalled();
     expect(listCommentRowLocators).toHaveBeenCalled();
     expect(page.waitForTimeout).toHaveBeenCalled();
+  });
+
+  it('reports an expired Instagram session', async () => {
+    await expect(prepareCommentsPage(buildPage(true) as never, 2, 2))
+      .rejects.toThrow('Instagram session expired; run auth login first');
   });
 });

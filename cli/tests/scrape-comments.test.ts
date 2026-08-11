@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/adapters/playwright/browser.ts', () => ({
@@ -88,6 +89,32 @@ describe('runScrapeComments', () => {
     expect(writeJsonFile).toHaveBeenCalled();
     expect(evaluate).toHaveBeenCalled();
     expect(waitForTimeout).toHaveBeenCalled();
+  });
+
+  it('loads comments from a resume checkpoint', async () => {
+    const checkpoint = '/tmp/instagram-resume-checkpoint.json';
+    const initialComment = {
+      commentPermalink: '/p/abc/c/1', datetime: null, text: 'saved',
+      timeText: '1h', username: 'saved_user', userProfilePath: '/saved_user/',
+    };
+    await writeFile(checkpoint, JSON.stringify({ comments: [initialComment] }));
+    vi.mocked(openBrowserSession).mockResolvedValue({
+      browser: { close: vi.fn() }, browserContext: {},
+      page: { evaluate: vi.fn().mockResolvedValue(undefined), goto: vi.fn(), locator: vi.fn().mockReturnValue({ count: vi.fn().mockResolvedValue(0), elementHandles: vi.fn().mockResolvedValue([]), click: vi.fn() }), waitForTimeout: vi.fn() },
+    } as never);
+    vi.mocked(ensureOutputDirectory).mockResolvedValue('/tmp/out');
+    vi.mocked(runCommentScrapeLoop).mockResolvedValue([]);
+
+    await runScrapeComments(context, {
+      browserProfile: 'default', cwd: '/tmp/project', dryRun: false,
+      headful: true, json: false, noColor: false, noInput: false,
+      outDir: 'comments', plain: false, quiet: true,
+      resume: checkpoint, url: 'https://www.instagram.com/p/abc/', verbose: false,
+    });
+
+    expect(runCommentScrapeLoop).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      initialComments: [initialComment],
+    }));
   });
 
   it('closes the browser when navigation fails', async () => {

@@ -13,6 +13,7 @@ npx tsx cli/src/bin/instagram.ts <command>
 - `--plain`: stable line-oriented text output (`OK|ERROR`, command, summary, sorted `key=value` details).
 - `--headless`: run browser without visible UI (default is headful).
 - `--dry-run`: validate the command without opening a browser or writing artifacts.
+- `--resume <path>`: continue from a previous comments `checkpoint.json`.
 - Diagnostics, warnings, and validation errors go to stderr.
 - `--no-input` disables prompts; auth login requires an interactive TTY.
 
@@ -34,6 +35,14 @@ npx tsx cli/src/bin/instagram.ts scrape comments \
   --max-comments 0 \
   --max-ui-rounds 40 \
   --ui-idle-rounds 6
+```
+
+Each processed comment is checkpointed to `checkpoint.json` in the run directory. Resume an interrupted run with:
+
+```bash
+npx tsx cli/src/bin/instagram.ts scrape comments \
+  --url "https://www.instagram.com/p/abc/" \
+  --resume "artifacts/comments/<run>/checkpoint.json"
 ```
 
 Default: `--max-comment-likers 0` = all visible likers. `--max-comments 0` = no limit.

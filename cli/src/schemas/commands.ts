@@ -30,6 +30,7 @@ export const scrapeCommentsOptionsSchema = Type.Composite([
     maxComments: Type.Optional(Type.Number({ minimum: 0 })),
     maxUiRounds: Type.Optional(Type.Number({ minimum: 1 })),
     outDir: Type.Optional(Type.String({ minLength: 1 })),
+    resume: Type.Optional(Type.String({ minLength: 1 })),
     uiIdleRounds: Type.Optional(Type.Number({ minimum: 1 })),
     url: Type.String({ minLength: 1 }),
   }),

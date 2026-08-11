@@ -1,4 +1,4 @@
-import { prepareAuthPage } from '../../adapters/instagram/auth.ts';
+import { isLoginRequired, prepareAuthPage } from '../../adapters/instagram/auth.ts';
 import type { CommentPage } from '../../schemas/index.ts';
 import { focusFirstCommentRow, resetCommentScroll } from './comment-scroll-reset.ts';
 import { expandAllReplyThreads, expandComments } from './ui-expand.ts';
@@ -80,6 +80,9 @@ export const prepareCommentsPage = async (
   uiIdleRounds: number,
 ) => {
   await prepareAuthPage(page as never);
+  if (await isLoginRequired(page as never)) {
+    throw new Error('Instagram session expired; run auth login first');
+  }
   await preparePanel(page);
   await loadCommentsPage(page, maxUiRounds);
   const container = await getCommentContainer(page);

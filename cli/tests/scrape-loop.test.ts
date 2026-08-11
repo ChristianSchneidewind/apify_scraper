@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../src/adapters/filesystem/output.ts', () => ({
+  writeJsonFile: vi.fn().mockResolvedValue('/tmp/out/checkpoint.json'),
+}));
 vi.mock('../src/modules/scrape-comments/extract-from-locator.ts', () => ({
   computeCommentUid: vi.fn(),
   extractCommentFromItem: vi.fn(),
@@ -27,6 +30,7 @@ vi.mock('../src/modules/scrape-comments/page-setup.ts', () => ({
   openCommentsPanel: vi.fn(),
 }));
 
+import { writeJsonFile } from '../src/adapters/filesystem/output.ts';
 import {
   computeCommentUid,
   extractCommentFromItem,
@@ -59,6 +63,7 @@ const buildPage = () => ({
 describe('runCommentScrapeLoop', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(writeJsonFile).mockResolvedValue('/tmp/out/checkpoint.json');
     vi.mocked(openCommentsPanel).mockResolvedValue(undefined as never);
     vi.mocked(expandComments).mockResolvedValue(0);
     vi.mocked(expandAllReplyThreads).mockResolvedValue(0);
@@ -95,6 +100,7 @@ describe('runCommentScrapeLoop', () => {
     });
     expect(comments).toHaveLength(1);
     expect(comments[0]?.username).toBe('alice');
+    expect(writeJsonFile).toHaveBeenCalledWith('/tmp/out', 'checkpoint.json', expect.objectContaining({ comments }));
     expect(resetCommentsToTop).toHaveBeenCalled();
     expect(expandAllReplyThreads).toHaveBeenCalled();
   });
