@@ -81,12 +81,21 @@ CI=1 npm run guardrails
 └── package.json
 ```
 
-## Docs
+## Documentation
 
-- `docs/architecture.md`
-- `docs/cli-usage.md`
-- `docs/troubleshooting.md`
-- `docs/refactor-to-cli-status.md`
+- [`docs/getting-started.md`](docs/getting-started.md) — setup and first run
+- [`docs/cli-options.md`](docs/cli-options.md) — complete option reference
+- [`docs/output-format.md`](docs/output-format.md) — JSON fields and artifacts
+- [`docs/cli-usage.md`](docs/cli-usage.md) — command usage and validation
+- [`docs/troubleshooting.md`](docs/troubleshooting.md) — common problems
+- [`docs/architecture.md`](docs/architecture.md) — technical architecture
+
+## Known limitations
+
+- Instagram may expose only a subset of comments or likers.
+- Liker dialogs can open before their contents are available; incomplete collections are marked in the output.
+- UI selectors can require maintenance when Instagram changes its interface.
+- The CLI uses the Instagram UI rather than a private API.
 
 ## License
 
