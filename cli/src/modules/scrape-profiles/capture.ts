@@ -7,7 +7,6 @@ import {
   writeJsonFile,
 } from '../../adapters/filesystem/output.ts';
 import { prepareProfileScreenshotVisuals } from '../../adapters/instagram/visual.ts';
-import { setScreenshotBanner } from '../scrape-comments/capture/banner.ts';
 import { makeScreenshotUtc, makeUuid7 } from '../scrape-comments/capture/screenshot-session.ts';
 import type { ProfilePageData } from '../../schemas/index.ts';
 
@@ -17,6 +16,7 @@ const scriptPath = join(
   'browser-scripts/extract-profile.script',
 );
 const EXTRACT_PROFILE_BROWSER_SCRIPT = readFileSync(scriptPath, 'utf8');
+const PROFILE_BANNER_SCRIPT = readFileSync(join(dirname(scriptPath), 'set-profile-banner.script'), 'utf8');
 
 const RESERVED_SEGMENTS = new Set([
   'accounts',
@@ -68,7 +68,8 @@ export const captureProfilePage = async (
   await page.waitForTimeout(PROFILE_WAIT_MS);
   const profile = await extractProfilePageData(page, sourceUrl);
   const screenshotUuid = makeUuid7();
-  await page.evaluate(setScreenshotBanner, {
+  await page.evaluate((args: { body: string; text: string }) => new Function(`return (${args.body})`)()({ text: args.text }), {
+    body: PROFILE_BANNER_SCRIPT,
     text: `${sourceUrl}\n${makeScreenshotUtc()} | profile | ${screenshotUuid}`,
   });
   const screenshot = await page.screenshot({ fullPage: true });
