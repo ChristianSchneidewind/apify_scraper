@@ -77,6 +77,15 @@ const buildProfilesRequest = (argv: string[]) => ({
   },
 });
 
+const buildRepostsRequest = (argv: string[]) => ({
+  command: 'scrape.reposts',
+  options: {
+    ...buildGlobals(argv),
+    outDir: readFlag(argv, '--out-dir'),
+    url: readFlag(argv, '--url'),
+  },
+});
+
 const commandIndex = (argv: string[]) =>
   argv.findIndex((value) => value === 'auth' || value === 'scrape');
 
@@ -92,6 +101,9 @@ const buildRequest = (argv: string[]) => {
   }
   if (key === 'scrape profiles') {
     return buildProfilesRequest(input);
+  }
+  if (key === 'scrape reposts') {
+    return buildRepostsRequest(input);
   }
   return null;
 };

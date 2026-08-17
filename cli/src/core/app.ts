@@ -2,6 +2,7 @@ import { cac } from 'cac';
 import { runAuthLogin } from '../modules/auth/login.ts';
 import { runScrapeComments } from '../modules/scrape-comments/run.ts';
 import { runScrapeProfiles } from '../modules/scrape-profiles/run.ts';
+import { runScrapeReposts } from '../modules/scrape-reposts/run.ts';
 import { normalizeArgv, parseCommandRequest } from './argv.ts';
 import { createRuntimeContext } from './context.ts';
 import { failFromReason, failResult, okResult } from './result.ts';
@@ -25,6 +26,7 @@ const buildCli = () => {
   const auth = cli.command('auth login', 'Log into Instagram');
   const comments = cli.command('scrape comments', 'Scrape Instagram comments');
   const profiles = cli.command('scrape profiles', 'Scrape Instagram profiles');
+  const reposts = cli.command('scrape reposts', 'Capture Instagram profile reposts');
   cli.example('instagram auth login --browser-profile "default"');
   cli.example('instagram scrape comments --url "https://www.instagram.com/p/abc/"');
   cli.example('instagram scrape profiles --url "https://www.instagram.com/nasa/" --profile-slug "nasa" --out-dir "artifacts/profiles" --json');
@@ -33,6 +35,7 @@ const buildCli = () => {
   addGlobalOptions(auth);
   addGlobalOptions(comments);
   addGlobalOptions(profiles);
+  addGlobalOptions(reposts);
   comments.option('--liker-collection-mode <mode>', 'Liker collection mode (best_effort|strict)');
   comments.option('--liker-retry-attempts <n>', 'Additional liker collection attempts');
   comments.option('--liker-retry-delay-ms <n>', 'Initial delay between liker retries in milliseconds');
@@ -50,7 +53,10 @@ const buildCli = () => {
   profiles.option('--profile-slug <slug>', 'Profile output slug');
   profiles.example('instagram scrape profiles --url "https://www.instagram.com/nasa/" --profile-slug "nasa" --out-dir "artifacts/profiles" --json');
   profiles.option('--url <url>', 'Instagram profile URL');
-  return { auth, cli, comments, profiles };
+  reposts.option('--out-dir <path>', 'Output directory');
+  reposts.example('instagram scrape reposts --url "https://www.instagram.com/nasa/" --out-dir "artifacts/reposts"');
+  reposts.option('--url <url>', 'Instagram profile URL');
+  return { auth, cli, comments, profiles, reposts };
 };
 
 const dryRunSummary = (command: string) => `dry run: would execute ${command}`;
@@ -73,7 +79,10 @@ const runCommand = async (argv: string[]) => {
   if (request.command === 'scrape.comments') {
     return runScrapeComments(context, request.options);
   }
-  return runScrapeProfiles(context, request.options);
+  if (request.command === 'scrape.profiles') {
+    return runScrapeProfiles(context, request.options);
+  }
+  return runScrapeReposts(context, request.options);
 };
 
 const wantsRenderedHelp = (argv: string[]) => {
@@ -93,6 +102,7 @@ const renderHelp = (argv: string[]) => {
   if (key === 'auth login') return built.auth.outputHelp();
   if (key === 'scrape comments') return built.comments.outputHelp();
   if (key === 'scrape profiles') return built.profiles.outputHelp();
+  if (key === 'scrape reposts') return built.reposts.outputHelp();
   return built.cli.outputHelp();
 };
 

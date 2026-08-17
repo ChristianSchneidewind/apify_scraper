@@ -1,0 +1,12 @@
+() => {
+  const images = Array.from(document.images);
+  return Promise.all(images.map((image) => {
+    if (image.complete) return Promise.resolve();
+    return new Promise((resolve) => {
+      const finish = () => resolve();
+      image.addEventListener('load', finish, { once: true });
+      image.addEventListener('error', finish, { once: true });
+      setTimeout(finish, 5000);
+    });
+  }));
+}

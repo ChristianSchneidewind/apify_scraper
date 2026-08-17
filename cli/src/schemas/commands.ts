@@ -5,6 +5,7 @@ export const commandNameSchema = Type.Union([
   Type.Literal('auth.login'),
   Type.Literal('scrape.comments'),
   Type.Literal('scrape.profiles'),
+  Type.Literal('scrape.reposts'),
 ]);
 
 export const globalOptionsSchema = Type.Object({
@@ -40,6 +41,14 @@ export const scrapeCommentsOptionsSchema = Type.Composite([
   }),
 ]);
 
+export const scrapeRepostsOptionsSchema = Type.Composite([
+  globalOptionsSchema,
+  Type.Object({
+    outDir: Type.String({ minLength: 1 }),
+    url: Type.String({ minLength: 1 }),
+  }),
+]);
+
 export const scrapeProfilesOptionsSchema = Type.Composite([
   globalOptionsSchema,
   Type.Object({
@@ -64,10 +73,16 @@ export const scrapeProfilesRequestSchema = Type.Object({
   options: scrapeProfilesOptionsSchema,
 });
 
+export const scrapeRepostsRequestSchema = Type.Object({
+  command: Type.Literal('scrape.reposts'),
+  options: scrapeRepostsOptionsSchema,
+});
+
 export const commandRequestSchema = Type.Union([
   authLoginRequestSchema,
   scrapeCommentsRequestSchema,
   scrapeProfilesRequestSchema,
+  scrapeRepostsRequestSchema,
 ]);
 
 export type CommandName = Static<typeof commandNameSchema>;
@@ -75,4 +90,5 @@ export type GlobalOptions = Static<typeof globalOptionsSchema>;
 export type AuthLoginOptions = Static<typeof authLoginOptionsSchema>;
 export type ScrapeCommentsOptions = Static<typeof scrapeCommentsOptionsSchema>;
 export type ScrapeProfilesOptions = Static<typeof scrapeProfilesOptionsSchema>;
+export type ScrapeRepostsOptions = Static<typeof scrapeRepostsOptionsSchema>;
 export type CommandRequest = Static<typeof commandRequestSchema>;

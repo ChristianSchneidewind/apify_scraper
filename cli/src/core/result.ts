@@ -50,7 +50,7 @@ export const exitCodeForResult = (result: CliOutput) => {
   if (result.command === 'auth.login') {
     return result.errorCode === 'BROWSER_ERROR' ? 4 : 3;
   }
-  if (result.command === 'scrape.comments' || result.command === 'scrape.profiles') {
+  if (result.command === 'scrape.comments' || result.command === 'scrape.profiles' || result.command === 'scrape.reposts') {
     return result.errorCode === 'BROWSER_ERROR' ? 4 : 5;
   }
   return 1;
