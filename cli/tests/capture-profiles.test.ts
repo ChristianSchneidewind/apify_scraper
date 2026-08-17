@@ -14,6 +14,7 @@ import {
 import {
   captureProfilePage,
   extractUsernameFromUrl,
+  makeProfileRunFolder,
   persistProfileArtifacts,
   resolveProfileSlug,
 } from '../src/modules/scrape-profiles/capture.ts';
@@ -35,6 +36,12 @@ describe('resolveProfileSlug', () => {
 describe('extractUsernameFromUrl', () => {
   it('rejects non-profile urls', () => {
     expect(extractUsernameFromUrl('https://www.instagram.com/p/abc/')).toBeNull();
+  });
+});
+
+describe('makeProfileRunFolder', () => {
+  it('includes timestamp and profile slug', () => {
+    expect(makeProfileRunFolder('nasa')).toMatch(/^\d{8}T\d{6}Z_nasa$/);
   });
 });
 
@@ -63,6 +70,9 @@ describe('captureProfilePage', () => {
     expect(result.profile.username).toBe('nasa');
     expect(result.profile.sourceUrl).toBe('https://www.instagram.com/nasa/');
     expect(result.screenshot).toEqual(new Uint8Array([9]));
+    expect(evaluate).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({
+      text: expect.stringContaining('| profile |'),
+    }));
   });
 });
 
