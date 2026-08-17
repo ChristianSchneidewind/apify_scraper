@@ -48,6 +48,15 @@ The command opens Instagram and waits for manual login. The resulting session is
 | `--profile-slug <slug>` | Output slug; inferred from URL when omitted |
 | `--out-dir <path>` | Artifact directory; required |
 
+## `scrape reposts`
+
+| Option | Description |
+| --- | --- |
+| `--url <url>` | Instagram profile URL; `/reposts` is added automatically |
+| `--out-dir <path>` | Artifact directory; required |
+
+The command first scrolls to the end of the reposts page to trigger lazy loading, then returns to the top and saves viewport-sized screenshots through the end. A manifest JSON file is written alongside the screenshots.
+
 ## Exit codes
 
 - `0`: success

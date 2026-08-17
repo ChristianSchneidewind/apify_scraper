@@ -7,6 +7,7 @@ TypeScript-only Instagram scraping CLI.
 - `instagram auth login`
 - `instagram scrape comments --url ...`
 - `instagram scrape profiles --url ... --profile-slug ... --out-dir ...`
+- `instagram scrape reposts --url ... --out-dir ...`
 
 ## Features
 
@@ -16,6 +17,7 @@ TypeScript-only Instagram scraping CLI.
 - Per-comment highlighted screenshots
 - Multipart capture for long comments
 - Profile scraping with JSON + screenshot output
+- Repost scraping with per-profile screenshot folders
 
 ## Setup
 
@@ -44,6 +46,10 @@ npx tsx cli/src/bin/instagram.ts scrape profiles \
   --profile-slug "nasa" \
   --out-dir "artifacts/profiles" \
   --json
+
+npx tsx cli/src/bin/instagram.ts scrape reposts \
+  --url "https://www.instagram.com/nasa/" \
+  --out-dir "artifacts/reposts"
 ```
 
 Defaults:

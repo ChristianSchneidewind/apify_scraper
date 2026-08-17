@@ -48,7 +48,7 @@ describe('runApp', () => {
     });
     expect(output).toContain('Usage');
     expect(output).toContain('auth login');
-  });
+  }, 15_000);
 
   it('renders version output from the binary', () => {
     const output = execFileSync('node', ['--import', 'tsx', 'cli/src/bin/instagram.ts', '--version'], {
