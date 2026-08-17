@@ -46,7 +46,9 @@ The command opens Instagram and waits for manual login. The resulting session is
 | --- | --- |
 | `--url <url>` | Instagram profile URL; required |
 | `--profile-slug <slug>` | Output slug; inferred from URL when omitted |
-| `--out-dir <path>` | Artifact directory; required |
+| `--out-dir <path>` | Artifact directory; required. Each run creates a timestamped profile folder. |
+
+Profile screenshots include a provenance banner and are stored together with the profile JSON in a `<timestamp>_<profile>/` folder.
 
 ## `scrape reposts`
 

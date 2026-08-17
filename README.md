@@ -16,7 +16,7 @@ TypeScript-only Instagram scraping CLI.
 - Likes + likers extraction
 - Per-comment highlighted screenshots
 - Multipart capture for long comments
-- Profile scraping with JSON + screenshot output
+- Profile scraping with JSON + timestamped screenshot folders and provenance banners
 - Repost scraping with per-profile screenshot folders
 
 ## Setup

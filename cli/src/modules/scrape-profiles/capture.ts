@@ -7,6 +7,7 @@ import {
   writeJsonFile,
 } from '../../adapters/filesystem/output.ts';
 import { prepareProfileScreenshotVisuals } from '../../adapters/instagram/visual.ts';
+import { makeScreenshotUtc, makeUuid7 } from '../scrape-comments/capture/screenshot-session.ts';
 import type { ProfilePageData } from '../../schemas/index.ts';
 
 const PROFILE_WAIT_MS = 3000;
@@ -15,6 +16,7 @@ const scriptPath = join(
   'browser-scripts/extract-profile.script',
 );
 const EXTRACT_PROFILE_BROWSER_SCRIPT = readFileSync(scriptPath, 'utf8');
+const PROFILE_BANNER_SCRIPT = readFileSync(join(dirname(scriptPath), 'set-profile-banner.script'), 'utf8');
 
 const RESERVED_SEGMENTS = new Set([
   'accounts',
@@ -65,8 +67,20 @@ export const captureProfilePage = async (
   await prepareProfileScreenshotVisuals(page);
   await page.waitForTimeout(PROFILE_WAIT_MS);
   const profile = await extractProfilePageData(page, sourceUrl);
+  const screenshotUuid = makeUuid7();
+  await page.evaluate((args: { body: string; text: string }) => new Function(`return (${args.body})`)()({ text: args.text }), {
+    body: PROFILE_BANNER_SCRIPT,
+    text: `${sourceUrl}\n${makeScreenshotUtc()} | profile | ${screenshotUuid}`,
+  });
   const screenshot = await page.screenshot({ fullPage: true });
   return { profile, screenshot };
+};
+
+export const makeProfileRunFolder = (slug: string) => {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const timestamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
+  return `${timestamp}_${slug}`;
 };
 
 export const persistProfileArtifacts = async (
@@ -76,7 +90,7 @@ export const persistProfileArtifacts = async (
   profile: ProfilePageData,
   screenshot: Uint8Array,
 ) => {
-  const dir = await ensureOutputDirectory(cwd, outDir);
+  const dir = await ensureOutputDirectory(cwd, join(outDir, makeProfileRunFolder(slug)));
   const jsonPath = await writeJsonFile(dir, `${slug}.json`, profile);
   const screenshotPath = await writeBinaryFile(dir, `${slug}.png`, screenshot);
   return { jsonPath, screenshotPath };
