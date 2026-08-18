@@ -2,7 +2,8 @@ import type { CommentLiker, CommentRecord, LikersPage, OpenLikesResult, TimeLoca
 import { normalizeCommentLikers } from '../comment-state.ts';
 import { refindCommentRowHandle } from '../extract-from-locator.ts';
 import { waitForDialogOpen } from './collect-dialog.ts';
-import { clickLikesInCurrentPage, openLikesDeepLink } from './open-deep.ts';
+import { clickLikesInCurrentPage } from './open-deep.ts';
+import { tryDeepFallback } from './deep-fallback.ts';
 import { openLikesInline } from './open-inline.ts';
 import { hasEnoughLikers, readLikersCache, writeLikersCache } from './enrich-cache.ts';
 import { closeDialog, collectLikers, collectStrictRetry } from './enrich-collect.ts';
@@ -41,33 +42,6 @@ const logLikersDebug = (verbose: boolean | undefined, message: string) => {
 
 const warnLikers = (message: string) => {
   process.stderr.write(`[scrape.comments][likers][warn] ${message}\n`);
-};
-
-const openContextPage = async (page: LikersPage) => {
-  const ctx = typeof (page as { context?: unknown }).context === 'function'
-    ? (page as unknown as { context: () => { newPage: () => Promise<LikersPage> } }).context()
-    : (page as { context?: { newPage: () => Promise<LikersPage> } }).context;
-  if (!ctx?.newPage) throw new Error('context.newPage unavailable');
-  return ctx.newPage();
-};
-
-const tryDeepFallback = async (
-  page: LikersPage,
-  commentUrl: string,
-  commentPermalink: string,
-  likesCount: number,
-  verbose?: boolean,
-) => {
-  const nextPage = await Promise.allSettled([openContextPage(page)]);
-  if (nextPage[0]?.status !== 'fulfilled') return { likesCount, page, reason: 'deep_new_page_failed', worked: false };
-  const p2 = nextPage[0].value;
-  const deep = await Promise.allSettled([openLikesDeepLink(p2 as never, commentUrl, commentPermalink, verbose)]);
-  if (deep[0]?.status !== 'fulfilled') return { likesCount, page, reason: 'deep_open_failed', worked: false };
-  const result = deep[0].value;
-  const deepLikes = Number(result.likesCount ?? likesCount);
-  if (!result.clicked) return { likesCount: deepLikes, page, reason: result.reason, worked: false };
-  await p2.waitForTimeout(1200);
-  return { likesCount: deepLikes, page: p2, reason: result.reason, worked: true };
 };
 
 const applyCachedLikers = (
@@ -177,13 +151,18 @@ const countVisibleLikerLinks = () => {
   }).length;
 };
 
+const pressReelSafePageDown = async (page: LikersPage, isReel: boolean, enabled: boolean) => {
+  if (!isReel && enabled && page.keyboard?.press) await page.keyboard.press('PageDown').catch(() => undefined);
+};
+
+
 const waitForDialogLikersReady = async (page: LikersPage, verbose?: boolean) => {
+  const currentUrl = typeof page.url === 'function' ? page.url() : '';
+  const isReel = /\/reels?\//.test(currentUrl);
   for (let i = 0; i < 40; i += 1) {
     const count = await Promise.resolve(page.evaluate(countVisibleLikerLinks, undefined as never)).catch(() => null);
     if (count === null || count === undefined || count > 0) return true;
-    if ((i === 10 || i === 20) && page.keyboard?.press) {
-    await page.keyboard.press('PageDown').catch(() => undefined);
-    }
+    await pressReelSafePageDown(page, isReel, i === 10 || i === 20);
     await page.waitForTimeout(500);
   }
   logLikersDebug(verbose, 'dialogReady=false reason=no_visible_liker_links_after_20s');
@@ -230,20 +209,34 @@ export const enrichCommentLikers = async (
   retryConfig?: { retryAttempts?: number; retryDelayMs?: number; timeoutMs?: number },
 ) => {
   const commentPermalink = data.commentPermalink;
-  const commentUrl = buildCommentUrl(commentPermalink);
+  const commentUrl = buildCommentUrl(data.parentCommentPermalink || commentPermalink);
   const extractedLikes = Number(data.likesCount ?? 0) || 0;
   data.commentLikers = [];
   if (applyCachedLikers(data, commentPermalink, extractedLikes, maxCommentLikers, verbose)) return data;
 
-  const inline = await openInlineWithRefind(page, handle, data, commentPermalink, extractedLikes, verbose);
-  const current = await openCurrentIfNeeded(page, data, commentPermalink, inline.clicked, inline.currentReason, inline.inlineLikes, verbose);
+  const currentUrl = typeof page.url === 'function' ? page.url() : '';
+  const isReel = /\/reels?\//.test(currentUrl);
+  if (isReel && data.parentCommentPermalink) {
+    setLikerStatus(data, [], 'reel_reply_likers_unavailable');
+    return data;
+  }
+  const inline = isReel
+    ? { clicked: false, currentReason: 'reel_deep_isolation', inlineLikes: extractedLikes }
+    : await openInlineWithRefind(page, handle, data, commentPermalink, extractedLikes, verbose);
+  const current = isReel
+    ? { clicked: false, currentReason: inline.currentReason }
+    : await openCurrentIfNeeded(page, data, commentPermalink, inline.clicked, inline.currentReason, inline.inlineLikes, verbose);
   const deep = await openDeepIfNeeded(page, data, commentUrl, commentPermalink, current.clicked, current.currentReason, inline.inlineLikes, verbose);
   if (!deep.clicked) {
     setLikerStatus(data, [], deep.currentReason ?? 'likes_dialog_not_opened');
     logLikersDebug(verbose, `user=${data.username} stop=no_click finalLikes=${data.likesCount} reason=${deep.currentReason ?? 'n/a'}`);
     return data;
   }
-  return collectFromOpenDialog(deep.workedPage, data, commentPermalink, maxCommentLikers, likerCollectionMode, verbose, retryConfig);
+  const result = await collectFromOpenDialog(deep.workedPage, data, commentPermalink, maxCommentLikers, likerCollectionMode, verbose, retryConfig);
+  if (deep.workedPage !== page) {
+    await (deep.workedPage as LikersPage & { close?: () => Promise<void> }).close?.().catch(() => undefined);
+  }
+  return result;
 };
 
 export { clearLikersCacheForTests } from './enrich-cache.ts';

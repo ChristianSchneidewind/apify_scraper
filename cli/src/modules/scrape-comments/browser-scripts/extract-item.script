@@ -100,6 +100,17 @@ const username = rawUsername.replace(/\s+/g, '').replace(/verified$/i, '');
 const userProfilePath = usernameLink?.getAttribute('href') || null;
 const profileSlug = profileSlugFromHref(userProfilePath);
 const commentPermalink = item.querySelector('a[href*="/c/"]')?.getAttribute('href') ?? null;
+const replyList = item.closest?.('ul') || null;
+const replyParentText = (replyList?.parentElement?.textContent || '').toLowerCase();
+const isReply = replyParentText.includes('hide all replies') || replyParentText.includes('antworten verbergen');
+let parentCommentPermalink = null;
+let replyAncestor = replyList?.parentElement || null;
+for (let depth = 0; isReply && depth < 8 && replyAncestor && !parentCommentPermalink; depth += 1) {
+  const outsideReplyList = Array.from(replyAncestor.querySelectorAll('a[href*="/c/"]'))
+    .find((anchor) => !replyList?.contains?.(anchor));
+  parentCommentPermalink = outsideReplyList?.getAttribute('href') || null;
+  replyAncestor = replyAncestor.parentElement;
+}
 if (!isValidUsername(username)) return null;
 
 const timeEl = item.querySelector('time');
@@ -165,6 +176,7 @@ if (text && text.length >= 1) {
     timeText,
     likesCount: likesInfo.likesCount,
     commentLikers: likesInfo.likers,
+    parentCommentPermalink,
     isGifOnly: false,
   };
 }
@@ -178,6 +190,7 @@ if (hasGif && cleaned.length === 0) {
     timeText,
     likesCount: likesInfo.likesCount,
     commentLikers: likesInfo.likers,
+    parentCommentPermalink,
     isGifOnly: true,
   };
 }

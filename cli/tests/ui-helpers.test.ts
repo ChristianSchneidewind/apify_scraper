@@ -23,6 +23,7 @@ const evaluatePage = () => ({
 describe('ui helpers', () => {
   beforeEach(() => {
     setLocation({ pathname: '/p/abc/' });
+    delete (globalThis as typeof globalThis & { __instagramCliReplyAttempts?: Map<string, number> }).__instagramCliReplyAttempts;
   });
 
   it('finds the first matching comment container', async () => {
@@ -71,8 +72,8 @@ describe('ui helpers', () => {
       value: class { constructor(_name: string, _opts: unknown) {} },
     });
     const result = await expandAllReplyThreads(evaluatePage() as never, 5);
-    expect(result).toBe(1);
-    expect(clicks).toBe(1);
+    expect(result).toBe(3);
+    expect(clicks).toBe(3);
   });
 
   it('scrolls the window when no container exists', async () => {

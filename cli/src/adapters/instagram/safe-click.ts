@@ -35,7 +35,7 @@ export const buildSafeClickHelpers = (opts: { includeLikeText?: boolean } = {}) 
     '};',
   ];
   if (opts.includeLikeText) {
-    parts.push('const isLikeText = (s) => /(\\d+[\\d.,]*\\s*likes?)/i.test(s || "") || /(\\d+[\\d.,]*\\s*gefällt\\s*mir(?:-angaben|\\s*mal)?)/i.test(s || "") || /(gefällt\\s+\\d+[\\d.,]*\\s*mal)/i.test(s || "");');
+    parts.push('const isLikeText = (s) => /^\\s*\\d+[\\d.,]*\\s*likes?\\s*$/i.test(s || "") || /^\\s*\\d+[\\d.,]*\\s*gefällt\\s*mir(?:-angaben|\\s*mal)?\\s*$/i.test(s || "") || /^\\s*gefällt\\s+\\d+[\\d.,]*\\s*mal\\s*$/i.test(s || "");');
   }
   return parts.join('\n');
 };

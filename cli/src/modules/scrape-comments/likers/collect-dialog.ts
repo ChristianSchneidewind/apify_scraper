@@ -83,6 +83,10 @@ const handleStagnantEnd = async (
   return { failedRewinds: rewind.failedRewinds, rewindAttempts: rewind.rewindAttempts, shouldBreak: rewind.stop };
 };
 
+const pressDialogNavigation = async (page: LikersDialogPage, key: string, enabled: boolean) => {
+  if (enabled && page.keyboard?.press) await page.keyboard.press(key).catch(() => undefined);
+};
+
 export const collectLikersFromDialog = async (
   page: LikersDialogPage,
   maxCommentLikers: number,
@@ -95,6 +99,10 @@ export const collectLikersFromDialog = async (
   const targetCount = resolveTargetCount(maxCommentLikers, likesCount);
   const maxRounds = resolveMaxRounds(maxCommentLikers, likesCount);
   const maxStagnant = maxCommentLikers === 0 ? 8 : 3;
+  const currentUrl = typeof (page as LikersDialogPage & { url?: () => string }).url === 'function'
+    ? (page as LikersDialogPage & { url: () => string }).url()
+    : '';
+  const isReel = /\/reels?\//.test(currentUrl);
   let stagnant = 0;
   let rewindAttempts = 0;
   let failedRewinds = 0;
@@ -109,7 +117,7 @@ export const collectLikersFromDialog = async (
     logRoundDebug(verbose, round, batch, added, likers.length);
     if (shouldStopAfterBatch(likers, maxCommentLikers, targetCount)) break;
     stagnant = added === 0 ? stagnant + 1 : 0;
-    if (stagnant > 0 && page.keyboard?.press) await page.keyboard.press(batch.canScroll ? 'PageDown' : 'End').catch(() => undefined);
+    await pressDialogNavigation(page, batch.canScroll ? 'PageDown' : 'End', !isReel && stagnant > 0);
     const rewind = !batch.canScroll && stagnant >= maxStagnant ? await handleStagnantEnd(page, seen, likers, maxCommentLikers, targetCount, rewindAttempts, failedRewinds) : null;
     rewindAttempts = rewind?.rewindAttempts ?? rewindAttempts;
     failedRewinds = rewind?.failedRewinds ?? failedRewinds;

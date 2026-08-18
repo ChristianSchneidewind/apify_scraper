@@ -4,6 +4,7 @@ vi.mock('../src/modules/scrape-comments/extract-from-locator.ts', () => ({
   computeCommentUid: vi.fn(),
   extractCommentFromItem: vi.fn(),
   extractCommentFromTime: vi.fn(),
+  refindCommentRowHandle: vi.fn(),
   resolveCommentRowHandle: vi.fn(),
 }));
 vi.mock('../src/adapters/instagram/highlight.ts', () => ({
@@ -11,9 +12,6 @@ vi.mock('../src/adapters/instagram/highlight.ts', () => ({
 }));
 vi.mock('../src/adapters/instagram/visual.ts', () => ({
   prepareCommentScreenshotVisuals: vi.fn(),
-}));
-vi.mock('../src/modules/scrape-comments/likers/enrich.ts', () => ({
-  enrichCommentLikers: vi.fn(),
 }));
 vi.mock('../src/modules/scrape-comments/capture/capture.ts', () => ({
   captureCommentAssets: vi.fn(),
@@ -34,9 +32,9 @@ import {
   computeCommentUid,
   extractCommentFromItem,
   extractCommentFromTime,
+  refindCommentRowHandle,
   resolveCommentRowHandle,
 } from '../src/modules/scrape-comments/extract-from-locator.ts';
-import { enrichCommentLikers } from '../src/modules/scrape-comments/likers/enrich.ts';
 import { processCommentCandidate } from '../src/modules/scrape-comments/process-comment.ts';
 
 const baseData = {
@@ -52,6 +50,7 @@ const buildState = () => ({
   count: 0,
   lastScreenshotHash: null as string | null,
   newInRound: 0,
+  needsLocatorRefresh: false,
   seenLoose: new Set<string>(),
   seenPermalink: new Set<string>(),
   seenStrict: new Set<string>(),
@@ -87,12 +86,11 @@ describe('processCommentCandidate', () => {
     expect(result).toBeNull();
   });
 
-  it('keeps failed highlight candidates skipped', async () => {
+  it('releases failed highlight candidates for a tighter retry', async () => {
     vi.mocked(extractCommentFromItem).mockResolvedValue(baseData);
     vi.mocked(computeCommentUid).mockResolvedValue('uid-1');
     const rowHandle = {} as never;
     vi.mocked(resolveCommentRowHandle).mockResolvedValue(rowHandle);
-    vi.mocked(enrichCommentLikers).mockResolvedValue(baseData);
     vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: false, reason: 'not_ready' });
 
     const state = buildState();
@@ -105,12 +103,46 @@ describe('processCommentCandidate', () => {
 
     expect(result).toBeNull();
     expect(state.count).toBe(0);
-    expect(state.seenStrict.size).toBe(1);
-    expect(state.seenLoose.size).toBe(1);
-    expect(state.seenPermalink.size).toBe(1);
-    expect(state.seenUid.size).toBe(1);
-    expect(ensureHighlightReady).toHaveBeenCalledWith(expect.anything(), baseData);
+    expect(state.seenStrict.size).toBe(0);
+    expect(state.seenLoose.size).toBe(0);
+    expect(state.seenPermalink.size).toBe(0);
+    expect(state.seenUid.size).toBe(0);
+    expect(ensureHighlightReady).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      ...baseData,
+      commentLikers: [],
+      likersReason: 'liker_collection_disabled',
+    }));
     expect(prepareCommentScreenshotVisuals).not.toHaveBeenCalled();
+    expect(state.needsLocatorRefresh).toBe(true);
+  });
+
+  it('captures a candidate after refinding its virtualized row', async () => {
+    vi.mocked(extractCommentFromItem).mockResolvedValue(baseData);
+    vi.mocked(computeCommentUid).mockResolvedValue('uid-1');
+    const staleHandle = {} as never;
+    const freshHandle = {} as never;
+    vi.mocked(resolveCommentRowHandle).mockResolvedValue(staleHandle);
+    vi.mocked(refindCommentRowHandle).mockResolvedValue(freshHandle);
+    vi.mocked(ensureHighlightReady)
+      .mockResolvedValueOnce({ ok: false, reason: 'detached_no_fallback' })
+      .mockResolvedValueOnce({ ok: true });
+    vi.mocked(captureCommentAssets).mockResolvedValue({
+      lastScreenshotHash: 'hash-1',
+      metadataPath: '/tmp/out/uuid-1.json',
+      screenshotKeys: ['uuid-1.png'],
+      screenshotPaths: ['uuid-1.png'],
+    });
+
+    const result = await processCommentCandidate(
+      buildPage() as never,
+      {} as never,
+      buildState(),
+      { maxCommentLikers: 25, outDir: '/tmp/out' },
+    );
+
+    expect(result).toMatchObject({ commentPermalink: '/p/abc/c/1' });
+    expect(refindCommentRowHandle).toHaveBeenCalledWith(expect.anything(), expect.objectContaining(baseData));
+    expect(prepareCommentScreenshotVisuals).toHaveBeenCalledWith(expect.anything(), freshHandle);
   });
 
   it('skips candidates already seen by permalink', async () => {
@@ -129,17 +161,12 @@ describe('processCommentCandidate', () => {
     expect(result).toBeNull();
   });
 
-  it('wires likers enrichment and capture on success', async () => {
+  it('captures without collecting liker profiles', async () => {
     vi.mocked(extractCommentFromItem).mockResolvedValue(baseData);
     vi.mocked(computeCommentUid).mockResolvedValue('uid-1');
     vi.mocked(resolveCommentRowHandle).mockResolvedValue({} as never);
     vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: true });
     vi.mocked(prepareCommentScreenshotVisuals).mockResolvedValue(undefined);
-    vi.mocked(enrichCommentLikers).mockResolvedValue({
-      ...baseData,
-      commentLikers: [{ profileUrl: 'https://www.instagram.com/bob/', username: 'bob' }],
-      likesCount: 1,
-    });
     vi.mocked(captureCommentAssets).mockResolvedValue({
       lastScreenshotHash: 'hash-1',
       metadataPath: '/tmp/out/uuid-1.json',
@@ -158,10 +185,11 @@ describe('processCommentCandidate', () => {
     expect(result).toMatchObject({
       ...baseData,
       commentDeepLink: 'https://www.instagram.com/p/abc/?comment_id=1',
-      commentLikers: [{ profileUrl: 'https://www.instagram.com/bob/', username: 'bob' }],
+      commentLikers: [],
       commentUrl: 'https://www.instagram.com/p/abc/c/1',
       index: 1,
-      likesCount: 1,
+      likersComplete: false,
+      likersReason: 'liker_collection_disabled',
       metadataPath: '/tmp/out/uuid-1.json',
       multipartNeedsReview: false,
       partsTotal: 1,
@@ -183,11 +211,6 @@ describe('processCommentCandidate', () => {
     vi.mocked(resolveCommentRowHandle).mockResolvedValue({} as never);
     vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: true });
     vi.mocked(prepareCommentScreenshotVisuals).mockResolvedValue(undefined);
-    vi.mocked(enrichCommentLikers).mockResolvedValue({
-      ...baseData,
-      commentLikers: [],
-      likesCount: 0,
-    });
     vi.mocked(captureCommentAssets).mockRejectedValue(new Error('boom'));
 
     const state = buildState();
@@ -204,7 +227,8 @@ describe('processCommentCandidate', () => {
       commentLikers: [],
       commentUrl: 'https://www.instagram.com/p/abc/c/1',
       index: 1,
-      likesCount: 0,
+      likersComplete: false,
+      likersReason: 'liker_collection_disabled',
       metadataPath: null,
       multipartNeedsReview: false,
       partsTotal: 0,

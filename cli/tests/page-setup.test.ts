@@ -3,7 +3,7 @@ import { expandAllReplyThreads, expandComments } from '../src/modules/scrape-com
 import { getCommentContainer } from '../src/modules/scrape-comments/ui-container.ts';
 import { listCommentRowLocators } from '../src/modules/scrape-comments/extract-from-locator.ts';
 import { scrollCommentContainer } from '../src/modules/scrape-comments/ui-scroll.ts';
-import { prepareCommentsPage } from '../src/modules/scrape-comments/page-setup.ts';
+import { prepareCommentsPage, selectNewestCommentSort } from '../src/modules/scrape-comments/page-setup.ts';
 
 vi.mock('../src/modules/scrape-comments/ui-expand.ts', () => ({
   expandAllReplyThreads: vi.fn(),
@@ -30,6 +30,14 @@ const buildPage = (loginRequired = false) => ({
 });
 
 describe('prepareCommentsPage', () => {
+  it('selects newest comments through the browser script', async () => {
+    const page = buildPage();
+    page.evaluate.mockResolvedValue('selected_newest');
+
+    await expect(selectNewestCommentSort(page as never)).resolves.toBe('selected_newest');
+    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), expect.stringContaining('newest_option_not_found'));
+  });
+
   it('loads comments before capture and resets scroll to top', async () => {
     const page = buildPage();
     vi.mocked(expandComments).mockResolvedValue(2);

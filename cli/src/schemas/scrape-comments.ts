@@ -23,7 +23,7 @@ export const scrapeLoopOptionsSchema = Type.Object({
 export type ScrapeLoopOptions = Static<typeof scrapeLoopOptionsSchema>;
 
 export type TimeLocator = {
-  click: (opts: { timeout: number }) => Promise<void>;
+  click: (opts: { force?: boolean; timeout: number }) => Promise<void>;
   evaluate: <T, A>(fn: (el: Element, args: A) => T, args: A) => Promise<T>;
   evaluateHandle?: <T, A>(fn: (el: Element, args: A) => T, args: A) => Promise<{
     asElement: () => ElementHandle | null;
@@ -58,8 +58,10 @@ export type ElementHandle = {
 
 export type ProcessState = {
   count: number;
+  highlightFailures?: Map<string, number>;
   lastScreenshotHash: string | null;
   newInRound: number;
+  needsLocatorRefresh?: boolean;
   seenLoose: Set<string>;
   seenPermalink: Set<string>;
   seenStrict: Set<string>;

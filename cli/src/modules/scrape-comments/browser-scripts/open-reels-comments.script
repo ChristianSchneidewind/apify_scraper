@@ -1,0 +1,8 @@
+() => {
+  if (document.querySelector('[role="dialog"]')) return true;
+  const buttons = Array.from(document.querySelectorAll('[role="button"]'));
+  const button = buttons.find((node) => /^(Comment|Kommentar)\s*\d/i.test((node.textContent || '').replace(/\s+/g, ' ').trim()));
+  if (!button || typeof button.click !== 'function') return false;
+  button.click();
+  return true;
+}

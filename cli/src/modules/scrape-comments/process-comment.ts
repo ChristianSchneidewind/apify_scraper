@@ -18,8 +18,7 @@ import {
 import { captureCommentAssets } from './capture/capture.ts';
 import { dumpCommentDebugArtifacts } from './capture/debug.ts';
 import { initScreenshotSession } from './capture/screenshot-session.ts';
-import { computeCommentUid, extractCommentFromItem, extractCommentFromTime, resolveCommentRowHandle } from './extract-from-locator.ts';
-import { enrichCommentLikers } from './likers/enrich.ts';
+import { computeCommentUid, extractCommentFromItem, extractCommentFromTime, refindCommentRowHandle, resolveCommentRowHandle } from './extract-from-locator.ts';
 import { buildCommentOutputRecord } from './output.ts';
 
 const logStage = (index: number, stage: string, quiet?: boolean) => {
@@ -70,9 +69,26 @@ const runCapture = async (
   return fallbackCapture(page, outDir, index, data, lastScreenshotHash, reason);
 });
 
-const rollbackHighlightFailure = (state: ProcessState) => {
+const rollbackHighlightFailure = (
+  state: ProcessState,
+  strictKey: string,
+  looseKey: string,
+  permalink: string | null,
+  commentUid: string | null,
+) => {
   state.count -= 1;
   state.newInRound -= 1;
+  const failureKey = commentUid || permalink || strictKey;
+  const failures = state.highlightFailures || new Map<string, number>();
+  state.highlightFailures = failures;
+  const attempts = (failures.get(failureKey) || 0) + 1;
+  failures.set(failureKey, attempts);
+  if (attempts >= 3) return false;
+  state.seenStrict.delete(strictKey);
+  state.seenLoose.delete(looseKey);
+  if (permalink) state.seenPermalink.delete(permalink);
+  if (commentUid) state.seenUid.delete(commentUid);
+  return true;
 };
 
 const clearHighlightElement = (node: Element) => {
@@ -97,12 +113,13 @@ const cleanupPreviousHighlight = async (page: LikersPage) => {
   await Promise.resolve(page.evaluate(cleanupPreviousHighlightBrowser, undefined as never)).catch(() => undefined);
 };
 
-const prepareCommentForLikers = async (
+const prepareCommentForCapture = async (
   page: LikersPage,
   rowHandle: TimeLocator,
 ) => {
   await cleanupPreviousHighlight(page);
-  if (rowHandle?.evaluate) {
+  const currentUrl = typeof page.url === 'function' ? page.url() : '';
+  if (!/\/reels?\//.test(currentUrl) && rowHandle?.evaluate) {
     await rowHandle.evaluate((el: Element) => (el.scrollIntoView({ block: 'center', inline: 'nearest' }), true), undefined as never).catch(() => undefined);
   }
   if (page.waitForTimeout) await Promise.allSettled([page.waitForTimeout(250)]);
@@ -122,6 +139,33 @@ const captureComment = async (
   return buildCommentOutputRecord(data, page.url(), state.count, capture.screenshotKeys, capture.screenshotPaths, capture.metadataPath) as EnrichedComment;
 };
 
+// Liker profile collection is intentionally disabled. Keep likesCount from
+// the comment row, but do not open liker dialogs or deep-link tabs.
+const withoutLikerCollection = (data: CommentRecord) => ({
+  ...data,
+  commentLikers: [],
+  likersComplete: false,
+  likersReason: 'liker_collection_disabled',
+});
+
+const highlightCandidate = async (
+  page: LikersPage,
+  rowHandle: TimeLocator,
+  locator: TimeLocator,
+  data: CommentRecord,
+) => {
+  const primary = await ensureHighlightReady(rowHandle as never, data);
+  if (primary.ok) return { handle: rowHandle, result: primary };
+  const refound = await refindCommentRowHandle(page as never, data);
+  if (refound) {
+    const retried = await ensureHighlightReady(refound as never, data);
+    if (retried.ok) return { handle: refound, result: retried };
+  }
+  if (rowHandle === locator) return { handle: rowHandle, result: primary };
+  const fallback = await ensureHighlightReady(locator as never, data);
+  return { handle: fallback.ok ? locator : rowHandle, result: fallback.ok ? fallback : primary };
+};
+
 export const processCommentCandidate = async (
   page: LikersPage,
   locator: TimeLocator,
@@ -139,31 +183,19 @@ export const processCommentCandidate = async (
   state.newInRound += 1;
   logStage(state.count, 'extract', options.quiet);
   const rowHandle = await resolveCommentRowHandle(locator);
-  await prepareCommentForLikers(page, rowHandle as never);
-  logStage(state.count, 'likers', options.quiet);
-  const enriched = await enrichCommentLikers(
-    page,
-    rowHandle as never,
-    data,
-    options.maxCommentLikers,
-    options.likerCollectionMode,
-    options.verbose,
-    {
-    ...(options.likerRetryAttempts !== undefined ? { retryAttempts: options.likerRetryAttempts } : {}),
-    ...(options.likerRetryDelayMs !== undefined ? { retryDelayMs: options.likerRetryDelayMs } : {}),
-    ...(options.likerTimeoutMs !== undefined ? { timeoutMs: options.likerTimeoutMs } : {}),
-    },
-  );
+  await prepareCommentForCapture(page, rowHandle as never);
+  const enriched = withoutLikerCollection(data);
   logStage(state.count, 'highlight', options.quiet);
-  const highlight = await ensureHighlightReady(rowHandle as never, enriched);
+  const highlighted = await highlightCandidate(page, rowHandle as never, locator, enriched);
+  const highlight = highlighted.result;
   logStage(state.count, `highlight result ${highlight.ok ? 'ok' : highlight.reason}`, options.quiet);
   if (!highlight.ok) {
     logStage(state.count, `highlight failed ${highlight.reason ?? 'unknown'}; skipped`, options.quiet);
     await dumpCommentDebugArtifacts(page as unknown as DebugPage, options.outDir, state.count, enriched, 30000);
-    rollbackHighlightFailure(state);
+    state.needsLocatorRefresh = rollbackHighlightFailure(state, strictKey, looseKey, permalink || null, commentUid);
     return null;
   }
   logStage(state.count, 'visuals', options.quiet);
-  await prepareCommentScreenshotVisuals(page, rowHandle as never);
-  return captureComment(page, rowHandle as never, enriched, options, state);
+  await prepareCommentScreenshotVisuals(page, highlighted.handle as never);
+  return captureComment(page, highlighted.handle as never, enriched, options, state);
 };

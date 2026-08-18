@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildSafeClickHelpers } from '../../../adapters/instagram/safe-click.ts';
 import { injectHelpers } from '../../../adapters/instagram/load-script.ts';
-import type { OpenLikesResult } from '../../../schemas/index.ts';
+import type { OpenLikesResult, TimeLocator } from '../../../schemas/index.ts';
 
 const OPEN_LIKES_SCRIPT = injectHelpers(
   readFileSync(
@@ -22,12 +22,28 @@ function runPayloadBody<T>(
 }
 
 export const openLikesInline = async (
-  handle: { evaluate: <T, A>(fn: (el: Element, args: A) => T, args: A) => Promise<T> },
+  handle: TimeLocator,
   commentPermalink: string | null,
 ) => {
   const result = await handle.evaluate(runPayloadBody<OpenLikesResult>, {
     body: OPEN_LIKES_SCRIPT,
     commentPermalink,
   });
-  return result || { clicked: false, likesCount: 0, ok: false, reason: 'invalid_result' };
+  if (!result?.clicked || !handle.evaluateHandle) {
+    return result || { clicked: false, likesCount: 0, ok: false, reason: 'invalid_result' };
+  }
+  const marked = await handle.evaluateHandle(
+    (element: Element) => element.ownerDocument.querySelector('[data-instagram-cli-likes-target="1"]'),
+    undefined as never,
+  );
+  try {
+    const target = marked.asElement() as { click?: (options: { timeout: number }) => Promise<void> } | null;
+    if (!target?.click) return { ...result, clicked: false, reason: 'likes_target_handle_missing' };
+    await target.click({ timeout: 2000 });
+    return result;
+  } catch {
+    return { ...result, clicked: false, reason: 'likes_target_click_failed' };
+  } finally {
+    await marked.dispose();
+  }
 };

@@ -12,10 +12,11 @@
     return null;
   };
 
-  const findTarget = (node) => {
+  const findTarget = (node, boundary = null) => {
     let current = node;
     for (let i = 0; i < 8 && current; i += 1) {
       if (isScrollable(current)) return current;
+      if (boundary && current === boundary) break;
       current = current.parentElement;
     }
     return null;
@@ -31,10 +32,15 @@
       .filter((el) => el.querySelectorAll('time').length > 1)
       .filter((el) => el.scrollHeight - el.clientHeight > 80);
 
+    // In the Reel viewer the page itself contains another large scrollable
+    // area (the caption/video column). Never use that as a fallback: scrolling
+    // it makes the description move instead of the comments.
+    if (isReel && !dialogCandidates.length) return null;
     const candidates = dialogCandidates.length ? dialogCandidates : genericCandidates;
     if (!candidates.length) return null;
     candidates.sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight));
-    return findTarget(candidates[0]) || candidates[0];
+    const boundary = isReel ? document.querySelector('[role="dialog"]') : null;
+    return findTarget(candidates[0], boundary) || candidates[0];
   };
 
   const target = findCandidate();

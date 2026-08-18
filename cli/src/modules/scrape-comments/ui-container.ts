@@ -1,6 +1,7 @@
 import { COMMENT_CONTAINER_SELECTORS } from '../../adapters/instagram/dom-selectors.ts';
 
 function findCommentContainer(selectors: readonly string[]) {
+  if (/\/reels?\//.test(location.pathname)) return null;
   for (const selector of selectors) {
     const node = document.querySelector(selector);
     if (node) return node;

@@ -13,20 +13,15 @@ return (payload) => {
   const rowFromPermalink = permalinkAnchor?.closest?.('li, [role="listitem"], article, div')
     || (permalinkAnchor && row.contains(permalinkAnchor) ? row : null);
 
+  // Ascend only while the scope still contains this one permalink. This
+  // reaches the comment's likes control without leaking into reply threads or
+  // the complete Reel comments dialog.
   const scopes = [];
-  const add = (n) => { if (n && !scopes.includes(n)) scopes.push(n); };
-  add(row);
-  if (rowFromPermalink && rowFromPermalink !== row) add(rowFromPermalink);
-  add(row?.parentElement);
-  if (rowFromPermalink && rowFromPermalink !== row) add(rowFromPermalink.parentElement);
-
-  let cur = permalinkAnchor && row.contains(permalinkAnchor) ? permalinkAnchor : null;
-  for (let i = 0; i < 4 && cur; i += 1) {
-    add(cur);
-    add(cur.parentElement);
-    add(cur.parentElement?.nextElementSibling);
-    add(cur.parentElement?.previousElementSibling);
-    cur = cur.parentElement;
+  let scope = row;
+  for (let depth = 0; depth < 10 && scope; depth += 1) {
+    if (scope.querySelectorAll?.('a[href*="/c/"]').length > 1) break;
+    scopes.push(scope);
+    scope = scope.parentElement;
   }
 
   const txt = scopes.map((s) => (s?.innerText || '')).join(' ').replace(/\s+/g, ' ');
@@ -89,6 +84,8 @@ return (payload) => {
   if (!isSaneClickTarget(clickEl)) {
     return { ok: true, likesCount, clicked: false, reason: 'likes_target_failed_sanity_check' };
   }
-  clickEl.click();
+  document.querySelectorAll('[data-instagram-cli-likes-target="1"]')
+    .forEach((node) => node.removeAttribute('data-instagram-cli-likes-target'));
+  clickEl.setAttribute('data-instagram-cli-likes-target', '1');
   return { ok: true, likesCount, clicked: true };
 };

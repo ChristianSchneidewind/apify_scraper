@@ -1,9 +1,13 @@
+import { readFileSync } from 'node:fs';
 import { isLoginRequired, prepareAuthPage } from '../../adapters/instagram/auth.ts';
 import type { CommentPage } from '../../schemas/index.ts';
 import { focusFirstCommentRow, resetCommentScroll } from './comment-scroll-reset.ts';
 import { expandAllReplyThreads, expandComments } from './ui-expand.ts';
 import { getCommentContainer } from './ui-container.ts';
 import { scrollCommentContainer } from './ui-scroll.ts';
+
+const REELS_COMMENTS_SCRIPT = readFileSync(new URL('./browser-scripts/open-reels-comments.script', import.meta.url), 'utf8');
+const SELECT_COMMENT_SORT_SCRIPT = readFileSync(new URL('./browser-scripts/select-comment-sort.script', import.meta.url), 'utf8');
 
 const COMMENT_BUTTON_SELECTORS = [
   'button[aria-label="Comment"]',
@@ -22,6 +26,23 @@ const COMMENT_BUTTON_SELECTORS = [
 ];
 
 const countTimes = (page: CommentPage) => page.locator('time').count();
+
+const lockReelPageScroll = () => {
+  const html = document.documentElement;
+  const body = document.body;
+  html.style.overscrollBehavior = 'none';
+  body.style.overscrollBehavior = 'none';
+  const top = window.scrollY;
+  const left = window.scrollX;
+  window.addEventListener('scroll', () => {
+    if (window.scrollY !== top || window.scrollX !== left) window.scrollTo(left, top);
+  }, { passive: true });
+  window.addEventListener('wheel', (event) => {
+    const target = event.target as Element | null;
+    if (!target?.closest?.('[role="dialog"]')) event.preventDefault();
+  }, { capture: true, passive: false });
+  return true;
+};
 
 const clickTarget = async (page: CommentPage, target: { click: (opts: { timeout: number }) => Promise<void> }) => {
   try {
@@ -51,17 +72,18 @@ const clickFirstCommentButton = async (page: CommentPage) => {
 };
 
 const preparePanel = async (page: CommentPage) => {
-  const opened = await openCommentsPanel(page);
-  if (opened) return;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (await openCommentsPanel(page)) return;
+    await page.waitForTimeout(500);
+  }
   if (await countTimes(page) === 0) await openCommentsPanel(page);
 };
 
 const loadCommentsRound = async (page: CommentPage, maxUiRounds: number) => {
   const expanded = await expandComments(page, Math.min(12, Math.max(4, maxUiRounds)));
-  const replies = await expandAllReplyThreads(page, 80);
   const container = await getCommentContainer(page);
   const scrolled = await scrollCommentContainer(page, container, 8);
-  return expanded > 0 || replies > 0 || scrolled;
+  return expanded > 0 || scrolled;
 };
 
 const loadCommentsPage = async (page: CommentPage, maxUiRounds: number) => {
@@ -72,7 +94,55 @@ const loadCommentsPage = async (page: CommentPage, maxUiRounds: number) => {
   }
 };
 
-export const openCommentsPanel = async (page: CommentPage) => clickFirstCommentButton(page);
+const expandReplyThreadsPage = async (page: CommentPage, maxUiRounds: number) => {
+  const container = await getCommentContainer(page);
+  await resetCommentScroll(page, container);
+  let idleRounds = 0;
+  let clickedTotal = 0;
+  for (let round = 0; round < maxUiRounds && idleRounds < 2; round += 1) {
+    const clicked = await expandAllReplyThreads(page, 100);
+    clickedTotal += clicked;
+    if (clicked > 0) await page.waitForTimeout(700);
+    // Advance one viewport only. Larger jumps can skip reply controls in
+    // Instagram's virtualized Reel comments list.
+    const moved = await scrollCommentContainer(page, container, 1);
+    idleRounds = clicked === 0 && !moved ? idleRounds + 1 : 0;
+  }
+  return clickedTotal;
+};
+
+const selectNewestSafely = (page: CommentPage) =>
+  selectNewestCommentSort(page).catch(() => 'sort_selection_failed');
+
+const loadNewestComments = async (page: CommentPage, maxUiRounds: number) => {
+  let commentSort = await selectNewestSafely(page);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (commentSort === 'selected_newest') await page.waitForTimeout(2000);
+    await loadCommentsPage(page, maxUiRounds);
+    await expandReplyThreadsPage(page, maxUiRounds);
+    const verified = await selectNewestSafely(page);
+    if (verified === 'already_newest') return verified;
+    if (verified !== 'selected_newest') return verified;
+    commentSort = verified;
+  }
+  await page.waitForTimeout(2000);
+  return commentSort;
+};
+
+export const openCommentsPanel = async (page: CommentPage) => {
+  if (await page.locator('[role="dialog"]').count()) return true;
+  const isReelsFeed = await page.evaluate(() => /\/reels?\//.test(location.pathname), undefined);
+  if (isReelsFeed) {
+    return page.evaluate((body: string) => new Function(`return (${body})`)()(), REELS_COMMENTS_SCRIPT);
+  }
+  return clickFirstCommentButton(page);
+};
+
+export const selectNewestCommentSort = async (page: CommentPage) =>
+  page.evaluate(
+    (body: string) => new Function(`return (${body})`)()(),
+    SELECT_COMMENT_SORT_SCRIPT,
+  ) as Promise<string>;
 
 export const prepareCommentsPage = async (
   page: CommentPage,
@@ -83,10 +153,16 @@ export const prepareCommentsPage = async (
   if (await isLoginRequired(page as never)) {
     throw new Error('Instagram session expired; run auth login first');
   }
+  const isReelsFeed = await page.evaluate(() => /\/reels?\//.test(location.pathname), undefined);
+  if (isReelsFeed) await page.evaluate(lockReelPageScroll, undefined);
   await preparePanel(page);
-  await loadCommentsPage(page, maxUiRounds);
+  // Loading can re-render the Reel dialog and restore "For you". Select and
+  // verify "Newest" around the complete load/reply-expansion phase.
+  const commentSort = await loadNewestComments(page, maxUiRounds);
   const container = await getCommentContainer(page);
   await resetCommentScroll(page, container);
+  await page.waitForTimeout(700);
   await focusFirstCommentRow(page);
   await page.waitForTimeout(Math.min(1500, Math.max(500, uiIdleRounds * 250)));
+  return commentSort;
 };

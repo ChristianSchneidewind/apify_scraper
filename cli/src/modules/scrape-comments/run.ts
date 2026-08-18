@@ -48,8 +48,9 @@ const sumLikes = (comments: Array<{ likesCount?: number }>) =>
 const sumLikers = (comments: Array<{ commentLikers?: Array<unknown> }>) =>
   comments.reduce((sum, item) => sum + (item.commentLikers?.length || 0), 0);
 
-const countIncompleteLikers = (comments: Array<{ likersComplete?: boolean; likesCount?: number; commentLikers?: Array<unknown> }>) =>
-  comments.filter((item) => item.likersComplete === false || ((Number(item.likesCount) || 0) > 0 && !item.commentLikers?.length)).length;
+const countIncompleteLikers = (comments: Array<{ likersComplete?: boolean; likersReason?: string | null; likesCount?: number; commentLikers?: Array<unknown> }>) =>
+  comments.filter((item) => item.likersReason !== 'liker_collection_disabled'
+    && (item.likersComplete === false || ((Number(item.likesCount) || 0) > 0 && !item.commentLikers?.length))).length;
 
 const countMultipart = (comments: Array<{ screenshotPaths?: string[] }>) =>
   comments.filter((item) => (item.screenshotPaths?.length || 0) > 1).length;
@@ -77,6 +78,14 @@ const prepareOutput = async (context: RuntimeContext, options: ScrapeCommentsOpt
   const outputPath = checkpointPath ? dirname(checkpointPath) : `${options.outDir || 'artifacts/comments'}/${makeRunFolder()}`;
   const dir = await ensureOutputDirectory(context.cwd, outputPath);
   return { dir, initialComments: initialComments || [] };
+};
+
+const logCommentSort = (logger: ReturnType<typeof createLogger>, commentSort: string) => {
+  if (commentSort === 'selected_newest' || commentSort === 'already_newest') {
+    logger.info(`comment sort: ${commentSort}`);
+    return;
+  }
+  if (commentSort) logger.warn(`comment sort unchanged: ${commentSort}`);
 };
 
 const buildLoopOptions = (
@@ -116,7 +125,8 @@ export const runScrapeComments = async (
     logger.info('waiting for initial load');
     await session.page.waitForTimeout(1500);
     logger.info('loading comments');
-    await prepareCommentsPage(session.page as never, options.maxUiRounds ?? 40, options.uiIdleRounds ?? 6);
+    const commentSort = await prepareCommentsPage(session.page as never, options.maxUiRounds ?? 40, options.uiIdleRounds ?? 6);
+    logCommentSort(logger, commentSort);
     logger.info('capturing comments');
 
     const loopOptions = buildLoopOptions(options, dir, initialComments);

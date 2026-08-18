@@ -1,0 +1,58 @@
+async () => {
+  const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const visible = (node) => {
+    if (!(node instanceof Element)) return false;
+    const style = window.getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden'
+      && style.pointerEvents !== 'none' && rect.width > 0 && rect.height > 0;
+  };
+  const label = (node) => normalize([
+    node.getAttribute?.('aria-label'),
+    node.getAttribute?.('title'),
+    node.textContent,
+  ].filter(Boolean).join(' '));
+  const currentTerms = ['for you', 'für dich', 'most relevant', 'relevanteste'];
+  const newestTerms = ['newest', 'most recent', 'neueste', 'neueste zuerst'];
+  const matches = (value, terms) => terms.some((term) => value === term || value.startsWith(term));
+  const clickable = (node) => node.closest?.('button, [role="button"], [role="menuitem"], [role="option"], [tabindex="0"]') || node;
+  const candidates = (root) => Array.from(root.querySelectorAll('button, [role="button"], [role="menuitem"], [role="option"], [tabindex="0"]'));
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const dialogs = Array.from(document.querySelectorAll('[role="dialog"]')).filter(visible);
+  const commentsDialog = dialogs.find((dialog) => candidates(dialog).some((node) => matches(label(node), currentTerms.concat(newestTerms))))
+    || dialogs.at(-1)
+    || document.body;
+  const controls = candidates(commentsDialog).filter(visible);
+  if (controls.some((node) => matches(label(node), newestTerms))) {
+    const currentNewest = controls.find((node) => matches(label(node), newestTerms)
+      && (node.getAttribute('aria-expanded') !== null || node.querySelector('svg')));
+    if (currentNewest) return 'already_newest';
+  }
+
+  const trigger = controls.find((node) => matches(label(node), currentTerms));
+  if (!trigger) return 'sort_control_not_found';
+  if (trigger.getAttribute('aria-expanded') !== 'true') clickable(trigger).click();
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await sleep(150);
+    const overlays = Array.from(document.querySelectorAll('[role="menu"], [role="listbox"], [role="dialog"]')).filter(visible);
+    const roots = overlays.length ? overlays : [document.body];
+    for (const root of roots) {
+      const option = candidates(root)
+        .filter((node) => visible(node) && node !== trigger)
+        .find((node) => matches(label(node), newestTerms));
+      if (!option) continue;
+      clickable(option).click();
+      for (let verify = 0; verify < 12; verify += 1) {
+        await sleep(150);
+        const active = candidates(commentsDialog)
+          .filter(visible)
+          .find((node) => node.getAttribute('aria-haspopup') === 'menu');
+        if (active && matches(label(active), newestTerms)) return 'selected_newest';
+      }
+      return 'sort_selection_not_applied';
+    }
+  }
+  return 'newest_option_not_found';
+}

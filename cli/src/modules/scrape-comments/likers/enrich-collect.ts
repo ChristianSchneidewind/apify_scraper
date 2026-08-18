@@ -1,6 +1,6 @@
 import type { CommentLiker, LikersPage } from '../../../schemas/index.ts';
 import { normalizeCommentLikers } from '../comment-state.ts';
-import { collectLikersFromDialog, isDialogOpen, nudgeLikersDialogAtEnd, oscillateLikersDialogAtEnd, resetLikersDialogScroll, scrollLikersDialogToEnd } from './collect-dialog.ts';
+import { collectLikersFromDialog, nudgeLikersDialogAtEnd, oscillateLikersDialogAtEnd, resetLikersDialogScroll, scrollLikersDialogToEnd } from './collect-dialog.ts';
 import { hasEnoughLikers, resolveLikerTarget } from './enrich-cache.ts';
 
 const collectSessions = new WeakMap<object, { abort: AbortController }>();
@@ -184,9 +184,11 @@ export const collectLikers = async (
     const initialTimeoutMs = config?.timeoutMs ?? likerCollectTimeoutMs(likesCount, maxCommentLikers);
     let likers = normalizeCommentLikers(await collectLikersTimed(page, maxCommentLikers, likesCount, verbose, initialTimeoutMs, session));
     if (verbose) process.stderr.write(`[scrape.comments][likers][debug] initial result=${likers.length} likesCount=${likesCount} max=${maxCommentLikers} timeout=${initialTimeoutMs}\n`);
+    const target = resolveLikerTarget(likesCount, maxCommentLikers);
+    if (likers.length > target) return [];
     if (hasEnoughLikers(likers, likesCount, maxCommentLikers) || likesCount <= 0) return likers;
     likers = await collectLikersWithRetries(page, maxCommentLikers, likesCount, likers, initialTimeoutMs, session, verbose, config);
-    return likers;
+    return likers.length > target ? [] : likers;
   } finally {
     endCollectSession(page, session);
   }
@@ -194,9 +196,13 @@ export const collectLikers = async (
 
 export const closeDialog = async (workedPage: LikersPage, likesCount: number, likers: CommentLiker[]) => {
   if (likesCount > 0 && likers.length === 0) await workedPage.waitForTimeout(1000);
-  for (let i = 0; i < 4; i += 1) {
-    const open = i <= 0 ? true : await Promise.resolve(isDialogOpen(workedPage as never)).catch(() => false);
-    if (!open) break;
+  // Escape must only be sent when a nested likes dialog exists. On Reels,
+  // the comments panel is often the only role=dialog and Escape closes it.
+  const dialogCount = (await Promise.resolve(workedPage.evaluate(
+    () => document.querySelectorAll('[role="dialog"]').length,
+    undefined as never,
+  )).catch(() => null)) ?? 2;
+  if (dialogCount > 1) {
     await Promise.allSettled([workedPage.keyboard.press('Escape'), workedPage.waitForTimeout(220)]);
   }
   await workedPage.waitForTimeout(200);
