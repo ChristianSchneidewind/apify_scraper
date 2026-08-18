@@ -14,8 +14,13 @@
     'a[href*="/reels/"][href*="/c/"]',
     'a[href*="/c/"]',
   ];
-  const permalinks = Array.from(document.querySelectorAll(selectors.join(', ')))
-    .filter((a) => a.querySelector('time'));
+  const root = /\/reels?\//.test(location.pathname)
+    ? document.querySelector('div[role="dialog"]') || document
+    : document;
+  const permalinkAnchors = Array.from(root.querySelectorAll(selectors.join(', ')));
+  const permalinks = /\/reels?\//.test(location.pathname)
+    ? permalinkAnchors
+    : permalinkAnchors.filter((a) => a.querySelector('time'));
   const seen = new Set();
   const rows = [];
   for (const anchor of permalinks) {
@@ -55,5 +60,10 @@
     seen.add(key);
     rows.push(chosen);
   }
-  return rows;
+  const isReplyRow = (row) => {
+    const list = row.closest('ul');
+    const parentText = (list?.parentElement?.textContent || '').toLowerCase();
+    return parentText.includes('hide all replies') || parentText.includes('antworten verbergen');
+  };
+  return rows.sort((a, b) => Number(isReplyRow(b)) - Number(isReplyRow(a)));
 }

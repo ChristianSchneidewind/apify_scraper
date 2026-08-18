@@ -1,4 +1,5 @@
 (node = null) => {
+  const isReel = /\/reels?\//.test(location.pathname);
   const score = (el) => el.scrollHeight - el.clientHeight;
   const visible = (el) => el.querySelectorAll('time').length > 0;
   const pick = (nodes) => nodes
@@ -9,6 +10,16 @@
     ? Array.from(node.querySelectorAll('div, ul, section, article'))
     : [];
   const globalNodes = Array.from(document.querySelectorAll('div, ul, section, article'));
+  if (isReel) {
+    const dialog = document.querySelector('[role="dialog"]');
+    const dialogNodes = dialog
+      ? Array.from(dialog.querySelectorAll('div, ul, section, article'))
+      : [];
+    const target = pick(dialogNodes);
+    if (target) target.scrollTop = 0;
+    return true;
+  }
+
   const candidates = [
     pick(descendents),
     pick(globalNodes),

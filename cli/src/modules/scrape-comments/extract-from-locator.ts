@@ -91,5 +91,9 @@ export const refindCommentRowHandle = async (
   return (handle as { asElement?: () => Element | null })?.asElement?.() as unknown as TimeLocator | null;
 };
 
-export const listTimeLocators = async (page: CommentPage) =>
-  page.locator(COMMENT_TIME_SELECTOR).elementHandles();
+export const listTimeLocators = async (page: CommentPage) => {
+  const isReelsFeed = typeof page.evaluate === 'function'
+    ? await page.evaluate(() => /\/reels?\//.test(location.pathname), undefined)
+    : false;
+  return page.locator(isReelsFeed ? 'div[role="dialog"] time' : COMMENT_TIME_SELECTOR).elementHandles();
+};

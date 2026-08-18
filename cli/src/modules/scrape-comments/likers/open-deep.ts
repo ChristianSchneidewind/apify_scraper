@@ -50,18 +50,18 @@ const scanLikeTargets = async (
   scope: FilterLocator | DeepLocator,
   likesCount: number,
 ) => {
-  const textLoc = scope.locator('button, a, [role="button"], [tabindex="0"]').filter({ hasText: /\d+[\d.,]*\s*likes?/i });
+  const textLoc = scope.locator('button, a, [role="button"], [tabindex="0"]').filter({ hasText: /^\s*\d+[\d.,]*\s*likes?\s*$/i });
   const textHit = await scanLocator(page, textLoc, 'pw_text_click');
   if (textHit) return { ...textHit, likesCount };
 
   const deLoc = scope.locator('button, a, [role="button"], [tabindex="0"]').filter({
-    hasText: /\d+[\d.,]*\s*gefällt\s*mir(?:-angaben|\s*mal)?/i,
+    hasText: /^\s*\d+[\d.,]*\s*gefällt\s*mir(?:-angaben|\s*mal)?\s*$/i,
   });
   const deHit = await scanLocator(page, deLoc, 'pw_text_click');
   if (deHit) return { ...deHit, likesCount };
 
   const dePrefixLoc = scope.locator('button, a, [role="button"], [tabindex="0"]').filter({
-    hasText: /gefällt\s+\d+[\d.,]*\s*mal/i,
+    hasText: /^\s*gefällt\s+\d+[\d.,]*\s*mal\s*$/i,
   });
   const dePrefixHit = await scanLocator(page, dePrefixLoc, 'pw_text_click');
   if (dePrefixHit) return { ...dePrefixHit, likesCount };
@@ -90,6 +90,19 @@ function runElementBody<T>(el: Element, args: { body: string }) {
 
 const firstLocator = (locator: { first: DeepLocator | (() => DeepLocator) }) =>
   typeof locator.first === 'function' ? locator.first() : locator.first;
+
+const expandDeepReplies = async (page: DeepLinkPage) => {
+  const base = page.locator('button, [role="button"]') as unknown as Partial<FilterLocator>;
+  if (!base.filter) return;
+  const controls = base.filter({
+    hasText: /(?:view|show|anzeigen|ansehen).*?(?:repl|antwort)|(?:repl|antwort).*?(?:view|show|anzeigen|ansehen)/i,
+  });
+  const count = Math.min(await controls.count(), 20);
+  for (let index = 0; index < count; index += 1) {
+    await controls.nth(index).click({ timeout: 2000 }).catch(() => undefined);
+    await page.waitForTimeout(250);
+  }
+};
 
 export const clickLikesInCurrentPage = async (
   page: { locator: DeepLinkPage['locator']; waitForTimeout: DeepLinkPage['waitForTimeout'] },
@@ -129,10 +142,12 @@ export const openLikesDeepLink = async (
   await page.goto(commentUrl, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3500);
 
-  const anchor = firstLocator(page.locator(`a[href="${commentPermalink}"]`));
+  let anchor = firstLocator(page.locator(`a[href="${commentPermalink}"]`));
   if (await anchor.count() === 0) {
-    return { clicked: false, likesCount: 0, reason: 'deep_target_comment_not_found' };
+    await expandDeepReplies(page);
+    anchor = firstLocator(page.locator(`a[href="${commentPermalink}"]`));
   }
+  if (await anchor.count() === 0) return { clicked: false, likesCount: 0, reason: 'deep_target_comment_not_found' };
 
   const likesCount = await anchor.evaluate(
     runElementBody<number>,

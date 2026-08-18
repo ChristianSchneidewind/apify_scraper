@@ -23,6 +23,10 @@ export const resetCommentScroll = async (page: CommentPage, container: Element |
 };
 
 export const focusFirstCommentRow = async (page: CommentPage) => {
+  const isReelsFeed = await page.evaluate(() => /\/reels?\//.test(location.pathname), undefined);
+  // Calling scrollIntoView on a virtualized Reel row can scroll the page
+  // (including the description column) instead of the comments pane.
+  if (isReelsFeed) return false;
   const rows = await listCommentRowLocators(page as never);
   const row = rows[0];
   if (!row?.evaluate) return false;

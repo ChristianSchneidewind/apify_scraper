@@ -1,5 +1,7 @@
 return (payload) => {
   const { el } = payload;
+  const isReel = /\/reels?\//.test(location.pathname);
+  const dialog = isReel ? el?.closest?.('[role="dialog"]') : null;
   const target = el?.closest?.('li, [role="listitem"], article, div') || el;
   if (!target) return false;
 
@@ -7,7 +9,8 @@ return (payload) => {
     const scrollParent = (() => {
       let current = target.parentElement;
       while (current) {
-        if (current.scrollHeight - current.clientHeight > 20) return current;
+        if (current.scrollHeight - current.clientHeight > 20
+            && (!dialog || dialog.contains(current))) return current;
         current = current.parentElement;
       }
       return null;
@@ -20,8 +23,10 @@ return (payload) => {
       scrollParent.scrollTop += offset - (scrollParent.clientHeight / 2);
     }
 
-    target.scrollIntoView({ block: 'center', inline: 'nearest' });
-    window.scrollBy(0, -120);
+    if (!isReel) {
+      target.scrollIntoView({ block: 'center', inline: 'nearest' });
+      window.scrollBy(0, -120);
+    }
   } catch (error) {}
   return true;
 };

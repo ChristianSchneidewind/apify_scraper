@@ -9,6 +9,8 @@ const countTimes = (page: CommentPage) => page.locator('time').count();
 
 export const resetCommentsToTop = async (page: CommentPage) => {
   const container = await getCommentContainer(page);
+  // resetCommentScroll has a Reel-specific path that only resets the internal
+  // comments dialog and never moves the Reel feed itself.
   await resetCommentScroll(page, container);
   await focusFirstCommentRow(page);
   return container;

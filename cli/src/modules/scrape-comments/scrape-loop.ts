@@ -31,10 +31,25 @@ const upsertComment = (comments: CommentRecord[], item: CommentRecord) => {
   else comments.push(item);
 };
 
+const persistCandidate = async (
+  item: CommentRecord | null,
+  comments: CommentRecord[],
+  maxComments: number,
+  processOpts: { outDir: string; sourceUrl?: string },
+) => {
+  if (!item) return 'none';
+  const previousCount = comments.length;
+  upsertComment(comments, item);
+  await saveCheckpoint(processOpts.outDir, comments, processOpts.sourceUrl);
+  if (maxComments && comments.length >= maxComments) return 'max';
+  return comments.length > previousCount ? 'refresh' : 'saved';
+};
+
 const buildProcessState = () => ({
   count: 0,
   lastScreenshotHash: null as string | null,
   newInRound: 0,
+  needsLocatorRefresh: false,
   seenLoose: new Set<string>(),
   seenPermalink: new Set<string>(),
   seenStrict: new Set<string>(),
@@ -44,6 +59,12 @@ const buildProcessState = () => ({
 const logRound = (round: number, maxUiRounds: number, stage: string, quiet?: boolean) => {
   if (quiet) return;
   process.stderr.write(`[scrape.comments] round ${round}/${maxUiRounds}: ${stage}\n`);
+};
+
+const consumeLocatorRefresh = (state: ReturnType<typeof buildProcessState>) => {
+  const refresh = Boolean(state.needsLocatorRefresh);
+  state.needsLocatorRefresh = false;
+  return refresh;
 };
 
 const processRound = async (
@@ -64,10 +85,11 @@ const processRound = async (
   logRound(round, maxUiRounds, `${passLabel} locators ${locators.length}`, processOpts.quiet);
   for (const locator of locators) {
     const item = await processCommentCandidate(page, locator, state, processOpts);
-    if (item) {
-    upsertComment(comments, item);
-    await saveCheckpoint(processOpts.outDir, comments, processOpts.sourceUrl);
-    }
+    if (!item && consumeLocatorRefresh(state)) return processRound(page, round, maxUiRounds, state, comments, maxComments, processOpts, passLabel);
+    const action = await persistCandidate(item, comments, maxComments, processOpts);
+    if (action === 'max') return true;
+    // A capture can re-render Reel rows. Refresh only after a newly added item.
+    if (action === 'refresh') return processRound(page, round, maxUiRounds, state, comments, maxComments, processOpts, passLabel);
     if (maxComments && comments.length >= maxComments) return true;
   }
   logRound(round, maxUiRounds, `${passLabel} collected ${state.newInRound}, total ${comments.length}`, processOpts.quiet);
@@ -145,12 +167,14 @@ export const runCommentScrapeLoop = async (
   if (options.quiet !== undefined) processOpts.quiet = options.quiet;
   if (options.verbose !== undefined) processOpts.verbose = options.verbose;
 
-  const doneTopLevel = await runPass(page, options, state, comments, processOpts, 'top-level', 20, 0, undefined, 2);
+  // Page setup has already loaded comments and expanded reply threads. Do not
+  // mutate that UI while extraction and screenshots are in progress.
+  const doneTopLevel = await runPass(page, options, state, comments, processOpts, 'top-level', 0, 0, undefined, 2);
   if (doneTopLevel) return comments;
 
   await resetCommentsToTop(page as never).catch(() => undefined);
   await Promise.resolve(page.waitForTimeout?.(1500)).catch(() => undefined);
 
-  await runPass(page, options, state, comments, processOpts, 'replies', 40, 100, 2, 2);
+  await runPass(page, options, state, comments, processOpts, 'rescan', 0, 0, 2, 2);
   return comments;
 };

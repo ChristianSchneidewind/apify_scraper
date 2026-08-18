@@ -98,12 +98,25 @@ for (let depth = 0; depth < 24 && node; depth += 1) {
   const text = pickText(node, username, timeText, profileSlug);
   if (!text) { node = node.parentElement; continue; }
   const likesInfo = parseLikesInfo(node, username);
+  const commentPermalink = node.querySelector('a[href*="/c/"]')?.getAttribute('href') ?? null;
+  const replyList = node.closest?.('ul') || timeEl.closest?.('ul') || null;
+  const replyParentText = (replyList?.parentElement?.textContent || '').toLowerCase();
+  const isReply = replyParentText.includes('hide all replies') || replyParentText.includes('antworten verbergen');
+  let parentCommentPermalink = null;
+  let replyAncestor = replyList?.parentElement || null;
+  for (let replyDepth = 0; isReply && replyDepth < 8 && replyAncestor && !parentCommentPermalink; replyDepth += 1) {
+    const outsideReplyList = Array.from(replyAncestor.querySelectorAll('a[href*="/c/"]'))
+      .find((anchor) => !replyList?.contains?.(anchor));
+    parentCommentPermalink = outsideReplyList?.getAttribute('href') || null;
+    replyAncestor = replyAncestor.parentElement;
+  }
   return {
-    commentPermalink: node.querySelector('a[href*="/c/"]')?.getAttribute('href') ?? null,
+    commentPermalink,
     datetime: timeEl.getAttribute('datetime'),
     isGifOnly: false,
     commentLikers: likesInfo.likers,
     likesCount: likesInfo.likesCount,
+    parentCommentPermalink,
     text,
     timeText,
     username,

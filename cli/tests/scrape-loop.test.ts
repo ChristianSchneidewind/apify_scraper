@@ -102,7 +102,35 @@ describe('runCommentScrapeLoop', () => {
     expect(comments[0]?.username).toBe('alice');
     expect(writeJsonFile).toHaveBeenCalledWith('/tmp/out', 'checkpoint.json', expect.objectContaining({ comments }));
     expect(resetCommentsToTop).toHaveBeenCalled();
-    expect(expandAllReplyThreads).toHaveBeenCalled();
+    expect(expandAllReplyThreads).not.toHaveBeenCalled();
+  });
+
+  it('refreshes stale locator batches after a recoverable highlight failure', async () => {
+    vi.mocked(listCommentRowLocators)
+      .mockResolvedValueOnce([{} as never])
+      .mockResolvedValueOnce([{} as never])
+      .mockResolvedValue([]);
+    vi.mocked(listTimeLocators).mockResolvedValue([]);
+    vi.mocked(processCommentCandidate)
+      .mockImplementationOnce(async (_page, _locator, state) => {
+        state.needsLocatorRefresh = true;
+        return null;
+      })
+      .mockImplementationOnce(async (_page, _locator, state) => {
+        state.newInRound = 1;
+        return sampleComment as never;
+      });
+    vi.mocked(getCommentContainer).mockResolvedValue({} as never);
+    vi.mocked(scrollCommentContainer).mockResolvedValue(false);
+
+    const comments = await runCommentScrapeLoop(buildPage() as never, {
+      maxUiRounds: 1,
+      outDir: '/tmp/out',
+      uiIdleRounds: 1,
+    });
+
+    expect(comments).toHaveLength(1);
+    expect(vi.mocked(listCommentRowLocators).mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
   it('retries incomplete likers and replaces the checkpoint record', async () => {

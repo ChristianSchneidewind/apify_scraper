@@ -37,6 +37,7 @@ export const commentRecordSchema = Type.Object({
   metadataPath: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   multipartFlagReason: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   multipartNeedsReview: Type.Optional(Type.Boolean()),
+  parentCommentPermalink: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   partsTotal: Type.Optional(Type.Number()),
   screenshotKey: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   screenshotKeys: Type.Optional(Type.Array(Type.String())),

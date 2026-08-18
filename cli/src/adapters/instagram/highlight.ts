@@ -22,8 +22,17 @@ const withTimeout = async <T>(promise: Promise<T>, ms: number) => {
 };
 
 const scrollIntoView = (handle: { evaluate: <T, A>(fn: (el: Element, args: A) => T, args: A) => Promise<T> }) =>
-  withTimeout(handle.evaluate((el: Element) => (el.scrollIntoView({ block: 'center', inline: 'nearest' }), true), undefined as never), 1500)
-    .catch(() => undefined);
+  withTimeout(handle.evaluate((el: Element) => {
+    const dialog = el.closest('[role="dialog"]');
+    if (!dialog) return (el.scrollIntoView({ block: 'center', inline: 'nearest' }), true);
+    let parent: Element | null = el.parentElement;
+    while (parent && parent !== dialog && parent.scrollHeight - parent.clientHeight <= 20) parent = parent.parentElement;
+    if (!parent || parent === dialog) return true;
+    const rect = el.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    parent.scrollTop += rect.top - parentRect.top - parent.clientHeight / 2;
+    return true;
+  }, undefined as never), 1500).catch(() => undefined);
 
 const runHighlightBrowser = (
   el: Element,
