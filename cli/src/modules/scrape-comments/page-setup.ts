@@ -19,13 +19,19 @@ const COMMENT_BUTTON_SELECTORS = [
   '[role="button"][aria-label*="Comments"]',
   '[role="button"][aria-label*="Komment"]',
   'a[href*="/comments/"]',
-  'button:has-text("View all comments")',
-  'button:has-text("View comments")',
-  'button:has-text("Comments")',
-  'button:has-text("Kommentare")',
-  'a:has-text("View all comments")',
-  'a:has-text("Kommentare")',
 ];
+
+const COMMENT_BUTTON_TEXT = /^(view( all \d*)? comments?|kommentare( ansehen)?)$/i;
+
+// Text-based fallback for controls without aria-label (CSS cannot match
+// text); runs in the page because :has-text is a Playwright-only engine.
+const clickCommentButtonByTextBrowser = () => {
+  const candidates = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+  const target = candidates.find((el) => COMMENT_BUTTON_TEXT.test((el.textContent || '').trim()));
+  if (!target) return false;
+  (target as HTMLElement).click();
+  return true;
+};
 
 const countTimes = (page: CommentPage) => page.locator('time').count();
 
@@ -70,7 +76,9 @@ const clickFirstCommentButton = async (page: CommentPage) => {
   for (const selector of COMMENT_BUTTON_SELECTORS) {
     if (await clickSelector(page, selector)) return true;
   }
-  return false;
+  const clickedByText = await page.evaluate(clickCommentButtonByTextBrowser, undefined).catch(() => false);
+  if (clickedByText) await page.waitForTimeout(1200);
+  return clickedByText;
 };
 
 const preparePanel = async (page: CommentPage) => {
