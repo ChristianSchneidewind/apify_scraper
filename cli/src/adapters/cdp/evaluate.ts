@@ -7,16 +7,21 @@ const UNSERIALIZABLE: Record<string, unknown> = {
   '-Infinity': -Infinity,
 };
 
+// tsx/esbuild wraps named helpers with a __name() keep-names call. That
+// identifier does not exist in the page context, so every serialized
+// function gets a tiny shim to stay evaluable.
+const NAME_SHIM = 'const __name=(f,n)=>f;';
+
 const toExpression = <Arg, R>(fn: string | ((arg: Arg) => R | Promise<R>), arg: Arg | undefined) => {
   if (typeof fn === 'string') return fn;
-  return `(${String(fn)})(${JSON.stringify(arg ?? null)})`;
+  return `(()=>{${NAME_SHIM}return (${String(fn)})(${JSON.stringify(arg ?? null)});})()`;
 };
 
 const toFunctionDeclaration = <El, Arg, R>(
   fn: string | ((el: El, arg: Arg) => R | Promise<R>),
 ) => {
-  if (typeof fn === 'string') return `function(){ return (${fn})(this); }`;
-  return `function(arg){ return (${String(fn)})(this, arg); }`;
+  if (typeof fn === 'string') return `function(){${NAME_SHIM}return (${fn})(this);}`;
+  return `function(arg){${NAME_SHIM}return (${String(fn)})(this, arg);}`;
 };
 
 const failureFrom = (result: CdpCallResult) => {

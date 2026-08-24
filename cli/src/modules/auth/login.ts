@@ -42,7 +42,7 @@ export const runAuthLogin = async (
   try {
     await session.page.goto(INSTAGRAM_HOME, { waitUntil: 'domcontentloaded' });
     if (await verifyLogin(session.page)) return buildSuccess(context);
-    if (options.noInput || !canPromptLogin(input)) return failResult('auth.login', 'not logged in; sign in manually in the connected Chrome');
+    if (options.noInput || !canPromptLogin(input)) return failResult('auth.login', 'auth login required: sign in manually in the connected Chrome');
     await session.page.goto(INSTAGRAM_LOGIN, { waitUntil: 'domcontentloaded' });
     await prepareAuthPage(session.page);
     await waitForLoginConfirmation();

@@ -96,7 +96,7 @@ describe('runAuthLogin', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.summary).toContain('not logged in');
+    expect(result.summary).toContain('auth login required');
   });
 
   it('fails when the login was not completed', async () => {
