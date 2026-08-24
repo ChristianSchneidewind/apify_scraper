@@ -4,10 +4,11 @@ Global options can be used with every command:
 
 | Option | Description |
 | --- | --- |
-| `--browser-profile <name>` | Persistent profile name; default `default` |
-| `--cwd <path>` | Working directory for profiles and relative paths |
-| `--dry-run` | Validate without opening a browser or writing artifacts |
-| `--headless` | Run Chromium without a visible window |
+| `--cdp-url <url>` | Chrome DevTools endpoint of the running Chrome; default `http://127.0.0.1:9222` |
+| `--cwd <path>` | Working directory for relative paths |
+| `--dry-run` | Validate without attaching to Chrome or writing artifacts |
+| `--evidence` | Write `actions.ndjson` and a SHA-256 `manifest.json` per run |
+| `--headless` | Deprecated no-op; CDP mode always uses the running Chrome UI |
 | `--json` | Emit one JSON result on stdout |
 | `--plain` | Emit stable tab-separated output |
 | `--no-input` | Disable interactive prompts |
@@ -21,7 +22,9 @@ Global options can be used with every command:
 instagram auth login [global options]
 ```
 
-The command opens Instagram and waits for manual login. The resulting session is persisted for the selected browser profile.
+The command opens Instagram in the connected Chrome and waits for the human
+to complete the login there. The session persists in the real Chrome profile;
+the command only verifies the resulting state.
 
 ## `scrape comments`
 

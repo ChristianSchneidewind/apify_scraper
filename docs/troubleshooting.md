@@ -1,14 +1,33 @@
 # Troubleshooting
 
+## Chrome remote debugging not reachable
+
+If the CLI reports that Chrome remote debugging is not reachable:
+
+- enable `chrome://inspect/#remote-debugging` in Chrome, or
+- start Chrome with `--remote-debugging-port=9222`, or
+- run `chrome-agent launch`
+
+Point `--cdp-url` at the right endpoint when you use a non-default port.
+
 ## Session expired / auth required
 
-If the CLI reports `Instagram session expired; run auth login first`, authenticate the same browser profile again:
+If the CLI reports `Instagram session expired; run auth login first`, sign in
+to Instagram in the connected Chrome and verify:
 
 ```bash
-npx tsx cli/src/bin/instagram.ts auth login --browser-profile "default"
+npx tsx cli/src/bin/instagram.ts auth login
 ```
 
-Keep the same `--cwd` and `--browser-profile` values for subsequent scrapes.
+The session lives in the real Chrome profile; there is no separate CLI profile
+to keep in sync.
+
+## Captures flagged as not visible
+
+The action-verify loop flags captures whose target left the viewport instead
+of dropping them. The run summary prints the visibility quote; spot-check the
+flagged comments via their `commentPermalink` and the `visibleInViewport`
+field in the per-comment metadata JSON.
 
 ## No comments captured
 

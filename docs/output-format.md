@@ -48,6 +48,17 @@ Failed results include an `errorCode`, for example `AUTH_ERROR`, `BROWSER_ERROR`
 
 Liker-profile collection is intentionally disabled until the Instagram dialog flow is reliable. Visible `likesCount` is retained, `commentLikers` is empty, and `likersReason` is `liker_collection_disabled`.
 
+Per-comment metadata JSON files next to the screenshots additionally carry
+`visibleInViewport`: the action-verify result stating whether the capture
+target was inside the viewport at screenshot time.
+
+## Evidence artifacts
+
+With `--evidence`, each run directory additionally contains `actions.ndjson`
+(structured action log with run ID and UTC timestamps) and `manifest.json`
+(SHA-256 hash and size of every artifact), so the integrity of a run can be
+verified later.
+
 ## Profile artifacts
 
 Profile scraping writes a JSON profile record and one screenshot into a timestamped `<timestamp>_<profile>/` directory below `--out-dir`. The screenshot includes a provenance banner with the source URL, capture time, and UUIDv7. The CLI result includes `durationMs` for the profile run. The JSON contains the source URL, username, biography, full name, avatar URL, title, description, and profile statistics.

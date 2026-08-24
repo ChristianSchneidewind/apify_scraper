@@ -12,7 +12,8 @@ npx tsx cli/src/bin/instagram.ts <command>
 - `--json`: one JSON object to stdout.
 - `--plain`: stable line-oriented text output (`OK|ERROR`, command, summary, sorted `key=value` details).
 - Successful comment scrapes report `incompleteLikersCount` and `multipartCount` in details.
-- `--headless`: run browser without visible UI (default is headful).
+- `--headless`: deprecated no-op; CDP mode always uses the running Chrome UI.
+- `--evidence`: write `actions.ndjson` plus a SHA-256 `manifest.json` per run.
 - `--dry-run`: validate the command without opening a browser or writing artifacts.
 - `--resume <path>`: continue from a previous comments `checkpoint.json`.
 - liker-related flags are accepted for compatibility but currently do not collect profiles.
@@ -21,20 +22,22 @@ npx tsx cli/src/bin/instagram.ts <command>
 
 ## Commands
 
-### Browser profile summary
+### CDP connection summary
 
-Global options may appear before or after commands. This standalone lookup does not open a browser:
+Global options may appear before or after commands. This standalone lookup does not attach to Chrome:
 
 ```bash
-npx tsx cli/src/bin/instagram.ts --browser-profile "default" --json
+npx tsx cli/src/bin/instagram.ts --cdp-url "http://127.0.0.1:9222" --json
 ```
 
 ### Login
 
 ```bash
-npx tsx cli/src/bin/instagram.ts auth login \
-  --browser-profile "default"
+npx tsx cli/src/bin/instagram.ts auth login
 ```
+
+The command never automates the login itself: sign in manually in the
+connected Chrome; the command verifies the resulting session state.
 
 ### Scrape comments
 

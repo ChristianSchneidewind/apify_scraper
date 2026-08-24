@@ -1,6 +1,7 @@
 # Instagram CLI
 
-TypeScript-only Instagram scraping CLI.
+TypeScript-only Instagram scraping CLI. It drives the user's own Chrome over
+the Chrome DevTools Protocol (CDP) — no Playwright, no bundled browser.
 
 ## Commands
 
@@ -11,25 +12,28 @@ TypeScript-only Instagram scraping CLI.
 
 ## Features
 
-- Instagram login with persisted browser profile
-- Comment scraping via UI loop
+- Uses the real Chrome profile: existing Instagram login, cookies, fingerprint
+- Comment scraping via UI loop with an action-verify loop and a per-run visibility quote
 - Visible comment-like counts (liker-profile collection is temporarily disabled)
 - Per-comment highlighted screenshots
 - Multipart capture for long comments
 - Profile scraping with JSON + timestamped screenshot folders and provenance banners
 - Repost scraping with per-profile screenshot folders
+- Optional evidence log (NDJSON actions + SHA-256 manifest) via `--evidence`
 
 ## Setup
 
 ```bash
 npm install
-npx playwright install chromium
 ```
+
+Enable remote debugging in your Chrome (`chrome://inspect/#remote-debugging`),
+start Chrome with `--remote-debugging-port=9222`, or run `chrome-agent launch`.
 
 ## Usage
 
 ```bash
-npx tsx cli/src/bin/instagram.ts auth login --browser-profile "default"
+npx tsx cli/src/bin/instagram.ts auth login
 
 npx tsx cli/src/bin/instagram.ts scrape comments \
   --url "https://www.instagram.com/p/abc/" \

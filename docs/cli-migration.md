@@ -8,7 +8,7 @@ The migration is complete. This repository ships only the TypeScript Instagram C
 - `instagram scrape comments --url ...`
 - `instagram scrape profiles --url ... --profile-slug ... --out-dir ...`
 - `instagram scrape reposts --url ... --out-dir ...`
-- `instagram --browser-profile <name>` displays profile information without opening a browser
+- `instagram --cdp-url <url>` displays the CDP connection without attaching to Chrome
 
 ## Architecture
 

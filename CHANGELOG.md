@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Added
+- Direct CDP browser automation against the user's running Chrome (`--cdp-url`), replacing Playwright: real profile, existing logins, no browser download.
+- Action-verify capture loop: viewport visibility is verified before screenshots, outliers are flagged instead of dropped, and each run ends with a visibility quote.
+- `--evidence` flag writing `actions.ndjson` and a SHA-256 `manifest.json` per run directory.
+- CDP integration test fixture that launches the system Chrome headless.
+
+### Changed
+- `auth login` no longer persists storage state; it verifies the session in the connected Chrome (logins are never automated).
+- `--browser-profile` was replaced by `--cdp-url`; `--headless` is a deprecated no-op.
+- Playwright dependency removed; the Docker image is a plain Node runtime that expects an external Chrome endpoint.
+
+### Added (previously)
 - TypeScript-only Instagram CLI for authentication, comment scraping, and profile scraping.
 - Persistent browser profiles for reusable Instagram sessions.
 - Structured CLI output with JSON, plain-text, and typed error codes.

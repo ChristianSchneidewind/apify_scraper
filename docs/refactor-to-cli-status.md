@@ -8,9 +8,12 @@ Implemented:
 
 - descriptor-driven modular commands and command-agnostic core
 - TypeBox-derived serializable data contracts
-- centralized Playwright and callback ports
+- direct CDP browser automation against the running Chrome (no Playwright)
+- centralized CDP and callback ports
 - typed browser evaluators without dynamic code execution
 - strict custom architecture lint rules
+- action-verify capture loop with per-run visibility quote and flagging
+- optional evidence log with SHA-256 run manifest
 - checkpoints and safe resume behavior
 - visible comment-like counts
 - highlighted single/multipart screenshots
