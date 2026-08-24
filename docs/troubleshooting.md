@@ -22,31 +22,10 @@ Try:
 - increase `--ui-idle-rounds`
 - run with `--verbose`
 
-## Likers lower than likesCount
+## Liker profiles are empty
 
-Notes:
-- Instagram often exposes only visible/loadable likers
-- default `--max-comment-likers 0` already means all visible likers
+This is intentional. The production path currently keeps visible `likesCount` but does not open liker dialogs. Comment records contain an empty `commentLikers` array and `likersReason: "liker_collection_disabled"`. Liker-related flags are compatibility placeholders until the UI flow is reliable.
 
-Try:
-- `--liker-collection-mode strict`
-- `--verbose`
-
-## 0-like comments
-
-The CLI should not click the normal reaction button for 0-like comments.
-Deep fallback is skipped when `likesCount === 0`.
-
-## Retry missing likers
-
-To retry comments that have likes but no collected likers, resume the checkpoint with:
-
-```bash
-npx tsx cli/src/bin/instagram.ts scrape comments \
-  --url "https://www.instagram.com/p/abc/" \
-  --resume "artifacts/comments/<run>/checkpoint.json" \
-  --retry-incomplete-likers
-```
 
 ## Resume interrupted runs
 
@@ -62,7 +41,6 @@ npx tsx cli/src/bin/instagram.ts scrape comments \
 
 Typical causes:
 - comment expansion
-- liker dialog scrolling
 - multipart screenshots
 
 Try:

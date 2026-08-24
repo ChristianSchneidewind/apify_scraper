@@ -22,7 +22,7 @@ export const runScrapeProfiles = async (
   const session = await openBrowserSession(context, options.headful);
   try {
     await session.page.goto(options.url, { waitUntil: 'domcontentloaded' });
-    if (await isLoginRequired(session.page as never)) {
+    if (await isLoginRequired(session.page)) {
     throw new Error('Instagram session expired; run auth login first');
     }
     const slug = resolveProfileSlug(options.url, options.profileSlug);

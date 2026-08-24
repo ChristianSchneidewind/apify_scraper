@@ -8,10 +8,13 @@ import type {
   CaptureSession,
   CommentRecord,
   ElementHandle,
+  MultipartVerifyResult,
+  ScreenshotClip,
 } from '../../../schemas/index.ts';
+import { verifyMultipartBrowser } from '../multipart/browser.ts';
 import { expandCommentForCapture } from '../multipart/planner.ts';
 import { bannerText, setScreenshotBanner } from './banner.ts';
-import { hashBuffer, runPayloadOnElement, savePart, takeScreenshot, VERIFY_SCRIPT } from './assets.ts';
+import { hashBuffer, savePart, takeScreenshot } from './assets.ts';
 import { reinforceHighlightStyles } from './highlight-style.ts';
 
 const logVerify = async (
@@ -22,17 +25,17 @@ const logVerify = async (
   partsTotal: number,
   top: number,
   mode: string,
-  verify: unknown,
+  verify: MultipartVerifyResult,
 ) => log(outDir, commentIndex, 'capture scroll part:verify', {
-  clip: (verify as { clip?: Record<string, number> }).clip ?? null,
-  debug: (verify as { debug?: Record<string, unknown> }).debug ?? null,
-  maxBottom: (verify as { maxBottom?: number }).maxBottom ?? null,
-  metrics: (verify as { metrics?: Record<string, unknown> }).metrics ?? null,
+  clip: verify.clip ?? null,
+  debug: null,
+  maxBottom: verify.maxBottom ?? null,
+  metrics: verify.metrics ?? null,
   mode,
   part: partIdx + 1,
   partsTotal,
-  rowBottom: (verify as { rowBottom?: number }).rowBottom ?? null,
-  rowTop: (verify as { rowTop?: number }).rowTop ?? null,
+  rowBottom: verify.rowBottom ?? null,
+  rowTop: verify.rowTop ?? null,
   top,
 });
 
@@ -44,9 +47,8 @@ const verifyScrollPart = async (
   payloadBase: CapturePayloadBase,
 ) => {
   await expandCommentForCapture(handle);
-  return handle.evaluate(runPayloadOnElement, {
-    body: VERIFY_SCRIPT,
-    payload: { mode, partsTotal, top, ...payloadBase },
+  return handle.evaluate(verifyMultipartBrowser, {
+    mode, partsTotal, top, ...payloadBase,
   });
 };
 
@@ -56,29 +58,26 @@ const prepareScrollHighlight = async (
   partIdx: number,
   lastHash: string | null,
 ) => {
-  const hl = await ensureHighlightReady(handle as never, data);
+  const hl = await ensureHighlightReady(handle, data);
   if (!hl.ok && partIdx > 0) return { done: true, lastHash };
   await reinforceHighlightStyles(handle);
   return { done: false, lastHash };
 };
 
-const clearHighlightNode = (node: Element) => {
-  if (!(node instanceof HTMLElement)) return;
-  node.style.outline = '';
-  node.style.outlineOffset = '';
-  node.style.boxShadow = '';
-  node.style.backgroundColor = '';
-  node.style.backgroundClip = '';
-  node.removeAttribute('data-apify-highlight');
-};
-
 const cleanupHighlightBrowser = () => {
   document.querySelectorAll('[data-apify-highlight-overlay="1"]').forEach((node) => node.remove());
-  document.querySelectorAll('[data-apify-highlight="1"]').forEach(clearHighlightNode);
+  document.querySelectorAll<HTMLElement>('[data-apify-highlight="1"]').forEach((node) => {
+    node.style.outline = '';
+    node.style.outlineOffset = '';
+    node.style.boxShadow = '';
+    node.style.backgroundColor = '';
+    node.style.backgroundClip = '';
+    node.removeAttribute('data-apify-highlight');
+  });
 };
 
 const cleanupHighlightArtifacts = async (page: CapturePage) => {
-  await page.evaluate(cleanupHighlightBrowser, undefined as never).catch(() => undefined);
+  await page.evaluate(cleanupHighlightBrowser, undefined).catch(() => undefined);
 };
 
 const saveScrollPart = async (
@@ -87,7 +86,7 @@ const saveScrollPart = async (
   session: CaptureSession,
   partIdx: number,
   lastHash: string | null,
-  hashClip?: Record<string, number>,
+  hashClip?: ScreenshotClip,
 ) => {
   const buffer = await takeScreenshot(page);
   const hashSource = hashClip ? await takeScreenshot(page, hashClip) : buffer;
@@ -116,8 +115,8 @@ export const captureScrollPart = async (
 ): Promise<CapturePartResult> => {
   await log(outDir, commentIndex, 'capture scroll part:start', { mode, part: partIdx + 1, partsTotal, top });
   const verify = await verifyScrollPart(handle, mode, partsTotal, top, payloadBase);
-  if (!(verify as { ok?: boolean; reason?: string })?.ok) {
-    await log(outDir, commentIndex, 'capture scroll part:verify_failed', { mode, part: partIdx + 1, partsTotal, reason: (verify as { reason?: string })?.reason ?? null, top });
+  if (!verify.ok) {
+    await log(outDir, commentIndex, 'capture scroll part:verify_failed', { mode, part: partIdx + 1, partsTotal, reason: verify.reason ?? null, top });
     return { done: true, lastHash };
   }
   await logVerify(log, outDir, commentIndex, partIdx, partsTotal, top, mode, verify);
@@ -127,7 +126,7 @@ export const captureScrollPart = async (
     if (highlight.done) return { done: false, lastHash: highlight.lastHash };
   }
   await page.evaluate(setScreenshotBanner, { text: bannerText(session, page.url(), commentIndex, partIdx + 1, partsTotal) });
-  const hashClip = partsTotal > 1 ? (verify as { clip?: Record<string, number> }).clip : undefined;
+  const hashClip = partsTotal > 1 ? verify.clip : undefined;
   const saved = await saveScrollPart(page, outDir, session, partIdx, lastHash, hashClip);
   await cleanupHighlightArtifacts(page);
   if (saved.duplicated) {

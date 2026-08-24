@@ -1,6 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import {
   ensureOutputDirectory,
   writeBinaryFile,
@@ -8,15 +6,10 @@ import {
 } from '../../adapters/filesystem/output.ts';
 import { prepareProfileScreenshotVisuals } from '../../adapters/instagram/visual.ts';
 import { makeScreenshotUtc, makeUuid7 } from '../scrape-comments/capture/screenshot-session.ts';
-import type { ProfilePageData } from '../../schemas/index.ts';
+import type { ProfileCapturePage, ProfilePageData, ProfileReadPage } from '../../schemas/index.ts';
+import { extractProfile, setProfileBanner } from './browser.ts';
 
 const PROFILE_WAIT_MS = 3000;
-const scriptPath = join(
-  dirname(fileURLToPath(import.meta.url)),
-  'browser-scripts/extract-profile.script',
-);
-const EXTRACT_PROFILE_BROWSER_SCRIPT = readFileSync(scriptPath, 'utf8');
-const PROFILE_BANNER_SCRIPT = readFileSync(join(dirname(scriptPath), 'set-profile-banner.script'), 'utf8');
 
 const RESERVED_SEGMENTS = new Set([
   'accounts',
@@ -41,14 +34,11 @@ export const extractUsernameFromUrl = (url: string) => {
 export const resolveProfileSlug = (url: string, profileSlug?: string) =>
   profileSlug || extractUsernameFromUrl(url) || 'profile';
 
-const runExtractProfilePayload = (script: string) =>
-  new Function(`return (${script})()`)() as Omit<ProfilePageData, 'sourceUrl'>;
-
 export const extractProfilePageData = async (
-  page: { evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T> },
+  page: ProfileReadPage,
   sourceUrl: string,
 ) => {
-  const extracted = await page.evaluate(runExtractProfilePayload, EXTRACT_PROFILE_BROWSER_SCRIPT);
+  const extracted = await page.evaluate(extractProfile, undefined);
   return {
     ...extracted,
     sourceUrl,
@@ -57,21 +47,15 @@ export const extractProfilePageData = async (
 };
 
 export const captureProfilePage = async (
-  page: {
-    evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-    screenshot: (options: { fullPage: boolean }) => Promise<Uint8Array>;
-    waitForTimeout: (ms: number) => Promise<void>;
-  },
+  page: ProfileCapturePage,
   sourceUrl: string,
 ) => {
   await prepareProfileScreenshotVisuals(page);
   await page.waitForTimeout(PROFILE_WAIT_MS);
   const profile = await extractProfilePageData(page, sourceUrl);
   const screenshotUuid = makeUuid7();
-  await page.evaluate((args: { body: string; text: string }) => new Function(`return (${args.body})`)()({ text: args.text }), {
-    body: PROFILE_BANNER_SCRIPT,
-    text: `${sourceUrl}\n${makeScreenshotUtc()} | profile | ${screenshotUuid}`,
-  });
+  const banner = `${sourceUrl}\n${makeScreenshotUtc()} | profile | ${screenshotUuid}`;
+  await page.evaluate(setProfileBanner, banner);
   const screenshot = await page.screenshot({ fullPage: true });
   return { profile, screenshot };
 };

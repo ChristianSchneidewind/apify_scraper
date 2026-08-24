@@ -1,28 +1,14 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { LOAD_MORE_TEXTS } from '../../adapters/instagram/dom-selectors.ts';
-import type { CommentPage, TimeLocator } from '../../schemas/index.ts';
-
-const dir = dirname(fileURLToPath(import.meta.url));
-const EXPAND_SCRIPT = readFileSync(join(dir, 'browser-scripts/expand-comments.script'), 'utf8');
-
-const loadExpandScript = () => new Function(
-  EXPAND_SCRIPT.replace('__LOAD_MORE_TEXTS__', JSON.stringify(LOAD_MORE_TEXTS)),
-)() as {
-  expandCommentUi: (texts: readonly string[]) => number;
-  expandReplyThreadsUi: (maxClicks: number) => number;
-  LOAD_MORE_TEXTS: readonly string[];
-};
+import type { ReplyExpansionPage, TimeLocator, VisualPage } from '../../schemas/index.ts';
+import { expandCommentControls, expandOneReplyControl } from './browser.ts';
 
 export const expandComments = async (
-  page: { evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T> },
+  page: VisualPage,
   maxClicks = 30,
 ) => {
-  const script = loadExpandScript();
   let clicks = 0;
   while (clicks < maxClicks) {
-    const added = await page.evaluate(script.expandCommentUi, script.LOAD_MORE_TEXTS);
+    const added = await page.evaluate(expandCommentControls, LOAD_MORE_TEXTS);
     if (!added) break;
     clicks += added;
   }
@@ -57,7 +43,7 @@ const findClickableReply = async (
 ): Promise<TimeLocator | null> => {
   const handle = handles[0];
   if (!handle) return null;
-  const control = await handle.evaluate(readReplyControl, undefined as never).catch(() => null);
+  const control = await handle.evaluate(readReplyControl, undefined).catch(() => null);
   const previousAttempts = control ? attempts.get(control.key) || 0 : 3;
   if (!control || previousAttempts >= 3) return findClickableReply(handles.slice(1), attempts);
   attempts.set(control.key, previousAttempts + 1);
@@ -65,7 +51,7 @@ const findClickableReply = async (
 };
 
 const clickReplyControlWithPlaywright = async (
-  page: Pick<CommentPage, 'evaluate'> & Partial<Pick<CommentPage, 'locator' | 'waitForTimeout'>>,
+  page: ReplyExpansionPage,
 ) => {
   if (!page.locator) return null;
   const replyText = ':text-matches("(repl|antwort)", "i")';
@@ -79,17 +65,19 @@ const clickReplyControlWithPlaywright = async (
 };
 
 export const expandAllReplyThreads = async (
-  page: Pick<CommentPage, 'evaluate'> & Partial<Pick<CommentPage, 'locator' | 'waitForTimeout'>>,
+  page: ReplyExpansionPage,
   maxClicks = 80,
 ) => {
-  const script = loadExpandScript();
   let clicked = 0;
+  let fallbackAttempts = 0;
   // Instagram batches/re-renders reply controls. Re-query after every trusted
   // Playwright click; evaluate-click is retained only for lightweight tests.
   while (clicked < maxClicks) {
     const playwrightAdded = await clickReplyControlWithPlaywright(page);
-    const added = playwrightAdded ?? await page.evaluate(script.expandReplyThreadsUi, 1);
+    if (playwrightAdded === null && fallbackAttempts >= 3) break;
+    const added = playwrightAdded ?? await page.evaluate(expandOneReplyControl, undefined);
     if (!added) break;
+    if (playwrightAdded === null) fallbackAttempts += 1;
     clicked += added;
     await page.waitForTimeout?.(300);
   }

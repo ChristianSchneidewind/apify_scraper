@@ -3,9 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../src/adapters/instagram/highlight.ts', () => ({
   ensureHighlightReady: vi.fn(),
 }));
-vi.mock('../src/adapters/instagram/load-script.ts', () => ({
-  browserRunPayload: vi.fn(),
-}));
 vi.mock('../src/adapters/filesystem/output.ts', () => ({
   appendTextFile: vi.fn().mockResolvedValue('/tmp/out/capture-debug.jsonl'),
   writeBinaryFile: vi.fn(),
@@ -79,8 +76,8 @@ describe('captureCommentAssets multipart captures', () => {
     expect(result.screenshotPaths).toEqual(['/tmp/out/uuid-1.png', '/tmp/out/uuid-1-part2.png']);
     expect(result.screenshotKeys).toEqual(['uuid-1.png', 'uuid-1-part2.png']);
     const evaluateArgs = handle.evaluate.mock.calls.map((call) => call[1]);
-    expect(evaluateArgs).toContainEqual(expect.objectContaining({ body: expect.stringMatching(/\S/), payload: expect.objectContaining({ mode: 'row', partsTotal: 2, top: 0 }) }));
-    expect(evaluateArgs).toContainEqual(expect.objectContaining({ body: expect.stringMatching(/\S/), payload: expect.objectContaining({ mode: 'row', partsTotal: 2, top: 1 }) }));
+    expect(evaluateArgs).toContainEqual(expect.objectContaining({ mode: 'row', partsTotal: 2, top: 0 }));
+    expect(evaluateArgs).toContainEqual(expect.objectContaining({ mode: 'row', partsTotal: 2, top: 1 }));
     expect(page.screenshot).toHaveBeenNthCalledWith(1, expect.not.objectContaining({ clip: expect.anything() }));
     expect(page.screenshot).toHaveBeenNthCalledWith(2, expect.objectContaining({ clip: { height: 100, width: 200, x: 10, y: 20 } }));
     expect(page.screenshot).toHaveBeenNthCalledWith(3, expect.not.objectContaining({ clip: expect.anything() }));
@@ -108,8 +105,7 @@ describe('captureCommentAssets multipart captures', () => {
     const firstEvaluateCall = handle.evaluate.mock.calls[0] || [];
     expect(firstEvaluateCall[0]).toBeTypeOf('function');
     expect(firstEvaluateCall[1]).toEqual(expect.objectContaining({
-      body: expect.stringMatching(/\S/),
-      payload: expect.objectContaining({ mode: 'row', partsTotal: 3, top: 0 }),
+      mode: 'row', partsTotal: 3, top: 0,
     }));
     expect(page.screenshot).toHaveBeenCalledTimes(3);
     expect(page.screenshot).toHaveBeenNthCalledWith(1, expect.not.objectContaining({ clip: expect.anything() }));

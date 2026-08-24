@@ -1,39 +1,27 @@
+import type { LikersDialogPage } from '../../../schemas/index.ts';
 import {
-  NUDGE_END_SCRIPT,
-  OSCILLATE_END_SCRIPT,
-  RESET_DIALOG_SCRIPT,
-  SCROLL_END_SCRIPT,
-  runIifeBody,
-} from './collect-dialog-utils.ts';
+  nudgeLikersDialogEnd,
+  oscillateLikersDialogEnd,
+  resetLikersDialog,
+  scrollLikersDialogEnd,
+} from './browser.ts';
 
-export const resetLikersDialogScroll = async (page: {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-  waitForTimeout: (ms: number) => Promise<void>;
-}) => {
-  await page.evaluate(runIifeBody<boolean>, { body: RESET_DIALOG_SCRIPT });
+export const resetLikersDialogScroll = async (page: LikersDialogPage) => {
+  await page.evaluate(resetLikersDialog, undefined);
   await page.waitForTimeout(120);
 };
 
-export const scrollLikersDialogToEnd = async (page: {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-  waitForTimeout: (ms: number) => Promise<void>;
-}) => {
-  await page.evaluate(runIifeBody<boolean>, { body: SCROLL_END_SCRIPT });
+export const scrollLikersDialogToEnd = async (page: LikersDialogPage) => {
+  await page.evaluate(scrollLikersDialogEnd, undefined);
   await page.waitForTimeout(180);
 };
 
-export const nudgeLikersDialogAtEnd = async (page: {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-  waitForTimeout: (ms: number) => Promise<void>;
-}) => {
-  await page.evaluate(runIifeBody<boolean>, { body: NUDGE_END_SCRIPT });
+export const nudgeLikersDialogAtEnd = async (page: LikersDialogPage) => {
+  await page.evaluate(nudgeLikersDialogEnd, undefined);
   await page.waitForTimeout(220);
 };
 
-export const oscillateLikersDialogAtEnd = async (page: {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-  waitForTimeout: (ms: number) => Promise<void>;
-}) => {
-  await page.evaluate(runIifeBody<boolean>, { body: OSCILLATE_END_SCRIPT });
+export const oscillateLikersDialogAtEnd = async (page: LikersDialogPage) => {
+  await page.evaluate(oscillateLikersDialogEnd, undefined);
   await page.waitForTimeout(280);
 };

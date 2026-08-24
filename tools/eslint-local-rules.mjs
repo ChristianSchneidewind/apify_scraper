@@ -53,13 +53,45 @@ const createIndentDepthRule = (context) => ({
 });
 
 const createCentralizedTypesRule = (context) => ({
-  ':matches(TSInterfaceDeclaration, TSTypeAliasDeclaration)': (node) => {
+  ':matches(TSEnumDeclaration, TSInterfaceDeclaration, TSTypeAliasDeclaration)': (node) => {
     const filename = context.filename.replaceAll('\\\\', '/');
-    if (filename.includes('/cli/src/schemas/')) return;
+    if (filename.includes('cli/src/schemas/')) return;
     context.report({
       message: 'Type/interface declarations must live in cli/src/schemas/*.',
       node,
     });
+  },
+});
+
+const createInlineStructuralTypeRule = (context) => ({
+  TSTypeLiteral: (node) => {
+    const filename = context.filename.replaceAll('\\\\', '/');
+    if (filename.includes('cli/src/schemas/')) return;
+    context.report({ message: 'Inline structural types must live in cli/src/schemas/*.', node });
+  },
+});
+
+const createTypeBoxStaticRule = (context) => ({
+  TSTypeAliasDeclaration: (node) => {
+    const filename = context.filename.replaceAll('\\\\', '/');
+    const dataSchema = /\/(commands|config|outputs|scrape-comments-data)\.ts$/.test(filename);
+    if (!dataSchema) return;
+    const annotation = node.typeAnnotation;
+    const staticType = annotation.type === 'TSTypeReference'
+      && annotation.typeName.type === 'Identifier'
+      && annotation.typeName.name === 'Static';
+    if (staticType) return;
+    context.report({ message: 'Serializable types must be inferred from TypeBox with Static.', node });
+  },
+});
+
+const createUnsafeTypeEscapeRule = (context) => ({
+  TSAsExpression: (node) => {
+    const target = node.typeAnnotation.type;
+    const chainedUnknown = node.expression.type === 'TSAsExpression'
+      && node.expression.typeAnnotation.type === 'TSUnknownKeyword';
+    if (!['TSAnyKeyword', 'TSNeverKeyword'].includes(target) && !chainedUnknown) return;
+    context.report({ message: 'Unsafe any/never/unknown type assertion is forbidden.', node });
   },
 });
 
@@ -73,7 +105,11 @@ export default {
   rules: {
     'centralized-types': {
       create: createCentralizedTypesRule,
-      meta: ruleMeta('disallow local type/interface declarations outside schemas'),
+      meta: ruleMeta('disallow local type/interface/enum declarations outside schemas'),
+    },
+    'no-inline-structural-types': {
+      create: createInlineStructuralTypeRule,
+      meta: ruleMeta('forbid inline structural types outside schemas'),
     },
     'max-file-lines': {
       create: createFileLineRule,
@@ -86,6 +122,14 @@ export default {
     'max-indent-depth': {
       create: createIndentDepthRule,
       meta: ruleMeta('limit indentation depth'),
+    },
+    'typebox-static-data-types': {
+      create: createTypeBoxStaticRule,
+      meta: ruleMeta('require Static-derived aliases in serializable schema modules'),
+    },
+    'no-unsafe-type-escape': {
+      create: createUnsafeTypeEscapeRule,
+      meta: ruleMeta('forbid any, never, and chained unknown assertions'),
     },
   },
 };

@@ -1,12 +1,5 @@
-import type { ClickableLocator, DeepLinkPage, DeepLocator, FilterLocator } from '../../../schemas/index.ts';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const READ_LIKES_SCRIPT = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), 'browser-scripts/read-likes-count.script'),
-  'utf8',
-);
+import type { ClickableLocator, CurrentLikesPage, DeepLinkPage, DeepLocator, FilterLocator } from '../../../schemas/index.ts';
+import { readCommentLikesCount } from './browser.ts';
 
 const tryClick = async (page: DeepLinkPage, cand: ClickableLocator, tag: string) => {
   const scrolled = await Promise.allSettled([
@@ -82,18 +75,12 @@ const debugLikeScope = async (anchor: DeepLocator) => anchor.evaluate((el: Eleme
     scopeText: (scope?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 240),
     controls: controls.slice(0, 20).map((node) => ({ aria: (node.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim().slice(0, 120), role: node.getAttribute('role') || '', tag: node.tagName, text: (node.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120), title: (node.getAttribute('title') || '').replace(/\s+/g, ' ').trim().slice(0, 120) })),
   };
-}, undefined as never);
+}, undefined);
 
-function runElementBody<T>(el: Element, args: { body: string }) {
-  return new Function('el', args.body)(el) as T;
-}
-
-const firstLocator = (locator: { first: DeepLocator | (() => DeepLocator) }) =>
-  typeof locator.first === 'function' ? locator.first() : locator.first;
+const firstLocator = (locator: DeepLocator) => locator.first();
 
 const expandDeepReplies = async (page: DeepLinkPage) => {
-  const base = page.locator('button, [role="button"]') as unknown as Partial<FilterLocator>;
-  if (!base.filter) return;
+  const base: FilterLocator = page.locator('button, [role="button"]');
   const controls = base.filter({
     hasText: /(?:view|show|anzeigen|ansehen).*?(?:repl|antwort)|(?:repl|antwort).*?(?:view|show|anzeigen|ansehen)/i,
   });
@@ -105,7 +92,7 @@ const expandDeepReplies = async (page: DeepLinkPage) => {
 };
 
 export const clickLikesInCurrentPage = async (
-  page: { locator: DeepLinkPage['locator']; waitForTimeout: DeepLinkPage['waitForTimeout'] },
+  page: CurrentLikesPage,
   commentPermalink: string,
   verbose?: boolean,
 ) => {
@@ -114,10 +101,7 @@ export const clickLikesInCurrentPage = async (
     return { clicked: false, likesCount: 0, reason: 'current_target_comment_not_found' };
   }
 
-  const likesCount = await anchor.evaluate(
-    runElementBody<number>,
-    { body: READ_LIKES_SCRIPT },
-  );
+  const likesCount = await anchor.evaluate(readCommentLikesCount, undefined);
 
   const scope = anchor.locator('xpath=ancestor-or-self::*[self::li or @role="listitem" or self::article or self::div][1]');
   const broadScope = anchor.locator('xpath=ancestor-or-self::*[self::li or @role="listitem" or self::article or self::div][position() <= 6]');
@@ -149,10 +133,7 @@ export const openLikesDeepLink = async (
   }
   if (await anchor.count() === 0) return { clicked: false, likesCount: 0, reason: 'deep_target_comment_not_found' };
 
-  const likesCount = await anchor.evaluate(
-    runElementBody<number>,
-    { body: READ_LIKES_SCRIPT },
-  );
+  const likesCount = await anchor.evaluate(readCommentLikesCount, undefined);
 
   const scope = anchor.locator('xpath=ancestor-or-self::*[self::li or @role="listitem" or self::article or self::div][1]');
   const broadScope = anchor.locator('xpath=ancestor-or-self::*[self::li or @role="listitem" or self::article or self::div][position() <= 6]');

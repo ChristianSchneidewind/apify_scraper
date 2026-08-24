@@ -16,7 +16,7 @@ const options = {
 
 describe('createRuntimeContext', () => {
   it('builds browser profile paths', () => {
-    const context = createRuntimeContext(options);
+    const context = createRuntimeContext(options, '.instagram-cli');
     expect(context?.browserProfile.name).toBe('default');
     expect(context?.browserProfile.storageStatePath).toContain(
       '.instagram-cli/profiles/default/storage-state.json',

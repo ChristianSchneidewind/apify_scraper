@@ -25,20 +25,22 @@ The command opens Instagram and waits for manual login. The resulting session is
 
 ## `scrape comments`
 
+> Liker-profile collection is temporarily disabled. Liker-related flags remain accepted for compatibility but do not trigger dialog collection.
+
 | Option | Description |
 | --- | --- |
 | `--url <url>` | Instagram post or reel URL; required |
 | `--out-dir <path>` | Artifact root; default `artifacts/comments` |
 | `--max-comments <n>` | Maximum comments; `0` means unlimited |
-| `--max-comment-likers <n>` | Maximum likers per comment; `0` means all visible |
-| `--liker-collection-mode <mode>` | `best_effort` or `strict` |
-| `--liker-retry-attempts <n>` | Additional liker attempts; default uses adaptive behavior |
-| `--liker-retry-delay-ms <n>` | Initial retry delay; subsequent retries use exponential backoff |
-| `--liker-timeout-ms <n>` | Timeout per liker collection attempt |
+| `--max-comment-likers <n>` | Reserved compatibility option; currently no effect |
+| `--liker-collection-mode <mode>` | Reserved compatibility option |
+| `--liker-retry-attempts <n>` | Reserved compatibility option |
+| `--liker-retry-delay-ms <n>` | Reserved compatibility option |
+| `--liker-timeout-ms <n>` | Reserved compatibility option |
 | `--max-ui-rounds <n>` | Maximum comment expansion/scroll rounds |
 | `--ui-idle-rounds <n>` | Stop after this many idle rounds |
 | `--resume <path>` | Resume from a previous `checkpoint.json` |
-| `--retry-incomplete-likers` | Retry resumed comments with incomplete liker data |
+| `--retry-incomplete-likers` | Reserved compatibility option; currently no effect |
 
 ## `scrape profiles`
 

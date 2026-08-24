@@ -50,14 +50,7 @@ npx tsx cli/src/bin/instagram.ts scrape comments \
   --resume "artifacts/comments/<run>/checkpoint.json"
 ```
 
-Retry comments whose liker dialog did not provide visible likers:
-
-```bash
-npx tsx cli/src/bin/instagram.ts scrape comments \
-  --url "https://www.instagram.com/p/POST_ID/" \
-  --resume "artifacts/comments/<run>/checkpoint.json" \
-  --retry-incomplete-likers
-```
+Liker-profile collection is currently disabled; liker-related retry flags are retained only for compatibility.
 
 ## Profiles
 

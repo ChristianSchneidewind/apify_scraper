@@ -22,6 +22,7 @@ scripts/*
 !scripts/refactor-to-cli-loop.sh
 !scripts/refactor-cli-phase-detect.sh
 !scripts/refactor-cli-phase-validator.sh
+!scripts/refactor-cli-loop.test.sh
 !scripts/validate-cli-refactor.sh
 !.github/scripts/
 !.github/scripts/*.py

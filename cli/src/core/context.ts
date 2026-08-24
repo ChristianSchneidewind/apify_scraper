@@ -3,26 +3,18 @@ import { Value } from '@sinclair/typebox/value';
 import type { GlobalOptions, RuntimeContext } from '../schemas/index.ts';
 import { runtimeContextSchema } from '../schemas/index.ts';
 
-const buildBrowserProfile = (browserProfile: string, cwd: string) => ({
-  dir: resolve(cwd, '.instagram-cli', 'profiles', browserProfile),
-  name: browserProfile,
-  storageStatePath: resolve(
-    cwd,
-    '.instagram-cli',
-    'profiles',
-    browserProfile,
-    'storage-state.json',
-  ),
-});
-
 export const createRuntimeContext = (
   options: GlobalOptions,
+  profileDirectory: string,
 ): RuntimeContext | null => {
+  const root = resolve(options.cwd, profileDirectory, 'profiles', options.browserProfile);
   const context = {
-    browserProfile: buildBrowserProfile(options.browserProfile, options.cwd),
+    browserProfile: {
+    dir: root,
+    name: options.browserProfile,
+    storageStatePath: resolve(root, 'storage-state.json'),
+    },
     cwd: options.cwd,
   };
-  return Value.Check(runtimeContextSchema, context)
-    ? context
-    : null;
+  return Value.Check(runtimeContextSchema, context) ? context : null;
 };

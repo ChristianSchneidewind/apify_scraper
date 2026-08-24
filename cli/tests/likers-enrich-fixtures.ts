@@ -11,11 +11,13 @@ export const baseData = {
   userProfilePath: '/alice/',
 };
 
-export const buildPage = () => ({
-  context: {
-    newPage: vi.fn(),
-  },
-  evaluate: vi.fn(),
-  keyboard: { press: vi.fn() },
-  waitForTimeout: vi.fn(),
-});
+export const buildPage = () => {
+  const browserContext = { newPage: vi.fn() };
+  return {
+    close: vi.fn().mockResolvedValue(undefined),
+    context: vi.fn(() => browserContext),
+    evaluate: vi.fn(),
+    keyboard: { press: vi.fn() },
+    waitForTimeout: vi.fn(),
+  };
+};

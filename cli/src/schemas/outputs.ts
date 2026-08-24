@@ -2,6 +2,12 @@ import { Type } from '@sinclair/typebox';
 import type { Static } from '@sinclair/typebox';
 import { commandNameSchema } from './commands.ts';
 
+export const jsonObjectSchema = Type.Record(Type.String(), Type.Unknown());
+
+export const screenshotBannerPayloadSchema = Type.Object({
+  text: Type.String(),
+});
+
 export const commentLikerSchema = Type.Object({
   profileUrl: Type.String(),
   username: Type.String(),
@@ -68,6 +74,8 @@ export const profilePageDataSchema = Type.Object({
   username: Type.Union([Type.String(), Type.Null()]),
 });
 
+export type JsonObject = Static<typeof jsonObjectSchema>;
+export type ScreenshotBannerPayload = Static<typeof screenshotBannerPayloadSchema>;
 export type CliErrorCode = Static<typeof cliErrorCodeSchema>;
 export type CliOutput = Static<typeof cliOutputSchema>;
 export type CommentLiker = Static<typeof commentLikerSchema>;

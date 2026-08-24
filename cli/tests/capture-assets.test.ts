@@ -3,9 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../src/adapters/instagram/highlight.ts', () => ({
   ensureHighlightReady: vi.fn(),
 }));
-vi.mock('../src/adapters/instagram/load-script.ts', () => ({
-  browserRunPayload: vi.fn(),
-}));
 vi.mock('../src/adapters/filesystem/output.ts', () => ({
   appendTextFile: vi.fn().mockResolvedValue('/tmp/out/capture-debug.jsonl'),
   writeBinaryFile: vi.fn(),
@@ -154,13 +151,11 @@ describe('captureCommentAssets', () => {
     const secondEvaluateCall = handle.evaluate.mock.calls[1] || [];
     expect(firstEvaluateCall[0]).toBeTypeOf('function');
     expect(firstEvaluateCall[1]).toEqual(expect.objectContaining({
-      body: expect.stringMatching(/\S/),
-      payload: expect.objectContaining({ mode: 'single', partsTotal: 1, top: 0 }),
+      mode: 'single', partsTotal: 1, top: 0,
     }));
     expect(secondEvaluateCall[0]).toBeTypeOf('function');
     expect(secondEvaluateCall[1]).toEqual(expect.objectContaining({
-      body: expect.stringMatching(/\S/),
-      payload: expect.objectContaining({ mode: 'row', partsTotal: 2, top: 0 }),
+      mode: 'row', partsTotal: 2, top: 0,
     }));
     expect(page.screenshot).toHaveBeenNthCalledWith(1, expect.not.objectContaining({ clip: expect.anything() }));
     expect(page.screenshot).toHaveBeenNthCalledWith(2, expect.not.objectContaining({ clip: expect.anything() }));

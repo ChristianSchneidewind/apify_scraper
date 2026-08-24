@@ -1,13 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { expect, it, vi } from 'vitest';
-import { browserRunPayload } from '../src/adapters/instagram/load-script.ts';
-
-const SCRIPT = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), '../src/adapters/instagram/browser-scripts/highlight-comment.script'),
-  'utf8',
-);
+import { highlightCommentBrowser } from '../src/adapters/instagram/highlight-browser.ts';
 
 it('normalizes whitespace and accepts tall Reel comment rows', () => {
   const avatar = {
@@ -20,8 +12,17 @@ it('normalizes whitespace and accepts tall Reel comment rows', () => {
     getBoundingClientRect: () => ({ width: 243, height: 450 }),
     innerText: `alice ${visibleText}`,
     parentElement: null,
-    querySelector: (selector: string) => selector.includes('img') ? avatar : null,
-    querySelectorAll: (selector: string) => selector.includes('img') ? [avatar] : [],
+    querySelector: (selector: string) => {
+      if (selector.includes('img')) return avatar;
+      if (selector.includes('time')) return {};
+      if (selector.includes('a[href')) return { getAttribute: () => '/alice/' };
+      return null;
+    },
+    querySelectorAll: (selector: string) => {
+      if (selector.includes('img')) return [avatar];
+      if (selector.includes('/c/')) return [{ getAttribute: () => '/p/abc/c/1' }];
+      return [];
+    },
     setAttribute: vi.fn(),
     style: {},
     tagName: 'DIV',
@@ -38,16 +39,12 @@ it('normalizes whitespace and accepts tall Reel comment rows', () => {
     value: { pathname: '/reels/abc/' },
   });
 
-  const result = browserRunPayload({
-    body: SCRIPT,
-    payload: {
-      commentPermalink: '/p/abc/c/1',
-      el: row,
-      isGifOnly: false,
-      text: `${visibleText.replace('hello world', 'hello   world')} but its hidden ending is omitted`,
-      userProfilePath: '/alice/',
-      username: 'alice',
-    },
+  const result = highlightCommentBrowser(row, {
+    commentPermalink: '/p/abc/c/1',
+    isGifOnly: false,
+    text: `${visibleText.replace('hello world', 'hello   world')} but its hidden ending is omitted`,
+    userProfilePath: '/alice/',
+    username: 'alice',
   });
   expect(result).toMatchObject({ ok: true, rect: { h: 450, w: 243 } });
 });

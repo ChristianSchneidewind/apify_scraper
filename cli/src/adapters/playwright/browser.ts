@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
-import type { RuntimeContext } from '../../schemas/index.ts';
+import type { BrowserClosePort, RuntimeContext } from '../../schemas/index.ts';
 
 const hasStorageState = (path: string) => existsSync(path);
 
@@ -19,6 +19,6 @@ export const openBrowserSession = async (
   return { browser, browserContext, page };
 };
 
-export const closeBrowserSession = async (browser: { close: () => Promise<void> }) => {
+export const closeBrowserSession = async (browser: BrowserClosePort) => {
   await browser.close();
 };

@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
-import type { AuthLoginOptions, AuthPage, CliOutput, RuntimeContext } from '../../schemas/index.ts';
+import type { AuthLoginOptions, AuthPage, CliOutput, PromptInput, RuntimeContext } from '../../schemas/index.ts';
 import { prepareAuthPage } from '../../adapters/instagram/auth.ts';
 import { closeBrowserSession, openBrowserSession } from '../../adapters/playwright/browser.ts';
 import { failResult } from '../../core/result.ts';
@@ -11,13 +11,13 @@ const ensureProfileDirectory = async (context: RuntimeContext) =>
 
 const openLoginPage = async (context: RuntimeContext, headful: boolean) => {
   const session = await openBrowserSession(context, headful);
-  return { ...session, page: session.page as AuthPage };
+  return session;
 };
 
 const isLoggedIn = async (page: AuthPage) =>
   (await page.locator('nav, svg[aria-label="Home"], svg[aria-label="Profile"]').count()) > 0;
 
-export const canPromptLogin = (input: { isTTY?: boolean } | null | undefined) => Boolean(input?.isTTY);
+export const canPromptLogin = (input: PromptInput) => Boolean(input?.isTTY);
 
 const waitForLoginConfirmation = async () => {
   const rl = createInterface({ input: stdin, output: stdout });

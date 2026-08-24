@@ -1,9 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { buildSafeClickHelpers } from '../../../adapters/instagram/safe-click.ts';
-import { injectHelpers } from '../../../adapters/instagram/load-script.ts';
-import type { CommentRecord, ElementHandle, MultipartPlanResult } from '../../../schemas/index.ts';
+import type { CommentRecord, ElementHandle, RefindCommentPayload } from '../../../schemas/index.ts';
 import {
   calcForcedParts,
   hasMultipartEvidence,
@@ -12,14 +7,9 @@ import {
   totalParts,
 } from './decisions.ts';
 
-const dir = dirname(fileURLToPath(import.meta.url));
-const PLAN_SCRIPT = readFileSync(join(dir, 'browser-scripts/multipart-plan.script'), 'utf8');
-const EXPAND_SCRIPT = injectHelpers(
-  readFileSync(join(dir, 'browser-scripts/multipart-expand.script'), 'utf8'),
-  buildSafeClickHelpers(),
-);
+import { expandCommentBrowser, planMultipartBrowser } from './browser.ts';
 
-const buildPayload = (data: CommentRecord) => ({
+const buildPayload = (data: CommentRecord): RefindCommentPayload => ({
   commentPermalink: data.commentPermalink,
   text: data.text,
   userProfilePath: data.userProfilePath,
@@ -27,20 +17,14 @@ const buildPayload = (data: CommentRecord) => ({
 });
 
 export const expandCommentForCapture = async (handle: ElementHandle) => {
-  await handle.evaluate((el: Element, args: { body: string }) => new Function('el', args.body)(el), { body: EXPAND_SCRIPT });
+  await handle.evaluate(expandCommentBrowser, undefined);
 };
 
 export const planCommentMultipart = async (
   handle: ElementHandle,
   data: CommentRecord,
 ) => {
-  const partPlan = await handle.evaluate((el: Element, args: { body: string; payload: Record<string, unknown> }) => {
-    const fn = new Function(args.body)() as (payload: Record<string, unknown>) => MultipartPlanResult;
-    return fn({ ...args.payload, el });
-  }, {
-    body: PLAN_SCRIPT,
-    payload: buildPayload(data),
-  });
+  const partPlan = await handle.evaluate(planMultipartBrowser, buildPayload(data));
   const safePlan = partPlan?.ok ? partPlan : { mode: 'single', tops: [0], sig: null };
 
   let scrollParts = safePlan.tops || [0];

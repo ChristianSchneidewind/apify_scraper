@@ -64,7 +64,7 @@ describe('enrichCommentLikers basics', () => {
 
     const page = buildPage();
     const deepPage = buildPage();
-    vi.mocked(page.context.newPage).mockResolvedValue(deepPage);
+    vi.mocked(page.context().newPage).mockResolvedValue(deepPage);
 
     const result = await enrichCommentLikers(page as never, {} as never, { ...baseData, likesCount: 4 }, 50);
     expect(result.likesCount).toBe(4);
@@ -97,7 +97,7 @@ describe('enrichCommentLikers basics', () => {
     const deepPage = buildPage();
     vi.mocked(openLikesInline).mockResolvedValue({ clicked: false, likesCount: 3, ok: true });
     vi.mocked(clickLikesInCurrentPage).mockResolvedValue({ clicked: false, likesCount: 3, reason: 'none' });
-    vi.mocked(deepPage.context.newPage).mockResolvedValue(deepPage);
+    vi.mocked(deepPage.context().newPage).mockResolvedValue(deepPage);
     vi.mocked(openLikesDeepLink).mockResolvedValue({ clicked: true, likesCount: 3, reason: 'pw_text_click' });
     vi.mocked(waitForDialogOpen).mockResolvedValue(true);
     vi.mocked(collectLikersFromDialog).mockResolvedValue([
@@ -105,7 +105,7 @@ describe('enrichCommentLikers basics', () => {
     ]);
 
     const page = buildPage();
-    vi.mocked(page.context.newPage).mockResolvedValue(deepPage);
+    vi.mocked(page.context().newPage).mockResolvedValue(deepPage);
 
     const result = await enrichCommentLikers(page as never, {} as never, { ...baseData }, 10);
 
@@ -121,7 +121,7 @@ describe('enrichCommentLikers basics', () => {
     vi.mocked(openLikesDeepLink).mockRejectedValue(new Error('boom'));
 
     const page = buildPage();
-    vi.mocked(page.context.newPage).mockResolvedValue(buildPage());
+    vi.mocked(page.context().newPage).mockResolvedValue(buildPage());
 
     const result = await enrichCommentLikers(page as never, {} as never, { ...baseData }, 10);
 

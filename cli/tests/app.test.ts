@@ -83,6 +83,40 @@ describe('runApp', () => {
     expect(result.details.browserProfile).toBe('work');
   });
 
+  it('shows a standalone browser profile without opening a browser', async () => {
+    const result = await runApp([
+      'node', 'instagram', '--browser-profile', 'scrape',
+    ]);
+    expect(result).toMatchObject({
+      command: 'profile.show',
+      details: { browserProfile: 'scrape' },
+      ok: true,
+      summary: 'browser profile: scrape',
+    });
+  });
+
+  it('rejects malformed or unknown standalone profile options', async () => {
+    const missing = await runApp(['node', 'instagram', '--browser-profile', '--json']);
+    const unknown = await runApp(['node', 'instagram', '--browser-profile', 'work', '--bogus']);
+    const cwd = await runApp(['node', 'instagram', '--browser-profile', 'work', '--cwd', '--json']);
+    const command = await runApp([
+      'node', 'instagram', 'scrape', 'comments', '--url', 'https://example.com',
+      '--dry-run', '--bogus',
+    ]);
+    expect(missing.ok).toBe(false);
+    expect(unknown.ok).toBe(false);
+    expect(cwd.ok).toBe(false);
+    expect(command.ok).toBe(false);
+  });
+
+  it('renders command help when global options lead the command', () => {
+    const output = execFileSync('node', [
+      '--import', 'tsx', 'cli/src/bin/instagram.ts',
+      '--browser-profile', 'work', 'scrape', 'comments', '--help',
+    ], { encoding: 'utf8' });
+    expect(output).toContain('--max-comments');
+  });
+
   it('supports dry-run without executing the command', async () => {
     const result = await runApp([
       'node',

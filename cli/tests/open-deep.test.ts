@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/adapters/instagram/load-script.ts', () => ({
-  browserRunElement: vi.fn().mockReturnValue(7),
-}));
-
 import { openLikesDeepLink } from '../src/modules/scrape-comments/likers/open-deep.ts';
 
 const buildCandidate = (clicked = false) => ({
@@ -32,7 +28,11 @@ describe('openLikesDeepLink', () => {
     };
     const page = {
       goto: vi.fn().mockResolvedValue(undefined),
-      locator: vi.fn().mockReturnValue({ count: vi.fn().mockResolvedValue(0), first: anchor }),
+      locator: vi.fn().mockReturnValue({
+        count: vi.fn().mockResolvedValue(0),
+        filter: vi.fn().mockReturnValue({ count: vi.fn().mockResolvedValue(0) }),
+        first: vi.fn(() => anchor),
+      }),
       waitForTimeout: vi.fn().mockResolvedValue(undefined),
     };
 
@@ -59,7 +59,7 @@ describe('openLikesDeepLink', () => {
       locator: vi.fn().mockImplementation((selector: string) =>
         selector === '[role="dialog"]'
           ? { count: dialogCount }
-          : { count: vi.fn().mockResolvedValue(1), first: anchor }),
+          : { count: vi.fn().mockResolvedValue(1), first: vi.fn(() => anchor) }),
       waitForTimeout: vi.fn().mockResolvedValue(undefined),
     };
 
@@ -82,7 +82,7 @@ describe('openLikesDeepLink', () => {
       locator: vi.fn().mockImplementation((selector: string) =>
         selector === '[role="dialog"]'
           ? { count: vi.fn().mockResolvedValue(0) }
-          : { count: vi.fn().mockResolvedValue(1), first: anchor }),
+          : { count: vi.fn().mockResolvedValue(1), first: vi.fn(() => anchor) }),
       waitForTimeout: vi.fn().mockResolvedValue(undefined),
     };
 

@@ -15,11 +15,19 @@ npx tsx cli/src/bin/instagram.ts <command>
 - `--headless`: run browser without visible UI (default is headful).
 - `--dry-run`: validate the command without opening a browser or writing artifacts.
 - `--resume <path>`: continue from a previous comments `checkpoint.json`.
-- `--retry-incomplete-likers`: retry resumed comments with likes but no collected likers.
+- liker-related flags are accepted for compatibility but currently do not collect profiles.
 - Diagnostics, warnings, and validation errors go to stderr.
 - `--no-input` disables prompts; auth login requires an interactive TTY.
 
 ## Commands
+
+### Browser profile summary
+
+Global options may appear before or after commands. This standalone lookup does not open a browser:
+
+```bash
+npx tsx cli/src/bin/instagram.ts --browser-profile "default" --json
+```
 
 ### Login
 
@@ -44,11 +52,10 @@ Each processed comment is checkpointed to `checkpoint.json` in the run directory
 ```bash
 npx tsx cli/src/bin/instagram.ts scrape comments \
   --url "https://www.instagram.com/p/abc/" \
-  --resume "artifacts/comments/<run>/checkpoint.json" \
-  --retry-incomplete-likers
+  --resume "artifacts/comments/<run>/checkpoint.json"
 ```
 
-Default: `--max-comment-likers 0` = all visible likers. `--max-comments 0` = no limit.
+`--max-comments 0` means no limit. Liker-related options are currently inactive.
 
 ### Scrape profiles
 
@@ -88,7 +95,7 @@ The TypeScript CLI is now the only runtime in this repository.
 
 Ported and usable:
 
-- Likers extraction (`--max-comment-likers`, `--liker-collection-mode`)
+- Visible like-count extraction; liker-profile dialog collection remains disabled
 - Screenshots with red outline per comment
 - Multipart capture for long comments
 - UI tuning (`--max-ui-rounds`, `--ui-idle-rounds`)

@@ -29,6 +29,9 @@ export default [
       'local/centralized-types': 'error',
       'local/max-function-lines': ['error', { max: 45 }],
       'local/max-indent-depth': ['error', { max: 2 }],
+      'local/no-inline-structural-types': 'error',
+      'local/no-unsafe-type-escape': 'error',
+      'local/typebox-static-data-types': 'error',
     },
   },
   {

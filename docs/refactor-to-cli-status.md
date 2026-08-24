@@ -1,21 +1,29 @@
-# CLI Status
+# CLI Refactor Status
 
 ## State
 
-The refactor is complete.
+The TypeScript CLI is the repository's only runtime.
 
-- TypeScript CLI is the only runtime in the repository.
-- Comment scraping parity features are implemented:
-  - likes + likers
-  - highlighted screenshots
-  - multipart capture
-- Profile scraping is implemented.
+Implemented:
+
+- descriptor-driven modular commands and command-agnostic core
+- TypeBox-derived serializable data contracts
+- centralized Playwright and callback ports
+- typed browser evaluators without dynamic code execution
+- strict custom architecture lint rules
+- checkpoints and safe resume behavior
+- visible comment-like counts
+- highlighted single/multipart screenshots
+- profile and repost artifact capture
+
+Liker-profile dialog collection is intentionally disabled. Production records use an empty `commentLikers` array and `likersReason: "liker_collection_disabled"`.
 
 ## Main entrypoints
 
 - `cli/src/bin/instagram.ts`
-- `cli/src/modules/scrape-comments/run.ts`
-- `cli/src/modules/scrape-profiles/run.ts`
+- `cli/src/core/app.ts`
+- `cli/src/modules/registry.ts`
+- module-local `command.ts` and `run.ts` files
 
 ## Validation
 

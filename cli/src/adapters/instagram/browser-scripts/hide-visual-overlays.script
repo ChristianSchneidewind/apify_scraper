@@ -1,9 +1,0 @@
-() => {
-  const candidates = Array.from(document.querySelectorAll('[role="banner"], [aria-label="Reels navigation controls"], [aria-label="Navigate to next Reel"], [aria-label="Navigate to previous Reel"], header, nav'));
-  for (const el of candidates) {
-    const containsHighlight = !!el.querySelector?.('[data-apify-highlight="1"]');
-    if (containsHighlight) continue;
-    el.style.setProperty('opacity', '0', 'important');
-    el.style.setProperty('pointer-events', 'none', 'important');
-  }
-}

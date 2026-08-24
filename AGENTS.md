@@ -13,7 +13,7 @@ We are building a **TypeScript Instagram scraping CLI** with **Playwright**. The
 ## Key behaviors
 - Uses Playwright to open Instagram pages and scrape via the UI.
 - Browser runs **headful by default**; use `--headless` to override.
-- Scrapes comments, likes, likers, and profile artifacts.
+- Scrapes comments, visible like counts, and profile artifacts. Liker-profile collection is temporarily disabled.
 - Highlights each comment with a red outline before screenshots.
 - Supports multipart screenshots for long comments.
 - Writes local artifacts under `--out-dir`.

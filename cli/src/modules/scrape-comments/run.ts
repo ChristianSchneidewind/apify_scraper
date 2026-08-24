@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { Value } from '@sinclair/typebox/value';
-import type { CliOutput, CommentRecord, RuntimeContext, ScrapeCommentsOptions, ScrapeLoopOptions } from '../../schemas/index.ts';
+import type { CliOutput, CommentRecord, LoggerPort, RuntimeContext, ScrapeCommentsOptions, ScrapeLoopOptions } from '../../schemas/index.ts';
 import { commentRecordSchema } from '../../schemas/index.ts';
 import {
   ensureOutputDirectory,
@@ -39,20 +39,20 @@ const buildSuccess = (
   summary: `scraped ${count} comments`,
 });
 
-const countScreenshots = (comments: Array<{ screenshotPaths?: string[] }>) =>
+const countScreenshots = (comments: CommentRecord[]) =>
   comments.reduce((sum, item) => sum + (item.screenshotPaths?.length || 0), 0);
 
-const sumLikes = (comments: Array<{ likesCount?: number }>) =>
+const sumLikes = (comments: CommentRecord[]) =>
   comments.reduce((sum, item) => sum + (Number(item.likesCount) || 0), 0);
 
-const sumLikers = (comments: Array<{ commentLikers?: Array<unknown> }>) =>
+const sumLikers = (comments: CommentRecord[]) =>
   comments.reduce((sum, item) => sum + (item.commentLikers?.length || 0), 0);
 
-const countIncompleteLikers = (comments: Array<{ likersComplete?: boolean; likersReason?: string | null; likesCount?: number; commentLikers?: Array<unknown> }>) =>
+const countIncompleteLikers = (comments: CommentRecord[]) =>
   comments.filter((item) => item.likersReason !== 'liker_collection_disabled'
     && (item.likersComplete === false || ((Number(item.likesCount) || 0) > 0 && !item.commentLikers?.length))).length;
 
-const countMultipart = (comments: Array<{ screenshotPaths?: string[] }>) =>
+const countMultipart = (comments: CommentRecord[]) =>
   comments.filter((item) => (item.screenshotPaths?.length || 0) > 1).length;
 
 const makeRunFolder = () => {
@@ -63,9 +63,11 @@ const makeRunFolder = () => {
 
 const loadCheckpoint = async (path: string): Promise<CommentRecord[] | null> => {
   try {
-    const raw = JSON.parse(await readFile(path, 'utf8')) as { comments?: unknown };
-    if (!Array.isArray(raw.comments)) return null;
-    return raw.comments.filter((item): item is CommentRecord => Value.Check(commentRecordSchema, item));
+    const raw: unknown = JSON.parse(await readFile(path, 'utf8'));
+    if (!raw || typeof raw !== 'object') return null;
+    const comments = Reflect.get(raw, 'comments');
+    if (!Array.isArray(comments)) return null;
+    return comments.filter((item): item is CommentRecord => Value.Check(commentRecordSchema, item));
   } catch {
     return null;
   }
@@ -80,7 +82,7 @@ const prepareOutput = async (context: RuntimeContext, options: ScrapeCommentsOpt
   return { dir, initialComments: initialComments || [] };
 };
 
-const logCommentSort = (logger: ReturnType<typeof createLogger>, commentSort: string) => {
+const logCommentSort = (logger: LoggerPort, commentSort: string) => {
   if (commentSort === 'selected_newest' || commentSort === 'already_newest') {
     logger.info(`comment sort: ${commentSort}`);
     return;
@@ -125,14 +127,14 @@ export const runScrapeComments = async (
     logger.info('waiting for initial load');
     await session.page.waitForTimeout(1500);
     logger.info('loading comments');
-    const commentSort = await prepareCommentsPage(session.page as never, options.maxUiRounds ?? 40, options.uiIdleRounds ?? 6);
+    const commentSort = await prepareCommentsPage(session.page, options.maxUiRounds ?? 40, options.uiIdleRounds ?? 6);
     logCommentSort(logger, commentSort);
     logger.info('capturing comments');
 
     const loopOptions = buildLoopOptions(options, dir, initialComments);
     logger.info('starting scrape loop');
     logger.debug('loop: entering');
-    const comments = await runCommentScrapeLoop(session.page as never, loopOptions);
+    const comments = await runCommentScrapeLoop(session.page, loopOptions);
     logger.info(`scrape loop done: ${comments.length} comments`, { comments: comments.length });
 
     const jsonPath = await writeJsonFile(dir, 'comments.json', {

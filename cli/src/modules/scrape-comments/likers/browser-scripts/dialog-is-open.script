@@ -1,7 +1,0 @@
-return (() => {
-  const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
-  // A Reel's comments panel is already a dialog. A likes dialog must be a
-  // nested second dialog; otherwise we would collect comment authors.
-  if (/\/reels?\//.test(location.pathname)) return dialogs.length > 1;
-  return dialogs.length > 0;
-})();

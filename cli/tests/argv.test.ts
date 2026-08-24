@@ -31,6 +31,15 @@ describe('parseCommandRequest', () => {
     expect(request?.options.browserProfile).toBe('default');
   });
 
+  it('does not confuse a reserved-looking profile value with the command', () => {
+    const request = parseCommandRequest([
+      '--browser-profile', 'scrape', 'scrape', 'comments',
+      '--url', 'https://www.instagram.com/p/abc/',
+    ]);
+    expect(request?.command).toBe('scrape.comments');
+    expect(request?.options.browserProfile).toBe('scrape');
+  });
+
   it('parses cwd overrides', () => {
     const request = parseCommandRequest([
       'node',

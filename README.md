@@ -13,7 +13,7 @@ TypeScript-only Instagram scraping CLI.
 
 - Instagram login with persisted browser profile
 - Comment scraping via UI loop
-- Likes + likers extraction
+- Visible comment-like counts (liker-profile collection is temporarily disabled)
 - Per-comment highlighted screenshots
 - Multipart capture for long comments
 - Profile scraping with JSON + timestamped screenshot folders and provenance banners
@@ -38,8 +38,7 @@ npx tsx cli/src/bin/instagram.ts scrape comments \
 # Resume an interrupted run from its checkpoint
 npx tsx cli/src/bin/instagram.ts scrape comments \
   --url "https://www.instagram.com/p/abc/" \
-  --resume "artifacts/comments/<run>/checkpoint.json" \
-  --retry-incomplete-likers
+  --resume "artifacts/comments/<run>/checkpoint.json"
 
 npx tsx cli/src/bin/instagram.ts scrape profiles \
   --url "https://www.instagram.com/nasa/" \
@@ -57,7 +56,7 @@ Defaults:
 - browser runs **headful** (visible UI); use `--headless` to override
 - `--dry-run` validates the command without opening a browser or writing artifacts
 - `--max-comments 0` = unlimited
-- `--max-comment-likers 0` = all visible likers
+- liker-related flags are retained for compatibility but currently have no effect
 
 ## Output modes
 
@@ -98,8 +97,8 @@ CI=1 npm run guardrails
 
 ## Known limitations
 
-- Instagram may expose only a subset of comments or likers.
-- Liker dialogs can open before their contents are available; incomplete collections are marked in the output.
+- Instagram may expose only a subset of comments.
+- Liker-profile collection is intentionally disabled until its UI flow is reliable; records use `likersReason: "liker_collection_disabled"`.
 - UI selectors can require maintenance when Instagram changes its interface.
 - The CLI uses the Instagram UI rather than a private API.
 

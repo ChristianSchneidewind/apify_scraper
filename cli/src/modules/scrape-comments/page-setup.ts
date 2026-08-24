@@ -1,13 +1,15 @@
-import { readFileSync } from 'node:fs';
 import { isLoginRequired, prepareAuthPage } from '../../adapters/instagram/auth.ts';
-import type { CommentPage } from '../../schemas/index.ts';
+import type { CommentPage, TimeLocator } from '../../schemas/index.ts';
 import { focusFirstCommentRow, resetCommentScroll } from './comment-scroll-reset.ts';
 import { expandAllReplyThreads, expandComments } from './ui-expand.ts';
 import { getCommentContainer } from './ui-container.ts';
 import { scrollCommentContainer } from './ui-scroll.ts';
-
-const REELS_COMMENTS_SCRIPT = readFileSync(new URL('./browser-scripts/open-reels-comments.script', import.meta.url), 'utf8');
-const SELECT_COMMENT_SORT_SCRIPT = readFileSync(new URL('./browser-scripts/select-comment-sort.script', import.meta.url), 'utf8');
+import { openReelComments } from './browser.ts';
+import {
+  clickNewestCommentSort,
+  openCommentSortMenu,
+  readCommentSort,
+} from './browser-sort.ts';
 
 const COMMENT_BUTTON_SELECTORS = [
   'button[aria-label="Comment"]',
@@ -44,7 +46,7 @@ const lockReelPageScroll = () => {
   return true;
 };
 
-const clickTarget = async (page: CommentPage, target: { click: (opts: { timeout: number }) => Promise<void> }) => {
+const clickTarget = async (page: CommentPage, target: TimeLocator) => {
   try {
     await target.click({ timeout: 2000 });
     await page.waitForTimeout(1200);
@@ -133,24 +135,43 @@ export const openCommentsPanel = async (page: CommentPage) => {
   if (await page.locator('[role="dialog"]').count()) return true;
   const isReelsFeed = await page.evaluate(() => /\/reels?\//.test(location.pathname), undefined);
   if (isReelsFeed) {
-    return page.evaluate((body: string) => new Function(`return (${body})`)()(), REELS_COMMENTS_SCRIPT);
+    return page.evaluate(openReelComments, undefined);
   }
   return clickFirstCommentButton(page);
 };
 
-export const selectNewestCommentSort = async (page: CommentPage) =>
-  page.evaluate(
-    (body: string) => new Function(`return (${body})`)()(),
-    SELECT_COMMENT_SORT_SCRIPT,
-  ) as Promise<string>;
+const verifyNewestSort = async (page: CommentPage) => {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    await page.waitForTimeout(150);
+    const state = await page.evaluate(readCommentSort, undefined);
+    if (state === 'already_newest') return true;
+  }
+  return false;
+};
+
+export const selectNewestCommentSort = async (page: CommentPage) => {
+  if (await page.evaluate(readCommentSort, undefined) === 'already_newest') {
+    return 'already_newest';
+  }
+  if (!(await page.evaluate(openCommentSortMenu, undefined))) {
+    return 'sort_control_not_found';
+  }
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await page.waitForTimeout(150);
+    if (!(await page.evaluate(clickNewestCommentSort, undefined))) continue;
+    const verified = await verifyNewestSort(page);
+    return verified ? 'selected_newest' : 'sort_selection_not_applied';
+  }
+  return 'newest_option_not_found';
+};
 
 export const prepareCommentsPage = async (
   page: CommentPage,
   maxUiRounds: number,
   uiIdleRounds: number,
 ) => {
-  await prepareAuthPage(page as never);
-  if (await isLoginRequired(page as never)) {
+  await prepareAuthPage(page);
+  if (await isLoginRequired(page)) {
     throw new Error('Instagram session expired; run auth login first');
   }
   const isReelsFeed = await page.evaluate(() => /\/reels?\//.test(location.pathname), undefined);

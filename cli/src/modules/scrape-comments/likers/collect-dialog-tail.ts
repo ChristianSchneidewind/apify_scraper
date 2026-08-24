@@ -1,12 +1,11 @@
-import type { CommentLiker, LikersBatch, LikersDialogPage } from '../../../schemas/index.ts';
+import type { CommentLiker, LikersDialogPage } from '../../../schemas/index.ts';
 import {
-  COLLECT_SCRIPT,
   isLikelyUnrecoverableGap,
   likerGap,
   mergeBatch,
   resolveMaxRewinds,
-  runIifeBody,
 } from './collect-dialog-utils.ts';
+import { collectLikersDialogBatch } from './browser.ts';
 import {
   nudgeLikersDialogAtEnd,
   oscillateLikersDialogAtEnd,
@@ -14,9 +13,7 @@ import {
   scrollLikersDialogToEnd,
 } from './collect-dialog-scroll.ts';
 
-const collectVisibleBatch = async (page: {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-}) => page.evaluate(runIifeBody<LikersBatch>, { body: COLLECT_SCRIPT });
+const collectVisibleBatch = async (page: LikersDialogPage) => page.evaluate(collectLikersDialogBatch, undefined);
 
 export const collectTailWithNudge = async (
   page: LikersDialogPage,

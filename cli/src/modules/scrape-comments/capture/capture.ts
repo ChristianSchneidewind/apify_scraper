@@ -6,7 +6,8 @@ import type {
   CommentRecord,
   ElementHandle,
 } from '../../../schemas/index.ts';
-import { captureQuickCommentScreenshot, runPayloadOnElement, VERIFY_SCRIPT, writeMetadata } from './assets.ts';
+import { captureQuickCommentScreenshot, writeMetadata } from './assets.ts';
+import { verifyMultipartBrowser } from '../multipart/browser.ts';
 import { expandCommentForCapture, planCommentMultipart } from '../multipart/planner.ts';
 import { estimateRowParts } from '../multipart/decisions.ts';
 import { logCaptureDebug } from './log.ts';
@@ -61,13 +62,12 @@ const maybeEscalateSinglePlan = async (
   payloadBase: CapturePayloadBase,
 ) => {
   if (plan.mode !== 'single' || plan.totalParts !== 1) return plan;
-  const probe = await handle.evaluate(runPayloadOnElement, {
-    body: VERIFY_SCRIPT,
-    payload: { mode: 'single', partsTotal: 1, top: 0, ...payloadBase },
+  const probe = await handle.evaluate(verifyMultipartBrowser, {
+    mode: 'single', partsTotal: 1, top: 0, ...payloadBase,
   });
-  const metrics = (probe as { metrics?: { overflow?: number; rowHeight?: number; visibleH?: number } })?.metrics;
+  const metrics = probe.metrics;
   const overflow = Math.max(0, metrics?.overflow ?? 0);
-  const clippedBottom = !!(probe as { clippedBottom?: boolean })?.clippedBottom;
+  const clippedBottom = Boolean(probe.clippedBottom);
   await logCaptureDebug(outDir, commentIndex, 'capture single probe', { clippedBottom, metrics: metrics ?? null, overflow });
   if (!clippedBottom && overflow <= 24) return plan;
   const parts = estimateRowParts(metrics);
