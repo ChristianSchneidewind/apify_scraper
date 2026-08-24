@@ -74,10 +74,8 @@ export const verifyMultipartBrowser = (
     row.scrollIntoView({ block: 'start' });
     window.scrollBy(0, segment - 20);
   }
-  row.setAttribute('data-apify-highlight', '1');
-  row.style.outline = '4px solid red';
-  row.style.outlineOffset = '2px';
-  row.style.boxShadow = '0 0 0 4px red inset';
+  // No row-level outline here: the single red frame is owned by
+  // highlightCommentBrowser, which selects the full comment incl. avatar.
   const rect = row.getBoundingClientRect();
   const chunk = payload.partsTotal > 1 ? Math.min(visibleHeight, rect.height / payload.partsTotal + 80) : rect.height;
   const y = Math.max(0, Math.min(window.innerHeight - 1, rect.top));

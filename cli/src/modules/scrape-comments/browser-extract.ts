@@ -6,37 +6,38 @@ export const extractCommentBrowser = (
 ): CommentRecord | null => {
   let row: Element | null = fromTime ? element.parentElement : element;
   for (let depth = 0; depth < 24 && row; depth += 1) {
-    const links = Array.from(row.querySelectorAll<HTMLAnchorElement>('a[href^="/"]'));
-    const user = links.find((link) => {
-    const href = link.getAttribute('href') || '';
-    return /^\/[A-Za-z0-9._]+\/?$/.test(href) && !/^\/(p|reels?|explore|accounts|direct|stories|locations)\//.test(href);
-    });
+    const isReserved = /^\/(p|reels?|explore|accounts|direct|stories|locations)\//;
+    const isUserLink = (link: HTMLAnchorElement) => /^\/[A-Za-z0-9._]+\/?$/.test(link.getAttribute('href') || '') && !isReserved.test(link.getAttribute('href') || '') && Boolean((link.textContent || '').trim());
+    const user = Array.from(row.querySelectorAll<HTMLAnchorElement>('a[href^="/"]')).find(isUserLink);
     const rawUsername = (user?.textContent || '').trim().replace(/\s+/g, '');
     const username = rawUsername.replace(/(?:verified|verifiziert)$/i, '');
     const profileSlug = (user?.getAttribute('href') || '').replaceAll('/', '').toLowerCase();
     const time = row.querySelector('time');
     const timeText = (time?.textContent || '').replace(/\s+/g, ' ').trim();
-    const metadata = /^(?:.*(?:edited|bearbeitet)|reply|replies|antwort(?:en)?|view(?: all)? replies|ansehen|anzeigen|gefällt.*|\d+\s*(?:likes?|std\.?|min\.?|sek\.?|[hdwms]))$/i;
+    const metadata = /^(?:.*(?:edited|bearbeitet)|reply|replies|antwort(?:en)?|view.*repl|.*antworten?\s+ansehen|ansehen|anzeigen|gefällt.*|\d+\s*(?:likes?|std\.?|min\.?|sek\.?|[hdwms]))$/i;
     const texts = Array.from(row.querySelectorAll('span'))
     .map((span) => (span.textContent || '').trim())
     .filter((text) => text && text !== username && text !== rawUsername && text !== timeText
     && text.toLowerCase() !== profileSlug && !metadata.test(text));
     texts.sort((left, right) => right.length - left.length);
     const media = Array.from(row.querySelectorAll('img, video, canvas'));
-    const gif = media.some((node) => /gif|sticker/i.test([
-    node.getAttribute('src'), node.getAttribute('alt'), node.getAttribute('aria-label'),
-    ].filter(Boolean).join(' ')));
+    const gifAttr = (node: Element) => [node.getAttribute('src'), node.getAttribute('alt'), node.getAttribute('aria-label')].filter(Boolean).join(' ');
+    const gif = media.some((node) => /gif|sticker/i.test(gifAttr(node)));
     const text = texts[0] || (gif ? '[GIF]' : '');
     if (username && text) {
+    // Widen while the parent still belongs to this one comment (exactly one
+    // /c/ permalink): the like count lives in the action bar below the text.
+    const parent = row.parentElement;
+    const height = parent?.getBoundingClientRect().height ?? 0;
+    const sameComment = Boolean(parent && parent.querySelectorAll('a[href*="/c/"]').length === 1 && height > 0 && height <= 1800);
+    if (sameComment) { row = parent; continue; }
     const raw = (row.textContent || '').replace(/\s+/g, ' ');
-    const likes = raw.match(/(\d+[\d.,]*)\s*(?:likes?|gefällt\s*mir)/i)
-    || raw.match(/gefällt\s+(\d+[\d.,]*)\s*mal/i);
+    const likes = raw.match(/(\d+[\d.,]*)\s*(?:likes?|gefällt\s*mir)/i) || raw.match(/gefällt\s+(\d+[\d.,]*)\s*mal/i);
     return {
     commentLikers: [], commentPermalink: row.querySelector('a[href*="/c/"]')?.getAttribute('href') || null,
-    datetime: time?.getAttribute('datetime') || null, isGifOnly: text === '[GIF]',
+    datetime: time?.getAttribute('datetime') || null, isGifOnly: text === '[GIF]', parentCommentPermalink: null,
     likesCount: likes ? Number.parseInt((likes[1] || '').replace(/[.,]/g, ''), 10) : 0,
-    parentCommentPermalink: null, text, timeText, username,
-    userProfilePath: user?.getAttribute('href') || null,
+    text, timeText, username, userProfilePath: user?.getAttribute('href') || null,
     };
     }
     row = row.parentElement;
