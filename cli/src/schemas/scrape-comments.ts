@@ -1,12 +1,12 @@
-import type { ElementHandle as PlaywrightElementHandle, JSHandle, Locator, Page } from 'playwright';
 import type { RefindCommentPayload } from './scrape-comments-data.ts';
+import type { CdpHandle, CdpLocator, CdpPage } from './cdp.ts';
 
 export * from './scrape-comments-data.ts';
 
-export type BrowserHandle = JSHandle<unknown>;
-export type TimeLocator = PlaywrightElementHandle<Node>;
-export type CommentPage = Pick<Page, 'evaluate' | 'evaluateHandle' | 'locator' | 'waitForTimeout'>;
-export type ElementHandle = TimeLocator;
+export type BrowserHandle = CdpHandle;
+export type TimeLocator = CdpHandle;
+export type CommentPage = Pick<CdpPage, 'evaluate' | 'evaluateHandle' | 'locator' | 'waitForTimeout'>;
+export type ElementHandle = CdpHandle;
 export type ProcessState = {
   count: number;
   highlightFailures?: Map<string, number>;
@@ -30,14 +30,14 @@ export type ProcessOptions = {
   verbose?: boolean;
 };
 export type CommentContainer = string | null;
-export type LikersDialogPage = Pick<Page, 'evaluate' | 'keyboard' | 'url' | 'waitForTimeout'>;
-export type LikersPage = Page;
-export type CapturePage = Pick<Page, 'evaluate' | 'screenshot' | 'url' | 'waitForTimeout'>;
-export type DebugPage = Pick<Page, 'content' | 'evaluate' | 'screenshot' | 'url'>;
-export type ClickableLocator = Locator;
-export type FilterLocator = Locator;
-export type DeepLocator = Locator;
-export type DeepLinkPage = Page;
+export type LikersDialogPage = Pick<CdpPage, 'evaluate' | 'keyboard' | 'url' | 'waitForTimeout'>;
+export type LikersPage = CdpPage;
+export type CapturePage = Pick<CdpPage, 'evaluate' | 'screenshot' | 'url' | 'waitForTimeout'>;
+export type DebugPage = Pick<CdpPage, 'content' | 'evaluate' | 'screenshot' | 'url'>;
+export type ClickableLocator = CdpLocator;
+export type FilterLocator = CdpLocator;
+export type DeepLocator = CdpLocator;
+export type DeepLinkPage = CdpPage;
 export type CaptureDebugLog = (
   outDir: string,
   commentIndex: number,

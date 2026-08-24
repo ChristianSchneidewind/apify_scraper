@@ -24,7 +24,7 @@ export const readNumberFlag = (argv: string[], flag: string) => {
 };
 
 export const parseGlobalOptions = (argv: string[]) => ({
-  browserProfile: readFlag(argv, '--browser-profile') || 'default',
+  cdpUrl: readFlag(argv, '--cdp-url') || 'http://127.0.0.1:9222',
   cwd: readFlag(argv, '--cwd') || process.cwd(),
   dryRun: argv.includes('--dry-run'),
   headful: !argv.includes('--headless'),
@@ -36,7 +36,7 @@ export const parseGlobalOptions = (argv: string[]) => ({
   verbose: argv.includes('--verbose'),
 });
 
-export const GLOBAL_VALUE_FLAGS = new Set(['--browser-profile', '--cwd']);
+export const GLOBAL_VALUE_FLAGS = new Set(['--cdp-url', '--cwd']);
 export const GLOBAL_BOOLEAN_FLAGS = new Set([
   '--dry-run', '--headless', '--json', '--no-color', '--no-input',
   '--plain', '--quiet', '--verbose', '--help', '-h', '--version', '-v',

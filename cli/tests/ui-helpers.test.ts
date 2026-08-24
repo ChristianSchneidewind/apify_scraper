@@ -61,15 +61,22 @@ describe('ui helpers', () => {
 
   it('expands reply threads', async () => {
     let clicks = 0;
+    const attributes = new Map<string, string>();
     setDocument({
       querySelectorAll: () => [
-        { textContent: 'View 2 replies', dispatchEvent: () => { clicks += 1; } },
-        { textContent: 'Reply', dispatchEvent: () => { clicks += 10; } },
+        {
+          click: () => { clicks += 1; },
+          getAttribute: (name: string) => attributes.get(name) ?? null,
+          setAttribute: (name: string, value: string) => { attributes.set(name, value); },
+          textContent: 'View 2 replies',
+        },
+        {
+          click: () => { clicks += 10; },
+          getAttribute: () => null,
+          setAttribute: () => undefined,
+          textContent: 'Reply',
+        },
       ],
-    });
-    Object.defineProperty(globalThis, 'MouseEvent', {
-      configurable: true,
-      value: class { constructor(_name: string, _opts: unknown) {} },
     });
     const result = await expandAllReplyThreads(evaluatePage() as never, 5);
     expect(result).toBe(3);

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/adapters/playwright/browser.ts', () => ({
+vi.mock('../src/adapters/cdp/browser.ts', () => ({
   closeBrowserSession: vi.fn(),
   openBrowserSession: vi.fn(),
 }));
@@ -15,15 +15,11 @@ import {
   writeBinaryFile,
   writeJsonFile,
 } from '../src/adapters/filesystem/output.ts';
-import { openBrowserSession } from '../src/adapters/playwright/browser.ts';
+import { openBrowserSession } from '../src/adapters/cdp/browser.ts';
 import { runScrapeProfiles } from '../src/modules/scrape-profiles/run.ts';
 
 const context = {
-  browserProfile: {
-    dir: '/tmp/profile',
-    name: 'default',
-    storageStatePath: '/tmp/profile/storage-state.json',
-  },
+  cdp: { url: 'http://127.0.0.1:9222' },
   cwd: '/tmp/project',
 };
 
@@ -57,7 +53,7 @@ describe('runScrapeProfiles', () => {
     vi.mocked(writeBinaryFile).mockResolvedValue('/tmp/out/nasa.png');
 
     const result = await runScrapeProfiles(context, {
-      browserProfile: 'default',
+      cdpUrl: 'http://127.0.0.1:9222',
       cwd: '/tmp/project',
       dryRun: false,
       headful: true,

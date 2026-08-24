@@ -2,17 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { openLikesDeepLink } from '../src/modules/scrape-comments/likers/open-deep.ts';
 
-const buildCandidate = (clicked = false) => ({
-  click: vi.fn().mockImplementation(() =>
-    clicked ? Promise.resolve(undefined) : Promise.reject(new Error('skip'))),
-  scrollIntoViewIfNeeded: vi.fn().mockResolvedValue(undefined),
-});
-
-const buildFilter = (candidate: ReturnType<typeof buildCandidate>) => ({
-  count: vi.fn().mockResolvedValue(1),
-  filter: vi.fn().mockReturnThis(),
-  locator: vi.fn().mockReturnThis(),
-  nth: vi.fn().mockReturnValue(candidate),
+const buildPage = (options: {
+  anchorCount: number;
+  dialogCount: number;
+  evaluate?: ReturnType<typeof vi.fn>;
+}) => ({
+  evaluate: options.evaluate ?? vi.fn().mockResolvedValue(false),
+  goto: vi.fn().mockResolvedValue(undefined),
+  locator: vi.fn().mockImplementation((selector: string) => ({
+    count: vi.fn().mockResolvedValue(
+      selector === '[role="dialog"]' ? options.dialogCount : options.anchorCount,
+    ),
+  })),
+  waitForTimeout: vi.fn().mockResolvedValue(undefined),
 });
 
 describe('openLikesDeepLink', () => {
@@ -21,20 +23,7 @@ describe('openLikesDeepLink', () => {
   });
 
   it('returns not found when anchor is missing', async () => {
-    const anchor = {
-      count: vi.fn().mockResolvedValue(0),
-      evaluate: vi.fn(),
-      locator: vi.fn(),
-    };
-    const page = {
-      goto: vi.fn().mockResolvedValue(undefined),
-      locator: vi.fn().mockReturnValue({
-        count: vi.fn().mockResolvedValue(0),
-        filter: vi.fn().mockReturnValue({ count: vi.fn().mockResolvedValue(0) }),
-        first: vi.fn(() => anchor),
-      }),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-    };
+    const page = buildPage({ anchorCount: 0, dialogCount: 0 });
 
     const result = await openLikesDeepLink(page as never, 'https://x', '/p/1');
 
@@ -45,46 +34,18 @@ describe('openLikesDeepLink', () => {
     });
   });
 
-  it('clicks the first matching text candidate', async () => {
-    const candidate = buildCandidate(true);
-    const filter = buildFilter(candidate);
-    const anchor = {
-      count: vi.fn().mockResolvedValue(1),
-      evaluate: vi.fn().mockResolvedValue(7),
-      locator: vi.fn().mockReturnValue({ locator: vi.fn().mockReturnValue(filter), filter: vi.fn().mockReturnValue(filter) }),
-    };
-    const dialogCount = vi.fn().mockResolvedValue(1);
-    const page = {
-      goto: vi.fn().mockResolvedValue(undefined),
-      locator: vi.fn().mockImplementation((selector: string) =>
-        selector === '[role="dialog"]'
-          ? { count: dialogCount }
-          : { count: vi.fn().mockResolvedValue(1), first: vi.fn(() => anchor) }),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-    };
+  it('clicks the first matching text candidate and verifies the dialog', async () => {
+    const evaluate = vi.fn().mockResolvedValue({ likesCount: 7, status: 'clicked' });
+    const page = buildPage({ anchorCount: 1, dialogCount: 1, evaluate });
 
     const result = await openLikesDeepLink(page as never, 'https://x', '/p/1');
 
-    expect(result).toEqual({ clicked: true, likesCount: 7, reason: 'pw_text_click_0' });
+    expect(result).toEqual({ clicked: true, likesCount: 7, reason: 'cdp_text_click_0' });
   });
 
-  it('returns no-like reason when no candidate works', async () => {
-    const candidate = buildCandidate(false);
-    const filter = buildFilter(candidate);
-    const scope = { locator: vi.fn().mockReturnValue(filter) };
-    const anchor = {
-      count: vi.fn().mockResolvedValue(1),
-      evaluate: vi.fn().mockResolvedValue(3),
-      locator: vi.fn().mockReturnValue(scope),
-    };
-    const page = {
-      goto: vi.fn().mockResolvedValue(undefined),
-      locator: vi.fn().mockImplementation((selector: string) =>
-        selector === '[role="dialog"]'
-          ? { count: vi.fn().mockResolvedValue(0) }
-          : { count: vi.fn().mockResolvedValue(1), first: vi.fn(() => anchor) }),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-    };
+  it('returns no-like reason when no candidate exists', async () => {
+    const evaluate = vi.fn().mockResolvedValue({ likesCount: 3, status: 'no_candidate' });
+    const page = buildPage({ anchorCount: 1, dialogCount: 0, evaluate });
 
     const result = await openLikesDeepLink(page as never, 'https://x', '/p/1');
 
@@ -93,5 +54,15 @@ describe('openLikesDeepLink', () => {
       likesCount: 3,
       reason: 'deep_no_like_in_target_comment',
     });
+  });
+
+  it('keeps probing when the dialog does not open after a click', async () => {
+    const evaluate = vi.fn().mockResolvedValue({ likesCount: 5, status: 'clicked' });
+    const page = buildPage({ anchorCount: 1, dialogCount: 0, evaluate });
+
+    const result = await openLikesDeepLink(page as never, 'https://x', '/p/1');
+
+    expect(result.clicked).toBe(false);
+    expect(evaluate).toHaveBeenCalled();
   });
 });

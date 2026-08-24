@@ -4,7 +4,6 @@ import { commentsCommand } from './scrape-comments/command.ts';
 import { profilesCommand } from './scrape-profiles/command.ts';
 import { repostsCommand } from './scrape-reposts/command.ts';
 export const cliName = 'instagram';
-export const profileDirectory = '.instagram-cli';
 
 export const commandDescriptors = [
   authCommand,
@@ -21,6 +20,6 @@ export const findCommandDescriptor = (argv: string[]) => {
     candidate.tokens.every((token, offset) => argv[index + offset] === token));
   });
   if (descriptor) return descriptor;
-  return argv.includes('--browser-profile') ? profileCommand : null;
+  return argv.includes('--cdp-url') ? profileCommand : null;
 };
 

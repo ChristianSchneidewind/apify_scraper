@@ -1,9 +1,9 @@
-import type { Browser, BrowserContext, Page } from 'playwright';
+import type { CdpBrowser, CdpBrowserContext, CdpPage } from './cdp.ts';
 import type { GlobalOptions } from './commands.ts';
 import type { CommentRecord } from './outputs.ts';
 import type { CaptureSession, LikersBatch, ProcessOptions, ProcessState } from './scrape-comments.ts';
 
-export type BrowserClosePort = Pick<Browser, 'close'>;
+export type BrowserClosePort = Pick<CdpBrowser, 'close'>;
 export type LoggerOptions = Partial<Pick<GlobalOptions, 'json' | 'quiet' | 'verbose'>>;
 export type LogDetails = Record<string, string | number | boolean>;
 export type LoggerPort = {
@@ -27,11 +27,11 @@ export type RawCommentLiker = {
   username?: string;
 };
 export type ScreenshotSessionData = Pick<CaptureSession, 'screenshotUtc' | 'screenshotUuid'>;
-export type ProfileReadPage = Pick<Page, 'evaluate'>;
-export type ProfileCapturePage = Pick<Page, 'evaluate' | 'screenshot' | 'waitForTimeout'>;
-export type RepostReadPage = Pick<Page, 'evaluate'>;
-export type RepostScrollPage = Pick<Page, 'evaluate' | 'waitForTimeout'>;
-export type RepostCapturePage = Pick<Page, 'evaluate' | 'screenshot' | 'waitForTimeout'>;
+export type ProfileReadPage = Pick<CdpPage, 'evaluate'>;
+export type ProfileCapturePage = Pick<CdpPage, 'evaluate' | 'screenshot' | 'waitForTimeout'>;
+export type RepostReadPage = Pick<CdpPage, 'evaluate'>;
+export type RepostScrollPage = Pick<CdpPage, 'evaluate' | 'waitForTimeout'>;
+export type RepostCapturePage = Pick<CdpPage, 'evaluate' | 'screenshot' | 'waitForTimeout'>;
 export type BinaryWriter = (name: string, bytes: Uint8Array) => Promise<string>;
 export type LikerCollectSession = { abort: AbortController };
 export type LikerRetryConfig = {
@@ -50,9 +50,24 @@ export type LikerBatchDebug = LikersBatch & {
   targetCount?: number;
   targetIndex?: number;
 };
-export type LikerBrowserContext = Pick<BrowserContext, 'newPage'>;
+export type LikerBrowserContext = Pick<CdpBrowserContext, 'newPage'>;
 export type CheckpointProcessOptions = Pick<ProcessOptions, 'outDir' | 'sourceUrl'>;
-export type ReplyExpansionPage = Pick<Page, 'evaluate'> & Partial<
-  Pick<Page, 'locator' | 'waitForTimeout'>
+export type ReplyExpansionPage = Pick<CdpPage, 'evaluate'> & Partial<
+  Pick<CdpPage, 'waitForTimeout'>
 >;
-export type CurrentLikesPage = Pick<Page, 'locator' | 'waitForTimeout'>;
+export type CurrentLikesPage = Pick<CdpPage, 'evaluate' | 'locator' | 'waitForTimeout'>;
+export type ReplyClickArgs = {
+  index: number;
+  pattern: string;
+};
+export type LikeClickStatus = 'clicked' | 'no_anchor' | 'no_candidate';
+export type LikeClickArgs = {
+  attempt: number;
+  breadth: number;
+  patterns: string[];
+  permalink: string;
+};
+export type LikeClickProbe = {
+  likesCount: number;
+  status: LikeClickStatus;
+};

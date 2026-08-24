@@ -7,7 +7,7 @@ import {
   ensureOutputDirectory,
   writeJsonFile,
 } from '../../adapters/filesystem/output.ts';
-import { closeBrowserSession, openBrowserSession } from '../../adapters/playwright/browser.ts';
+import { closeBrowserSession, openBrowserSession } from '../../adapters/cdp/browser.ts';
 import { createLogger } from '../../core/logger.ts';
 import { prepareCommentsPage } from './page-setup.ts';
 import { runCommentScrapeLoop } from './scrape-loop.ts';
@@ -120,7 +120,7 @@ export const runScrapeComments = async (
   const logger = createLogger(options);
   logger.info(`output dir: ${dir}`);
   logger.info('opening browser');
-  const session = await openBrowserSession(context, options.headful);
+  const session = await openBrowserSession(context);
   try {
     logger.info('navigating to post');
     await session.page.goto(options.url, { waitUntil: 'domcontentloaded' });

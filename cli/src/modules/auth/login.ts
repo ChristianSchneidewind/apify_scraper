@@ -1,19 +1,15 @@
-import { mkdir } from 'node:fs/promises';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import type { AuthLoginOptions, AuthPage, CliOutput, PromptInput, RuntimeContext } from '../../schemas/index.ts';
 import { prepareAuthPage } from '../../adapters/instagram/auth.ts';
-import { closeBrowserSession, openBrowserSession } from '../../adapters/playwright/browser.ts';
+import { closeBrowserSession, openBrowserSession } from '../../adapters/cdp/browser.ts';
 import { failResult } from '../../core/result.ts';
 
-const ensureProfileDirectory = async (context: RuntimeContext) =>
-  mkdir(context.browserProfile.dir, { recursive: true });
+const INSTAGRAM_HOME = 'https://www.instagram.com/';
+const INSTAGRAM_LOGIN = 'https://www.instagram.com/accounts/login/';
 
-const openLoginPage = async (context: RuntimeContext, headful: boolean) => {
-  const session = await openBrowserSession(context, headful);
-  return session;
-};
-
+// Logins are never automated: the human signs in once in their real Chrome
+// profile, and the session persists there. This command only verifies state.
 const isLoggedIn = async (page: AuthPage) =>
   (await page.locator('nav, svg[aria-label="Home"], svg[aria-label="Profile"]').count()) > 0;
 
@@ -25,45 +21,34 @@ const waitForLoginConfirmation = async () => {
   await rl.close();
 };
 
-const buildSuccess = (
-  context: RuntimeContext,
-): CliOutput => ({
+const buildSuccess = (context: RuntimeContext): CliOutput => ({
   command: 'auth.login',
-  details: {
-    browserProfile: context.browserProfile.name,
-    storageStatePath: context.browserProfile.storageStatePath,
-  },
+  details: { cdpUrl: context.cdp.url },
   ok: true,
-  summary: `auth login saved for profile ${context.browserProfile.name}`,
+  summary: 'instagram session active in the connected Chrome profile',
 });
+
+const verifyLogin = async (page: AuthPage) => {
+  await prepareAuthPage(page);
+  return isLoggedIn(page);
+};
 
 export const runAuthLogin = async (
   context: RuntimeContext,
   options: AuthLoginOptions,
   input = stdin,
 ): Promise<CliOutput> => {
-  await ensureProfileDirectory(context);
-  const session = await openLoginPage(context, options.headful);
+  const session = await openBrowserSession(context);
   try {
-    await session.page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' });
-    await prepareAuthPage(session.page);
-    if (await isLoggedIn(session.page)) {
-    await session.browserContext.storageState({ path: context.browserProfile.storageStatePath });
-    return buildSuccess(context);
-    }
-    if (options.noInput || !canPromptLogin(input)) {
-    return failResult('auth.login', 'auth login requires an interactive terminal');
-    }
-    await session.page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'domcontentloaded' });
+    await session.page.goto(INSTAGRAM_HOME, { waitUntil: 'domcontentloaded' });
+    if (await verifyLogin(session.page)) return buildSuccess(context);
+    if (options.noInput || !canPromptLogin(input)) return failResult('auth.login', 'not logged in; sign in manually in the connected Chrome');
+    await session.page.goto(INSTAGRAM_LOGIN, { waitUntil: 'domcontentloaded' });
     await prepareAuthPage(session.page);
     await waitForLoginConfirmation();
     await session.page.waitForTimeout(1000);
-    await prepareAuthPage(session.page);
-    if (!(await isLoggedIn(session.page))) {
+    if (await verifyLogin(session.page)) return buildSuccess(context);
     return failResult('auth.login', 'Instagram login was not completed');
-    }
-    await session.browserContext.storageState({ path: context.browserProfile.storageStatePath });
-    return buildSuccess(context);
   } finally {
     await closeBrowserSession(session.browser);
   }

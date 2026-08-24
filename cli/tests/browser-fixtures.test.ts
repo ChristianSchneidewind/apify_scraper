@@ -1,27 +1,31 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chromium } from 'playwright';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { prepareAuthPage } from '../src/adapters/instagram/auth.ts';
 import { extractCommentFromTime } from '../src/modules/scrape-comments/extract-from-locator.ts';
 import { captureCommentAssets } from '../src/modules/scrape-comments/capture/capture.ts';
 import { initScreenshotSession } from '../src/modules/scrape-comments/capture/screenshot-session.ts';
 import { planMultipartBrowser } from '../src/modules/scrape-comments/multipart/browser.ts';
-let browser: Awaited<ReturnType<typeof chromium.launch>>;
+import { findChromeBinary, launchCdpFixture, setFixtureContent } from './cdp-fixture.ts';
+
+const fixturePromise = launchCdpFixture();
 
 afterAll(async () => {
-  await browser?.close();
+  const fixture = await fixturePromise;
+  await fixture?.close();
 });
 
-describe('local browser fixtures', () => {
-  beforeAll(async () => {
-    browser = await chromium.launch({ headless: true });
-  });
+const newFixturePage = async () => {
+  const fixture = await fixturePromise;
+  if (!fixture) throw new Error('chrome binary not available');
+  return fixture.session.browserContext.newPage();
+};
 
+describe.skipIf(!findChromeBinary())('local cdp browser fixtures', () => {
   it('extracts a comment from an Instagram-like DOM fixture', async () => {
-    const page = await browser.newPage();
-    await page.setContent(`
+    const page = await newFixturePage();
+    await setFixtureContent(page, `
       <article>
         <a href="/fixture_user/">fixture_user</a>
         <span>This is a fixture comment</span>
@@ -44,11 +48,12 @@ describe('local browser fixtures', () => {
       username: 'fixture_user',
     });
     expect(data?.commentLikers).toEqual([]);
+    await page.close();
   });
 
   it('does not treat a verified username label as a short comment', async () => {
-    const page = await browser.newPage();
-    await page.setContent(`
+    const page = await newFixturePage();
+    await setFixtureContent(page, `
       <article><a href="/alice/">aliceVerified</a><span>aliceVerified</span>
         <span>Wtf</span><time>1h</time><a href="/post/c/9">comment</a>
       </article>
@@ -59,8 +64,8 @@ describe('local browser fixtures', () => {
   });
 
   it('keeps real reply text and resolves its parent permalink', async () => {
-    const page = await browser.newPage();
-    await page.setContent(`
+    const page = await newFixturePage();
+    await setFixtureContent(page, `
       <article><a href="/parent/c/10">parent</a>
         <div>Hide all replies<ul><li>
           <a href="/alice/">aliceVerified</a><span>alice</span><span>5 Wo. · Bearbeitet</span>
@@ -80,8 +85,8 @@ describe('local browser fixtures', () => {
   });
 
   it('plans multipart capture for an inner-scroll comment', async () => {
-    const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
-    await page.setContent(`
+    const page = await newFixturePage();
+    await setFixtureContent(page, `
       <article><a href="/fixture_user/">fixture_user</a><time>1h</time>
         <div style="height:100px; overflow-y:auto"><div style="height:700px">Long text</div></div>
       </article>
@@ -97,8 +102,8 @@ describe('local browser fixtures', () => {
   });
 
   it('plans multipart capture for a tall comment fixture', async () => {
-    const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
-    await page.setContent(`
+    const page = await newFixturePage();
+    await setFixtureContent(page, `
       <article style="width: 400px; height: 1200px">
         <a href="/fixture_user/">fixture_user</a>
         <span>${'Long comment '.repeat(80)}</span>
@@ -121,9 +126,8 @@ describe('local browser fixtures', () => {
 
   it('writes multiple screenshot parts for a tall comment', async () => {
     const outDir = await mkdtemp(join(tmpdir(), 'instagram-fixture-'));
-    const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
-    await page.goto('about:blank');
-    await page.setContent(`
+    const page = await newFixturePage();
+    await setFixtureContent(page, `
       <article style="width: 400px; height: 1200px; overflow: hidden;">
         <a href="/fixture_user/">fixture_user</a>
         <span>${'Long comment '.repeat(80)}</span>
@@ -151,22 +155,30 @@ describe('local browser fixtures', () => {
   });
 
   it('dismisses cookie banners and login walls', async () => {
-    const page = await browser.newPage();
-    await page.setContent(`
+    const page = await newFixturePage();
+    await setFixtureContent(page, `
       <button onclick="this.remove()">Allow all cookies</button>
       <div role="dialog"><p>Log in to see more from Instagram</p></div>
     `);
 
-    await prepareAuthPage(page as never);
+    await prepareAuthPage(page);
 
-    expect(await page.getByRole('button', { name: 'Allow all cookies' }).count()).toBe(0);
+    expect(await page.locator('button').count()).toBe(0);
     expect(await page.locator('[role="dialog"]').count()).toBe(1);
-    expect(await page.locator('[role="dialog"]').evaluate((node) => getComputedStyle(node).display)).toBe('none');
+    const display = await page.locator('[role="dialog"]').evaluate(
+      (node: Element) => getComputedStyle(node).display,
+      undefined,
+    );
+    expect(display).toBe('none');
     await page.evaluate(() => document.body.insertAdjacentHTML(
       'beforeend', '<div id="late-wall" role="dialog">Log in to continue</div>',
-    ));
+    ), undefined);
     await page.waitForTimeout(600);
-    expect(await page.locator('#late-wall').evaluate((node) => getComputedStyle(node).display)).toBe('none');
+    const lateDisplay = await page.locator('#late-wall').evaluate(
+      (node: Element) => getComputedStyle(node).display,
+      undefined,
+    );
+    expect(lateDisplay).toBe('none');
     await page.close();
   });
 });

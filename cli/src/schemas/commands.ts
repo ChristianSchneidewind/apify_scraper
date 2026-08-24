@@ -11,7 +11,7 @@ export const commandNameSchema = Type.Union([
 ]);
 
 export const globalOptionsSchema = Type.Object({
-  browserProfile: Type.String({ default: 'default' }),
+  cdpUrl: Type.String({ default: 'http://127.0.0.1:9222' }),
   cwd: Type.String(),
   dryRun: Type.Boolean({ default: false }),
   headful: Type.Boolean({ default: true }),

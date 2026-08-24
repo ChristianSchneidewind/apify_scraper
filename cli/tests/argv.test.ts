@@ -2,17 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { parseCommandRequest } from '../src/core/argv.ts';
 
 describe('parseCommandRequest', () => {
-  it('parses auth login with browser profile', () => {
+  it('parses auth login with a cdp url', () => {
     const request = parseCommandRequest([
       'node',
       'instagram',
       'auth',
       'login',
-      '--browser-profile',
-      'work',
+      '--cdp-url',
+      'http://127.0.0.1:9333',
     ]);
     expect(request?.command).toBe('auth.login');
-    expect(request?.options.browserProfile).toBe('work');
+    expect(request?.options.cdpUrl).toBe('http://127.0.0.1:9333');
   });
 
   it('parses tsx script invocation with global flags', () => {
@@ -20,24 +20,24 @@ describe('parseCommandRequest', () => {
       'node',
       '/tmp/tsx',
       'cli/src/bin/instagram.ts',
-      '--browser-profile',
-      'default',
+      '--cdp-url',
+      'http://127.0.0.1:9222',
       'scrape',
       'comments',
       '--url',
       'https://www.instagram.com/p/abc/',
     ]);
     expect(request?.command).toBe('scrape.comments');
-    expect(request?.options.browserProfile).toBe('default');
+    expect(request?.options.cdpUrl).toBe('http://127.0.0.1:9222');
   });
 
-  it('does not confuse a reserved-looking profile value with the command', () => {
+  it('does not confuse a reserved-looking cdp url value with the command', () => {
     const request = parseCommandRequest([
-      '--browser-profile', 'scrape', 'scrape', 'comments',
+      '--cdp-url', 'scrape', 'scrape', 'comments',
       '--url', 'https://www.instagram.com/p/abc/',
     ]);
     expect(request?.command).toBe('scrape.comments');
-    expect(request?.options.browserProfile).toBe('scrape');
+    expect(request?.options.cdpUrl).toBe('scrape');
   });
 
   it('parses cwd overrides', () => {

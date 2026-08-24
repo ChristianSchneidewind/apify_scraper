@@ -4,10 +4,10 @@ import { cliName, commandDescriptors } from '../modules/registry.ts';
 import { CLI_VERSION } from './version.ts';
 
 const addGlobalOptions = (cli: CAC) => {
-  cli.option('--browser-profile <name>', 'Browser profile', { default: 'default' });
+  cli.option('--cdp-url <url>', 'Chrome DevTools endpoint of the running Chrome', { default: 'http://127.0.0.1:9222' });
   cli.option('--cwd <path>', 'Working directory', { default: process.cwd() });
   cli.option('--dry-run', 'Dry run mode');
-  cli.option('--headless', 'Run browser without UI (default is headful)');
+  cli.option('--headless', 'Deprecated: CDP mode always uses the running Chrome UI');
   cli.option('--json', 'JSON output');
   cli.option('--no-color', 'Disable color', { default: false });
   cli.option('--no-input', 'Disable prompts', { default: false });

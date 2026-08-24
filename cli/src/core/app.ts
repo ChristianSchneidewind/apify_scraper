@@ -1,4 +1,4 @@
-import { findCommandDescriptor, profileDirectory } from '../modules/registry.ts';
+import { findCommandDescriptor } from '../modules/registry.ts';
 import type { CliOutput } from '../schemas/index.ts';
 import { normalizeArgv, parseCommandRequest, validateNormalizedArgv } from './argv.ts';
 import { buildCli } from './cli-definition.ts';
@@ -13,7 +13,7 @@ const runCommand = async (argv: string[]) => {
   if (!request) {
     return failResult('cli', 'invalid command input');
   }
-  const context = createRuntimeContext(request.options, profileDirectory);
+  const context = createRuntimeContext(request.options);
   if (!context) {
     return failResult(request.command, 'invalid runtime context');
   }

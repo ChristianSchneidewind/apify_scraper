@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import type { BinaryWriter, CliOutput, LoggerPort, RepostCapturePage, RepostReadPage, RepostScrollPage, RuntimeContext, ScrapeRepostsOptions } from '../../schemas/index.ts';
 import { isLoginRequired } from '../../adapters/instagram/auth.ts';
-import { closeBrowserSession, openBrowserSession } from '../../adapters/playwright/browser.ts';
+import { closeBrowserSession, openBrowserSession } from '../../adapters/cdp/browser.ts';
 import { ensureOutputDirectory, writeBinaryFile, writeJsonFile } from '../../adapters/filesystem/output.ts';
 import { prepareProfileScreenshotVisuals } from '../../adapters/instagram/visual.ts';
 import { setScreenshotBanner } from '../scrape-comments/capture/banner.ts';
@@ -84,7 +84,7 @@ export const runScrapeReposts = async (context: RuntimeContext, options: ScrapeR
   const slug = profileSlug(options.url);
   const dir = await ensureOutputDirectory(context.cwd, join(options.outDir, makeRepostsRunFolder(slug)));
   const logger = createLogger(options);
-  const session = await openBrowserSession(context, options.headful);
+  const session = await openBrowserSession(context);
   try {
     const repostsUrl = buildRepostsUrl(options.url);
     logger.info(`navigating to reposts: ${repostsUrl}`);

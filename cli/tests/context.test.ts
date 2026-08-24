@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRuntimeContext } from '../src/core/context.ts';
 
 const options = {
-  browserProfile: 'default',
+  cdpUrl: 'http://127.0.0.1:9222',
   cwd: '/tmp/project',
   dryRun: false,
   headful: true,
@@ -15,11 +15,9 @@ const options = {
 };
 
 describe('createRuntimeContext', () => {
-  it('builds browser profile paths', () => {
-    const context = createRuntimeContext(options, '.instagram-cli');
-    expect(context?.browserProfile.name).toBe('default');
-    expect(context?.browserProfile.storageStatePath).toContain(
-      '.instagram-cli/profiles/default/storage-state.json',
-    );
+  it('builds the cdp connection context', () => {
+    const context = createRuntimeContext(options);
+    expect(context?.cdp.url).toBe('http://127.0.0.1:9222');
+    expect(context?.cwd).toBe('/tmp/project');
   });
 });

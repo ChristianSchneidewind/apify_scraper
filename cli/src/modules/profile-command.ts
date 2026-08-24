@@ -8,11 +8,10 @@ export const profileCommand: CommandDescriptor = {
   execute: async (_request, context) => ({
     command: 'profile.show',
     details: {
-    browserProfile: context.browserProfile.name,
-    storageStatePath: context.browserProfile.storageStatePath,
+    cdpUrl: context.cdp.url,
     },
     ok: true,
-    summary: `browser profile: ${context.browserProfile.name}`,
+    summary: `cdp connection: ${context.cdp.url}`,
   }),
   tokens: [],
   valueFlags: new Set(),
