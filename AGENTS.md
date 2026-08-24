@@ -36,11 +36,15 @@ user's **own, already-installed Chrome** over the **Chrome DevTools Protocol
 ## Running locally
 ```bash
 npm install
-# enable remote debugging in Chrome: chrome://inspect/#remote-debugging
-# or start Chrome with --remote-debugging-port=9222 (or: chrome-agent launch)
+scripts/chrome-cdp.sh   # starts Chrome with CDP on port 9222 (dedicated profile ~/.chrome-cdp)
 npx tsx cli/src/bin/instagram.ts auth login
 npx tsx cli/src/bin/instagram.ts scrape comments --url "https://www.instagram.com/p/abc/" --out-dir "artifacts/comments"
 ```
+
+Chrome >= 136 ignores `--remote-debugging-port` for the default data
+directory, so the CLI uses a dedicated scraping profile (`~/.chrome-cdp`)
+started by `scripts/chrome-cdp.sh`. Log in to Instagram once in that Chrome;
+the session persists there.
 
 ## Validation
 ```bash

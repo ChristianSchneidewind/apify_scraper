@@ -8,22 +8,25 @@ npm install
 
 No browser download is needed: the CLI drives your installed Chrome.
 
-## 2. Enable Chrome remote debugging
+## 2. Start Chrome with remote debugging
 
-Pick one:
+```bash
+scripts/chrome-cdp.sh
+```
 
-- open `chrome://inspect/#remote-debugging` in Chrome and enable the toggle
-- start Chrome with `--remote-debugging-port=9222`
-- run `chrome-agent launch`
+The script starts Chrome with `--remote-debugging-port=9222` in a dedicated
+scraping profile (`~/.chrome-cdp`). A dedicated profile is required because
+Chrome >= 136 ignores the debug port for the default data directory.
+`--restart` closes a running Chrome first; `PORT`, `PROFILE`,
+`CDP_PROFILE_DIR` and `CHROME_BIN` are configurable via environment.
 
 The CLI connects to `http://127.0.0.1:9222` by default; override with
-`--cdp-url <url>`. On the first attach Chrome may show a one-time
-"allow debugging" dialog — confirm it.
+`--cdp-url <url>`.
 
 ## 3. Verify the Instagram session
 
-Logins are never automated. Sign in to Instagram once in your real Chrome,
-then verify:
+Logins are never automated. Sign in to Instagram once in the scraping
+Chrome (the session persists in `~/.chrome-cdp`), then verify:
 
 ```bash
 npx tsx cli/src/bin/instagram.ts auth login

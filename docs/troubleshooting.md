@@ -2,13 +2,17 @@
 
 ## Chrome remote debugging not reachable
 
-If the CLI reports that Chrome remote debugging is not reachable:
+If the CLI reports that Chrome remote debugging is not reachable, start the
+scraping Chrome:
 
-- enable `chrome://inspect/#remote-debugging` in Chrome, or
-- start Chrome with `--remote-debugging-port=9222`, or
-- run `chrome-agent launch`
+```bash
+scripts/chrome-cdp.sh            # or: scripts/chrome-cdp.sh --restart
+```
 
-Point `--cdp-url` at the right endpoint when you use a non-default port.
+Chrome >= 136 ignores `--remote-debugging-port` for the default data
+directory, which is why the script uses the dedicated profile
+`~/.chrome-cdp`. Point `--cdp-url` at the right endpoint when you use a
+non-default port.
 
 ## Session expired / auth required
 
