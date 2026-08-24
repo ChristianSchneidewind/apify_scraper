@@ -7,6 +7,7 @@ import type {
   ElementHandle,
 } from '../../../schemas/index.ts';
 import { captureQuickCommentScreenshot, writeMetadata } from './assets.ts';
+import { verifyCaptureVisibility } from './visibility.ts';
 import { verifyMultipartBrowser } from '../multipart/browser.ts';
 import { expandCommentForCapture, planCommentMultipart } from '../multipart/planner.ts';
 import { estimateRowParts } from '../multipart/decisions.ts';
@@ -83,8 +84,9 @@ const captureQuick = async (
   session: CaptureSession,
   commentIndex: number,
   lastHash: string | null,
+  visibleInViewport: boolean,
 ) => {
-  const quick = await captureQuickCommentScreenshot(page, handle, data, outDir, session, commentIndex, lastHash);
+  const quick = await captureQuickCommentScreenshot(page, handle, data, outDir, session, commentIndex, lastHash, visibleInViewport);
   return { lastScreenshotHash: quick.lastScreenshotHash, metadataPath: quick.metadataPath, screenshotKeys: session.screenshotKeys, screenshotPaths: session.screenshotPaths };
 };
 
@@ -117,9 +119,11 @@ export const captureCommentAssets = async (
   lastHash: string | null,
   skipHighlight = false,
 ) => {
-  if (skipHighlight) return captureQuick(page, handle, data, outDir, session, commentIndex, lastHash);
+  const visibleId = data.commentPermalink || `comment-${commentIndex}`;
+  const visibleInViewport = await verifyCaptureVisibility(handle, visibleId);
+  if (skipHighlight) return captureQuick(page, handle, data, outDir, session, commentIndex, lastHash, visibleInViewport);
   const lastScreenshotHash = await capturePlanned(page, handle, data, outDir, session, commentIndex, lastHash, skipHighlight);
-  const metadataPath = await writeMetadata(page, outDir, data, commentIndex, session);
-  await logCaptureDebug(outDir, commentIndex, 'capture done', { metadataPath, partsSaved: session.screenshotKeys.length });
+  const metadataPath = await writeMetadata(page, outDir, data, commentIndex, session, visibleInViewport);
+  await logCaptureDebug(outDir, commentIndex, 'capture done', { metadataPath, partsSaved: session.screenshotKeys.length, visibleInViewport });
   return { lastScreenshotHash, metadataPath, screenshotKeys: session.screenshotKeys, screenshotPaths: session.screenshotPaths };
 };

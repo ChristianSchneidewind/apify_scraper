@@ -5,6 +5,7 @@ const options = {
   cdpUrl: 'http://127.0.0.1:9222',
   cwd: '/tmp/project',
   dryRun: false,
+  evidence: false,
   headful: true,
   json: false,
   noColor: false,

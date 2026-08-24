@@ -36,10 +36,11 @@ export const writeMetadata = async (
   data: CommentRecord,
   commentIndex: number,
   session: CaptureSession,
+  visibleInViewport?: boolean,
 ) => {
   const firstKey = session.screenshotKeys[0];
   if (!firstKey) return null;
-  const metadataPayload = buildCommentMetadataPayload(data, commentIndex, page.url(), session.screenshotUuid, session.screenshotUtc, session.screenshotKeys);
+  const metadataPayload = buildCommentMetadataPayload(data, commentIndex, page.url(), session.screenshotUuid, session.screenshotUtc, session.screenshotKeys, visibleInViewport);
   const metadataName = `${firstKey.replace(/\.png$/, '')}.json`;
   return writeJsonFile(outDir, metadataName, metadataPayload);
 };
@@ -52,6 +53,7 @@ const captureQuickScreenshot = async (
   session: CaptureSession,
   commentIndex: number,
   lastHash: string | null,
+  visibleInViewport?: boolean,
 ) => {
   const buffer = await withTimeout(
     (handle.screenshot ? handle.screenshot({ animations: 'disabled', caret: 'hide', style: QUICK_HIGHLIGHT_STYLE, timeout: 5000 }).catch(() => page.screenshot({ animations: 'disabled', caret: 'hide', fullPage: false, timeout: 5000 })) : page.screenshot({ animations: 'disabled', caret: 'hide', fullPage: false, timeout: 5000 })),
@@ -60,7 +62,7 @@ const captureQuickScreenshot = async (
   const currentHash = hashBuffer(buffer);
   if (currentHash === lastHash) return { lastScreenshotHash: lastHash, metadataPath: null };
   await savePart(outDir, session, `${session.screenshotUuid}.png`, buffer);
-  const metadataPath = await writeMetadata(page, outDir, data, commentIndex, session);
+  const metadataPath = await writeMetadata(page, outDir, data, commentIndex, session, visibleInViewport);
   return { lastScreenshotHash: currentHash, metadataPath };
 };
 

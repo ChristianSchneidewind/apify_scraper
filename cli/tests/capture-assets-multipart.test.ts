@@ -8,6 +8,13 @@ vi.mock('../src/adapters/filesystem/output.ts', () => ({
   writeBinaryFile: vi.fn(),
   writeJsonFile: vi.fn(),
 }));
+vi.mock('../src/modules/scrape-comments/capture/visibility.ts', () => ({
+  resetVisibilityTracker: vi.fn(),
+  verifyCaptureVisibility: vi.fn().mockResolvedValue(true),
+  visibilityFlaggedIds: vi.fn().mockReturnValue([]),
+  visibilityQuote: vi.fn(),
+  visibilitySummary: vi.fn().mockReturnValue('0 captures'),
+}));
 vi.mock('../src/modules/scrape-comments/multipart/planner.ts', () => ({
   expandCommentForCapture: vi.fn().mockResolvedValue(undefined),
   planCommentMultipart: vi.fn(),

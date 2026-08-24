@@ -1,16 +1,24 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { Value } from '@sinclair/typebox/value';
-import type { CliOutput, CommentRecord, LoggerPort, RuntimeContext, ScrapeCommentsOptions, ScrapeLoopOptions } from '../../schemas/index.ts';
+import type { CdpBrowserSession, CliOutput, CommentRecord, LoggerPort, RuntimeContext, ScrapeCommentsOptions, ScrapeLoopOptions } from '../../schemas/index.ts';
 import { commentRecordSchema } from '../../schemas/index.ts';
 import {
   ensureOutputDirectory,
   writeJsonFile,
 } from '../../adapters/filesystem/output.ts';
 import { closeBrowserSession, openBrowserSession } from '../../adapters/cdp/browser.ts';
+import { createEvidenceLog, newRunId } from '../../adapters/cdp/evidence.ts';
 import { createLogger } from '../../core/logger.ts';
 import { prepareCommentsPage } from './page-setup.ts';
 import { runCommentScrapeLoop } from './scrape-loop.ts';
+import { resetVisibilityTracker, visibilityFlaggedIds, visibilityQuote, visibilitySummary } from './capture/visibility.ts';
+
+const logVisibilityReport = (logger: LoggerPort) => {
+  logger.info(`visibility: ${visibilitySummary()}`);
+  const flagged = visibilityFlaggedIds();
+  if (flagged.length) logger.warn(`visibility flagged ${flagged.length} captures for spot-check`, { flagged: flagged.length });
+};
 
 const buildSuccess = (
   count: number,
@@ -111,38 +119,28 @@ const buildLoopOptions = (
   ...(options.uiIdleRounds !== undefined ? { uiIdleRounds: options.uiIdleRounds } : {}),
 });
 
-export const runScrapeComments = async (
-  context: RuntimeContext,
+const scrapeInSession = async (
+  session: CdpBrowserSession,
   options: ScrapeCommentsOptions,
+  dir: string,
+  initialComments: CommentRecord[],
+  logger: LoggerPort,
+  startedAt: number,
 ) => {
-  const startedAt = Date.now();
-  const { dir, initialComments } = await prepareOutput(context, options);
-  const logger = createLogger(options);
-  logger.info(`output dir: ${dir}`);
-  logger.info('opening browser');
-  const session = await openBrowserSession(context);
-  try {
-    logger.info('navigating to post');
-    await session.page.goto(options.url, { waitUntil: 'domcontentloaded' });
-    logger.info('waiting for initial load');
-    await session.page.waitForTimeout(1500);
-    logger.info('loading comments');
-    const commentSort = await prepareCommentsPage(session.page, options.maxUiRounds ?? 40, options.uiIdleRounds ?? 6);
-    logCommentSort(logger, commentSort);
-    logger.info('capturing comments');
-
-    const loopOptions = buildLoopOptions(options, dir, initialComments);
-    logger.info('starting scrape loop');
-    logger.debug('loop: entering');
-    const comments = await runCommentScrapeLoop(session.page, loopOptions);
-    logger.info(`scrape loop done: ${comments.length} comments`, { comments: comments.length });
-
-    const jsonPath = await writeJsonFile(dir, 'comments.json', {
-    comments,
-    sourceUrl: options.url,
-    });
-    logger.info(`wrote ${jsonPath}`);
-    return buildSuccess(
+  logger.info('navigating to post');
+  await session.page.goto(options.url, { waitUntil: 'domcontentloaded' });
+  logger.info('waiting for initial load');
+  await session.page.waitForTimeout(1500);
+  logger.info('loading comments');
+  const commentSort = await prepareCommentsPage(session.page, options.maxUiRounds ?? 40, options.uiIdleRounds ?? 6);
+  logCommentSort(logger, commentSort);
+  logger.info('capturing comments');
+  const comments = await runCommentScrapeLoop(session.page, buildLoopOptions(options, dir, initialComments));
+  logger.info(`scrape loop done: ${comments.length} comments`, { comments: comments.length });
+  logVisibilityReport(logger);
+  const jsonPath = await writeJsonFile(dir, 'comments.json', { comments, sourceUrl: options.url });
+  logger.info(`wrote ${jsonPath}`);
+  return buildSuccess(
     comments.length,
     jsonPath,
     countScreenshots(comments),
@@ -151,7 +149,40 @@ export const runScrapeComments = async (
     countIncompleteLikers(comments),
     countMultipart(comments),
     Date.now() - startedAt,
-    );
+  );
+};
+
+const scrapeWithEvidence = async (
+  session: CdpBrowserSession,
+  options: ScrapeCommentsOptions,
+  dir: string,
+  initialComments: CommentRecord[],
+  logger: LoggerPort,
+  startedAt: number,
+) => {
+  if (!options.evidence) return scrapeInSession(session, options, dir, initialComments, logger, startedAt);
+  const evidence = await createEvidenceLog(dir, newRunId());
+  await evidence.append({ action: 'run_start', runId: evidence.runId, url: options.url });
+  const result = await scrapeInSession(session, options, dir, initialComments, logger, startedAt);
+  await evidence.append({ action: 'run_end', visibility: visibilityQuote() });
+  const manifestPath = await evidence.writeManifest();
+  logger.info(`evidence manifest: ${manifestPath}`);
+  return result;
+};
+
+export const runScrapeComments = async (
+  context: RuntimeContext,
+  options: ScrapeCommentsOptions,
+) => {
+  const startedAt = Date.now();
+  resetVisibilityTracker();
+  const { dir, initialComments } = await prepareOutput(context, options);
+  const logger = createLogger(options);
+  logger.info(`output dir: ${dir}`);
+  logger.info('opening browser');
+  const session = await openBrowserSession(context);
+  try {
+    return await scrapeWithEvidence(session, options, dir, initialComments, logger, startedAt);
   } finally {
     await closeBrowserSession(session.browser);
   }

@@ -8,6 +8,7 @@ export const buildCommentMetadataPayload = (
   screenshotUuid: string,
   screenshotUtc: string,
   screenshotKeys: string[],
+  visibleInViewport?: boolean,
 ) => {
   const links = buildCommentLinks(data.commentPermalink, sourceUrl);
   const needsReview = screenshotKeys.length > 2;
@@ -30,5 +31,6 @@ export const buildCommentMetadataPayload = (
     text: data.text,
     timeText: data.timeText,
     username: data.username,
+    ...(visibleInViewport !== undefined ? { visibleInViewport } : {}),
   };
 };

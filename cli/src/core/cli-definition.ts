@@ -7,6 +7,7 @@ const addGlobalOptions = (cli: CAC) => {
   cli.option('--cdp-url <url>', 'Chrome DevTools endpoint of the running Chrome', { default: 'http://127.0.0.1:9222' });
   cli.option('--cwd <path>', 'Working directory', { default: process.cwd() });
   cli.option('--dry-run', 'Dry run mode');
+  cli.option('--evidence', 'Write evidence log (actions.ndjson) and a SHA-256 manifest');
   cli.option('--headless', 'Deprecated: CDP mode always uses the running Chrome UI');
   cli.option('--json', 'JSON output');
   cli.option('--no-color', 'Disable color', { default: false });

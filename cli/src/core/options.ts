@@ -27,6 +27,7 @@ export const parseGlobalOptions = (argv: string[]) => ({
   cdpUrl: readFlag(argv, '--cdp-url') || 'http://127.0.0.1:9222',
   cwd: readFlag(argv, '--cwd') || process.cwd(),
   dryRun: argv.includes('--dry-run'),
+  evidence: argv.includes('--evidence'),
   headful: !argv.includes('--headless'),
   json: argv.includes('--json'),
   noColor: argv.includes('--no-color'),
@@ -38,6 +39,6 @@ export const parseGlobalOptions = (argv: string[]) => ({
 
 export const GLOBAL_VALUE_FLAGS = new Set(['--cdp-url', '--cwd']);
 export const GLOBAL_BOOLEAN_FLAGS = new Set([
-  '--dry-run', '--headless', '--json', '--no-color', '--no-input',
+  '--dry-run', '--evidence', '--headless', '--json', '--no-color', '--no-input',
   '--plain', '--quiet', '--verbose', '--help', '-h', '--version', '-v',
 ]);

@@ -62,6 +62,7 @@ describe('runScrapeComments', () => {
       cdpUrl: 'http://127.0.0.1:9222',
       cwd: '/tmp/project',
       dryRun: false,
+  evidence: false,
       headful: true,
       json: false,
       maxCommentLikers: 50,
@@ -108,6 +109,7 @@ describe('runScrapeComments', () => {
 
     await runScrapeComments(context, {
       cdpUrl: 'http://127.0.0.1:9222', cwd: '/tmp/project', dryRun: false,
+  evidence: false,
       headful: true, json: false, noColor: false, noInput: false,
       outDir: 'comments', plain: false, quiet: true,
       resume: checkpoint, url: 'https://www.instagram.com/p/abc/', verbose: false,
@@ -129,6 +131,7 @@ describe('runScrapeComments', () => {
 
     await expect(runScrapeComments(context, {
       cdpUrl: 'http://127.0.0.1:9222', cwd: '/tmp/project', dryRun: false,
+  evidence: false,
       headful: true, json: false, noColor: false, noInput: false,
       outDir: 'comments', plain: false, quiet: true,
       url: 'https://www.instagram.com/p/abc/', verbose: false,

@@ -62,12 +62,12 @@ export const launchCdpFixture = async (): Promise<CdpFixture | null> => {
     const close = async () => {
       await session.browser.close();
       await killProcess(proc);
-      await rm(userDataDir, { force: true, recursive: true });
+      await rm(userDataDir, { force: true, maxRetries: 5, recursive: true, retryDelay: 200 });
     };
     return { close, page: session.page, session };
   } catch (error) {
     await killProcess(proc);
-    await rm(userDataDir, { force: true, recursive: true });
+    await rm(userDataDir, { force: true, maxRetries: 5, recursive: true, retryDelay: 200 });
     throw error;
   }
 };
