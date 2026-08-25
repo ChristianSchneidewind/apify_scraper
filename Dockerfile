@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.53.1-jammy
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 
@@ -7,6 +7,7 @@ RUN npm ci
 
 COPY . ./
 
-RUN npx playwright install chromium
+# The CLI drives an external Chrome over CDP (--cdp-url); no browser is
+# bundled or downloaded into this image.
 
 CMD ["node", "--import", "tsx", "cli/src/bin/instagram.ts", "--help"]

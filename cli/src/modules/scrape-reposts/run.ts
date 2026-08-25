@@ -1,17 +1,13 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import type { CliOutput, RuntimeContext, ScrapeRepostsOptions } from '../../schemas/index.ts';
+import { join } from 'node:path';
+import type { BinaryWriter, CliOutput, LoggerPort, RepostCapturePage, RepostReadPage, RepostScrollPage, RuntimeContext, ScrapeRepostsOptions } from '../../schemas/index.ts';
 import { isLoginRequired } from '../../adapters/instagram/auth.ts';
-import { closeBrowserSession, openBrowserSession } from '../../adapters/playwright/browser.ts';
+import { closeBrowserSession, openBrowserSession } from '../../adapters/cdp/browser.ts';
 import { ensureOutputDirectory, writeBinaryFile, writeJsonFile } from '../../adapters/filesystem/output.ts';
 import { prepareProfileScreenshotVisuals } from '../../adapters/instagram/visual.ts';
 import { setScreenshotBanner } from '../scrape-comments/capture/banner.ts';
 import { createLogger } from '../../core/logger.ts';
 import { makeScreenshotUtc, makeUuid7 } from '../scrape-comments/capture/screenshot-session.ts';
-const moduleDir = dirname(fileURLToPath(import.meta.url));
-const WAIT_IMAGES_SCRIPT = readFileSync(join(moduleDir, 'browser-scripts/wait-images.script'), 'utf8');
-const EXTRACT_LINKS_SCRIPT = readFileSync(join(moduleDir, 'browser-scripts/extract-links.script'), 'utf8');
+import { extractRepostLinks, waitForImages } from './browser.ts';
 
 const WAIT_AFTER_SCROLL_MS = 750;
 const MAX_SCROLL_ROUNDS = 1000;
@@ -24,23 +20,16 @@ export const buildRepostsUrl = (profileUrl: string) => {
   return url.toString();
 };
 
-export const readRepostPage = async (page: {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-}) => page.evaluate(() => ({
+export const readRepostPage = async (page: RepostReadPage) => page.evaluate(() => ({
   width: document.documentElement.scrollWidth,
   height: document.documentElement.scrollHeight,
   viewportHeight: window.innerHeight,
   scrollY: window.scrollY,
 }), undefined);
 
-export const collectRepostLinks = async (page: {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-}) => page.evaluate((body: string) => new Function(`return (${body})`)()(), EXTRACT_LINKS_SCRIPT) as Promise<string[]>;
+export const collectRepostLinks = async (page: RepostReadPage) => page.evaluate(extractRepostLinks, undefined);
 
-export const scrollRepostsToEnd = async (page: {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-  waitForTimeout: (ms: number) => Promise<void>;
-}, logger?: { debug: (message: string, data?: Record<string, string | number | boolean>) => void }) => {
+export const scrollRepostsToEnd = async (page: RepostScrollPage, logger?: LoggerPort) => {
   let previousHeight = 0;
   let stableRounds = 0;
   const links = new Set<string>();
@@ -60,15 +49,9 @@ export const scrollRepostsToEnd = async (page: {
   return { ...(await readRepostPage(page)), links: [...links] };
 };
 
-export const waitForRepostImages = async (page: {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-}) => page.evaluate((body: string) => new Function(`return (${body})`)()(), WAIT_IMAGES_SCRIPT);
+export const waitForRepostImages = async (page: RepostReadPage) => page.evaluate(waitForImages, undefined);
 
-export const captureRepostScreenshots = async (page: {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-  waitForTimeout: (ms: number) => Promise<void>;
-  screenshot: (options: { fullPage: boolean }) => Promise<Uint8Array>;
-}, write: (name: string, bytes: Uint8Array) => Promise<string>, pageUrl: string) => {
+export const captureRepostScreenshots = async (page: RepostCapturePage, write: BinaryWriter, pageUrl: string) => {
   const initial = await readRepostPage(page);
   const step = Math.max(1, initial.viewportHeight);
   const total = Math.max(1, Math.ceil(initial.height / step));
@@ -101,17 +84,17 @@ export const runScrapeReposts = async (context: RuntimeContext, options: ScrapeR
   const slug = profileSlug(options.url);
   const dir = await ensureOutputDirectory(context.cwd, join(options.outDir, makeRepostsRunFolder(slug)));
   const logger = createLogger(options);
-  const session = await openBrowserSession(context, options.headful);
+  const session = await openBrowserSession(context);
   try {
     const repostsUrl = buildRepostsUrl(options.url);
     logger.info(`navigating to reposts: ${repostsUrl}`);
     await session.page.goto(repostsUrl, { waitUntil: 'domcontentloaded' });
-    if (await isLoginRequired(session.page as never)) throw new Error('Instagram session expired; run auth login first');
+    if (await isLoginRequired(session.page)) throw new Error('Instagram session expired; run auth login first');
     await session.page.waitForTimeout(1500);
-    await prepareProfileScreenshotVisuals(session.page as never);
-    const endState = await scrollRepostsToEnd(session.page as never, logger);
+    await prepareProfileScreenshotVisuals(session.page);
+    const endState = await scrollRepostsToEnd(session.page, logger);
     const write = (name: string, bytes: Uint8Array) => writeBinaryFile(dir, name, bytes);
-    const screenshots = await captureRepostScreenshots(session.page as never, write, repostsUrl);
+    const screenshots = await captureRepostScreenshots(session.page, write, repostsUrl);
     const manifestPath = await writeJsonFile(dir, `${slug}-reposts.json`, { sourceUrl: options.url, repostsUrl, screenshots, screenshotCount: screenshots.length, repostLinks: endState.links, page: { width: endState.width, height: endState.height, viewportHeight: endState.viewportHeight, scrollY: endState.scrollY }, durationMs: Date.now() - startedAt });
     return { command: 'scrape.reposts', ok: true, summary: `captured ${screenshots.length} repost screenshots`, details: { manifestPath, screenshotCount: String(screenshots.length), repostsUrl } };
   } finally {

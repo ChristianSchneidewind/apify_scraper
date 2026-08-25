@@ -1,11 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/adapters/instagram/load-script.ts', () => ({
-  browserRunElement: vi.fn(),
-  browserRunPayload: vi.fn(),
-  injectHelpers: (body: string) => body,
-}));
-
 import { FORCED_MULTIPART_BASE } from '../src/modules/scrape-comments/multipart/decisions.ts';
 import { planCommentMultipart } from '../src/modules/scrape-comments/multipart/planner.ts';
 

@@ -2,16 +2,19 @@ import { Type } from '@sinclair/typebox';
 import type { Static } from '@sinclair/typebox';
 
 export const commandNameSchema = Type.Union([
+  Type.Literal('cli'),
   Type.Literal('auth.login'),
   Type.Literal('scrape.comments'),
   Type.Literal('scrape.profiles'),
   Type.Literal('scrape.reposts'),
+  Type.Literal('profile.show'),
 ]);
 
 export const globalOptionsSchema = Type.Object({
-  browserProfile: Type.String({ default: 'default' }),
+  cdpUrl: Type.String({ default: 'http://127.0.0.1:9222' }),
   cwd: Type.String(),
   dryRun: Type.Boolean({ default: false }),
+  evidence: Type.Boolean({ default: false }),
   headful: Type.Boolean({ default: true }),
   json: Type.Boolean({ default: false }),
   noColor: Type.Boolean({ default: false }),
@@ -73,6 +76,11 @@ export const scrapeProfilesRequestSchema = Type.Object({
   options: scrapeProfilesOptionsSchema,
 });
 
+export const profileShowRequestSchema = Type.Object({
+  command: Type.Literal('profile.show'),
+  options: globalOptionsSchema,
+});
+
 export const scrapeRepostsRequestSchema = Type.Object({
   command: Type.Literal('scrape.reposts'),
   options: scrapeRepostsOptionsSchema,
@@ -83,6 +91,7 @@ export const commandRequestSchema = Type.Union([
   scrapeCommentsRequestSchema,
   scrapeProfilesRequestSchema,
   scrapeRepostsRequestSchema,
+  profileShowRequestSchema,
 ]);
 
 export type CommandName = Static<typeof commandNameSchema>;

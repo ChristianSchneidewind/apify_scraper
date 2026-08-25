@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
+import { Value } from '@sinclair/typebox/value';
 import { basename, dirname } from 'node:path';
-import type { CommentRecord, LikersPage, ScrapeCommentsOptions } from '../../../schemas/index.ts';
+import type { CommentRecord, LikerBrowserContext, LikersPage, ScrapeCommentsOptions } from '../../../schemas/index.ts';
+import { jsonObjectSchema } from '../../../schemas/index.ts';
 import { writeJsonFile } from '../../../adapters/filesystem/output.ts';
 import { normalizeCommentLikers } from '../comment-state.ts';
 import { waitForDialogOpen } from './collect-dialog.ts';
@@ -38,9 +40,9 @@ const enrichOne = async (
     setIncomplete(comment, 'no_likes_or_permalink');
     return;
   }
-  const opened = await openLikesDeepLink(page as never, url, comment.commentPermalink, options.verbose)
+  const opened = await openLikesDeepLink(page, url, comment.commentPermalink, options.verbose)
     .catch(() => ({ clicked: false, reason: 'deep_open_failed' }));
-  if (!opened.clicked || !(await waitForDialogOpen(page as never))) {
+  if (!opened.clicked || !(await waitForDialogOpen(page))) {
     setIncomplete(comment, opened.reason || 'dialog_open_failed');
     return;
   }
@@ -59,7 +61,8 @@ const enrichOne = async (
 
 const updateMetadata = async (comment: CommentRecord) => {
   if (!comment.metadataPath) return;
-  const current = JSON.parse(await readFile(comment.metadataPath, 'utf8')) as Record<string, unknown>;
+  const parsed: unknown = JSON.parse(await readFile(comment.metadataPath, 'utf8'));
+  const current = Value.Decode(jsonObjectSchema, parsed);
   await writeJsonFile(dirname(comment.metadataPath), basename(comment.metadataPath), {
     ...current,
     commentLikers: comment.commentLikers || [],
@@ -84,7 +87,7 @@ const enrichComments = async (
 };
 
 export const enrichReelCommentsAfterCapture = async (
-  browserContext: { newPage: () => Promise<LikersPage & { close: () => Promise<void> }> },
+  browserContext: LikerBrowserContext,
   comments: CommentRecord[],
   options: ScrapeCommentsOptions,
   outDir: string,

@@ -1,4 +1,4 @@
-import type { CommentLiker, CommentRecord, LikersPage, OpenLikesResult, TimeLocator } from '../../../schemas/index.ts';
+import type { CommentLiker, CommentRecord, LikerRetryConfig, LikersPage, OpenLikesResult, TimeLocator } from '../../../schemas/index.ts';
 import { normalizeCommentLikers } from '../comment-state.ts';
 import { refindCommentRowHandle } from '../extract-from-locator.ts';
 import { waitForDialogOpen } from './collect-dialog.ts';
@@ -82,7 +82,7 @@ const openInlineWithRefind = async (
   let currentReason = inline.reason;
   logLikersDebug(verbose, `user=${data.username} extracted=${extractedLikes} inline.clicked=${clicked} inline.reason=${inline.reason ?? 'n/a'} inline.likes=${Number(inline.likesCount ?? 0) || 0}`);
   if (clicked) return { clicked, currentReason, inlineLikes };
-  const refound = await refindCommentRowHandle(page as never, data).catch(() => null);
+  const refound = await refindCommentRowHandle(page, data).catch(() => null);
   if (!refound) return { clicked, currentReason, inlineLikes };
   const retryInline = await withTimeout(openLikesInline(refound, commentPermalink), 2500, 'inline_refind_timeout')
     .catch((error) => ({ clicked: false, likesCount: data.likesCount ?? inlineLikes, reason: errorReason(error, 'inline_refind_error') } as OpenLikesResult));
@@ -103,7 +103,7 @@ const openCurrentIfNeeded = async (
   verbose?: boolean,
 ) => {
   if (clicked || !commentPermalink) return { clicked, currentReason };
-  const current = await withTimeout(clickLikesInCurrentPage(page as never, commentPermalink, verbose), 5000, 'current_timeout')
+  const current = await withTimeout(clickLikesInCurrentPage(page, commentPermalink, verbose), 5000, 'current_timeout')
     .catch((error) => ({ clicked: false, likesCount: inlineLikes, reason: errorReason(error, 'current_error') }));
   data.likesCount = preferPositiveCount(current.likesCount, data.likesCount);
   logLikersDebug(verbose, `user=${data.username} current.clicked=${Boolean(current.clicked)} current.reason=${current.reason ?? 'n/a'} current.likes=${Number(current.likesCount ?? 0) || 0}`);
@@ -160,7 +160,7 @@ const waitForDialogLikersReady = async (page: LikersPage, verbose?: boolean) => 
   const currentUrl = typeof page.url === 'function' ? page.url() : '';
   const isReel = /\/reels?\//.test(currentUrl);
   for (let i = 0; i < 40; i += 1) {
-    const count = await Promise.resolve(page.evaluate(countVisibleLikerLinks, undefined as never)).catch(() => null);
+    const count = await Promise.resolve(page.evaluate(countVisibleLikerLinks, undefined)).catch(() => null);
     if (count === null || count === undefined || count > 0) return true;
     await pressReelSafePageDown(page, isReel, i === 10 || i === 20);
     await page.waitForTimeout(500);
@@ -176,9 +176,9 @@ const collectFromOpenDialog = async (
   maxCommentLikers: number,
   mode: 'best_effort' | 'strict',
   verbose?: boolean,
-  retryConfig?: { retryAttempts?: number; retryDelayMs?: number; timeoutMs?: number },
+  retryConfig?: LikerRetryConfig,
 ) => {
-  const dialogOpened = await withTimeout(waitForDialogOpen(workedPage as never), 4000, 'dialog_open_timeout').catch(() => false);
+  const dialogOpened = await withTimeout(waitForDialogOpen(workedPage), 4000, 'dialog_open_timeout').catch(() => false);
   logLikersDebug(verbose, `user=${data.username} dialogOpened=${dialogOpened}`);
   if (!dialogOpened) {
     setLikerStatus(data, [], 'dialog_open_failed');
@@ -206,7 +206,7 @@ export const enrichCommentLikers = async (
   maxCommentLikers = 0,
   likerCollectionMode: 'best_effort' | 'strict' = 'best_effort',
   verbose?: boolean,
-  retryConfig?: { retryAttempts?: number; retryDelayMs?: number; timeoutMs?: number },
+  retryConfig?: LikerRetryConfig,
 ) => {
   const commentPermalink = data.commentPermalink;
   const commentUrl = buildCommentUrl(data.parentCommentPermalink || commentPermalink);
@@ -234,7 +234,7 @@ export const enrichCommentLikers = async (
   }
   const result = await collectFromOpenDialog(deep.workedPage, data, commentPermalink, maxCommentLikers, likerCollectionMode, verbose, retryConfig);
   if (deep.workedPage !== page) {
-    await (deep.workedPage as LikersPage & { close?: () => Promise<void> }).close?.().catch(() => undefined);
+    await deep.workedPage.close().catch(() => undefined);
   }
   return result;
 };

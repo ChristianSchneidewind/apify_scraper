@@ -1,24 +1,9 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import type { LikersBatch } from '../../../schemas/index.ts';
-
-const scriptDir = dirname(fileURLToPath(import.meta.url));
-
-const readScript = (name: string) =>
-  readFileSync(join(scriptDir, 'browser-scripts', name), 'utf8');
-
-export const COLLECT_SCRIPT = readScript('collect-likers-dialog.script');
-export const DIALOG_OPEN_SCRIPT = readScript('dialog-is-open.script');
-export const RESET_DIALOG_SCRIPT = readScript('reset-likers-dialog.script');
-export const SCROLL_END_SCRIPT = readScript('scroll-likers-dialog-end.script');
-export const NUDGE_END_SCRIPT = readScript('nudge-likers-dialog-end.script');
-export const OSCILLATE_END_SCRIPT = readScript('oscillate-likers-dialog-end.script');
+import type { CommentLiker, LikersBatch } from '../../../schemas/index.ts';
 
 export const mergeBatch = (
   batch: LikersBatch,
   seen: Set<string>,
-  likers: Array<{ profileUrl: string; username: string }>,
+  likers: CommentLiker[],
   maxCommentLikers: number,
 ) => {
   let added = 0;
@@ -36,11 +21,6 @@ export const mergeBatch = (
   }
   return added;
 };
-
-export function runIifeBody<T>(args: { body: string }) {
-  const source = args.body.trim().replace(/^return\s+/, '').replace(/;\s*$/, '');
-  return new Function(`return ${source}`)() as T;
-}
 
 export const resolveTargetCount = (maxCommentLikers: number, likesCount: number) => {
   if (maxCommentLikers > 0) return Math.min(maxCommentLikers, likesCount || maxCommentLikers);

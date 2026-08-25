@@ -1,4 +1,6 @@
-export function setScreenshotBanner(args: { text: string }) {
+import type { ScreenshotBannerPayload, ScreenshotSessionData } from '../../../schemas/index.ts';
+
+export function setScreenshotBanner(args: ScreenshotBannerPayload) {
   const id = 'apify-screenshot-banner';
   let el = document.getElementById(id);
   if (!el) {
@@ -30,10 +32,7 @@ export function setScreenshotBanner(args: { text: string }) {
 }
 
 export const bannerText = (
-  session: {
-    screenshotUtc: string;
-    screenshotUuid: string;
-  },
+  session: ScreenshotSessionData,
   pageUrl: string,
   commentIndex: number,
   part: number,

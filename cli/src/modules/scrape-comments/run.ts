@@ -1,16 +1,24 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { Value } from '@sinclair/typebox/value';
-import type { CliOutput, CommentRecord, RuntimeContext, ScrapeCommentsOptions, ScrapeLoopOptions } from '../../schemas/index.ts';
+import type { CdpBrowserSession, CliOutput, CommentRecord, LoggerPort, RuntimeContext, ScrapeCommentsOptions, ScrapeLoopOptions } from '../../schemas/index.ts';
 import { commentRecordSchema } from '../../schemas/index.ts';
 import {
   ensureOutputDirectory,
   writeJsonFile,
 } from '../../adapters/filesystem/output.ts';
-import { closeBrowserSession, openBrowserSession } from '../../adapters/playwright/browser.ts';
+import { closeBrowserSession, openBrowserSession } from '../../adapters/cdp/browser.ts';
+import { createEvidenceLog, newRunId } from '../../adapters/cdp/evidence.ts';
 import { createLogger } from '../../core/logger.ts';
 import { prepareCommentsPage } from './page-setup.ts';
 import { runCommentScrapeLoop } from './scrape-loop.ts';
+import { resetVisibilityTracker, visibilityFlaggedIds, visibilityQuote, visibilitySummary } from './capture/visibility.ts';
+
+const logVisibilityReport = (logger: LoggerPort) => {
+  logger.info(`visibility: ${visibilitySummary()}`);
+  const flagged = visibilityFlaggedIds();
+  if (flagged.length) logger.warn(`visibility flagged ${flagged.length} captures for spot-check`, { flagged: flagged.length });
+};
 
 const buildSuccess = (
   count: number,
@@ -39,20 +47,20 @@ const buildSuccess = (
   summary: `scraped ${count} comments`,
 });
 
-const countScreenshots = (comments: Array<{ screenshotPaths?: string[] }>) =>
+const countScreenshots = (comments: CommentRecord[]) =>
   comments.reduce((sum, item) => sum + (item.screenshotPaths?.length || 0), 0);
 
-const sumLikes = (comments: Array<{ likesCount?: number }>) =>
+const sumLikes = (comments: CommentRecord[]) =>
   comments.reduce((sum, item) => sum + (Number(item.likesCount) || 0), 0);
 
-const sumLikers = (comments: Array<{ commentLikers?: Array<unknown> }>) =>
+const sumLikers = (comments: CommentRecord[]) =>
   comments.reduce((sum, item) => sum + (item.commentLikers?.length || 0), 0);
 
-const countIncompleteLikers = (comments: Array<{ likersComplete?: boolean; likersReason?: string | null; likesCount?: number; commentLikers?: Array<unknown> }>) =>
+const countIncompleteLikers = (comments: CommentRecord[]) =>
   comments.filter((item) => item.likersReason !== 'liker_collection_disabled'
     && (item.likersComplete === false || ((Number(item.likesCount) || 0) > 0 && !item.commentLikers?.length))).length;
 
-const countMultipart = (comments: Array<{ screenshotPaths?: string[] }>) =>
+const countMultipart = (comments: CommentRecord[]) =>
   comments.filter((item) => (item.screenshotPaths?.length || 0) > 1).length;
 
 const makeRunFolder = () => {
@@ -63,9 +71,11 @@ const makeRunFolder = () => {
 
 const loadCheckpoint = async (path: string): Promise<CommentRecord[] | null> => {
   try {
-    const raw = JSON.parse(await readFile(path, 'utf8')) as { comments?: unknown };
-    if (!Array.isArray(raw.comments)) return null;
-    return raw.comments.filter((item): item is CommentRecord => Value.Check(commentRecordSchema, item));
+    const raw: unknown = JSON.parse(await readFile(path, 'utf8'));
+    if (!raw || typeof raw !== 'object') return null;
+    const comments = Reflect.get(raw, 'comments');
+    if (!Array.isArray(comments)) return null;
+    return comments.filter((item): item is CommentRecord => Value.Check(commentRecordSchema, item));
   } catch {
     return null;
   }
@@ -80,7 +90,7 @@ const prepareOutput = async (context: RuntimeContext, options: ScrapeCommentsOpt
   return { dir, initialComments: initialComments || [] };
 };
 
-const logCommentSort = (logger: ReturnType<typeof createLogger>, commentSort: string) => {
+const logCommentSort = (logger: LoggerPort, commentSort: string) => {
   if (commentSort === 'selected_newest' || commentSort === 'already_newest') {
     logger.info(`comment sort: ${commentSort}`);
     return;
@@ -109,38 +119,28 @@ const buildLoopOptions = (
   ...(options.uiIdleRounds !== undefined ? { uiIdleRounds: options.uiIdleRounds } : {}),
 });
 
-export const runScrapeComments = async (
-  context: RuntimeContext,
+const scrapeInSession = async (
+  session: CdpBrowserSession,
   options: ScrapeCommentsOptions,
+  dir: string,
+  initialComments: CommentRecord[],
+  logger: LoggerPort,
+  startedAt: number,
 ) => {
-  const startedAt = Date.now();
-  const { dir, initialComments } = await prepareOutput(context, options);
-  const logger = createLogger(options);
-  logger.info(`output dir: ${dir}`);
-  logger.info('opening browser');
-  const session = await openBrowserSession(context, options.headful);
-  try {
-    logger.info('navigating to post');
-    await session.page.goto(options.url, { waitUntil: 'domcontentloaded' });
-    logger.info('waiting for initial load');
-    await session.page.waitForTimeout(1500);
-    logger.info('loading comments');
-    const commentSort = await prepareCommentsPage(session.page as never, options.maxUiRounds ?? 40, options.uiIdleRounds ?? 6);
-    logCommentSort(logger, commentSort);
-    logger.info('capturing comments');
-
-    const loopOptions = buildLoopOptions(options, dir, initialComments);
-    logger.info('starting scrape loop');
-    logger.debug('loop: entering');
-    const comments = await runCommentScrapeLoop(session.page as never, loopOptions);
-    logger.info(`scrape loop done: ${comments.length} comments`, { comments: comments.length });
-
-    const jsonPath = await writeJsonFile(dir, 'comments.json', {
-    comments,
-    sourceUrl: options.url,
-    });
-    logger.info(`wrote ${jsonPath}`);
-    return buildSuccess(
+  logger.info('navigating to post');
+  await session.page.goto(options.url, { waitUntil: 'domcontentloaded' });
+  logger.info('waiting for initial load');
+  await session.page.waitForTimeout(1500);
+  logger.info('loading comments');
+  const commentSort = await prepareCommentsPage(session.page, options.maxUiRounds ?? 40, options.uiIdleRounds ?? 6);
+  logCommentSort(logger, commentSort);
+  logger.info('capturing comments');
+  const comments = await runCommentScrapeLoop(session.page, buildLoopOptions(options, dir, initialComments));
+  logger.info(`scrape loop done: ${comments.length} comments`, { comments: comments.length });
+  logVisibilityReport(logger);
+  const jsonPath = await writeJsonFile(dir, 'comments.json', { comments, sourceUrl: options.url });
+  logger.info(`wrote ${jsonPath}`);
+  return buildSuccess(
     comments.length,
     jsonPath,
     countScreenshots(comments),
@@ -149,7 +149,40 @@ export const runScrapeComments = async (
     countIncompleteLikers(comments),
     countMultipart(comments),
     Date.now() - startedAt,
-    );
+  );
+};
+
+const scrapeWithEvidence = async (
+  session: CdpBrowserSession,
+  options: ScrapeCommentsOptions,
+  dir: string,
+  initialComments: CommentRecord[],
+  logger: LoggerPort,
+  startedAt: number,
+) => {
+  if (!options.evidence) return scrapeInSession(session, options, dir, initialComments, logger, startedAt);
+  const evidence = await createEvidenceLog(dir, newRunId());
+  await evidence.append({ action: 'run_start', runId: evidence.runId, url: options.url });
+  const result = await scrapeInSession(session, options, dir, initialComments, logger, startedAt);
+  await evidence.append({ action: 'run_end', visibility: visibilityQuote() });
+  const manifestPath = await evidence.writeManifest();
+  logger.info(`evidence manifest: ${manifestPath}`);
+  return result;
+};
+
+export const runScrapeComments = async (
+  context: RuntimeContext,
+  options: ScrapeCommentsOptions,
+) => {
+  const startedAt = Date.now();
+  resetVisibilityTracker();
+  const { dir, initialComments } = await prepareOutput(context, options);
+  const logger = createLogger(options);
+  logger.info(`output dir: ${dir}`);
+  logger.info('opening browser');
+  const session = await openBrowserSession(context);
+  try {
+    return await scrapeWithEvidence(session, options, dir, initialComments, logger, startedAt);
   } finally {
     await closeBrowserSession(session.browser);
   }

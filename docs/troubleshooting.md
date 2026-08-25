@@ -1,14 +1,37 @@
 # Troubleshooting
 
-## Session expired / auth required
+## Chrome remote debugging not reachable
 
-If the CLI reports `Instagram session expired; run auth login first`, authenticate the same browser profile again:
+If the CLI reports that Chrome remote debugging is not reachable, start the
+scraping Chrome:
 
 ```bash
-npx tsx cli/src/bin/instagram.ts auth login --browser-profile "default"
+scripts/chrome-cdp.sh            # or: scripts/chrome-cdp.sh --restart
 ```
 
-Keep the same `--cwd` and `--browser-profile` values for subsequent scrapes.
+Chrome >= 136 ignores `--remote-debugging-port` for the default data
+directory, which is why the script uses the dedicated profile
+`~/.chrome-cdp`. Point `--cdp-url` at the right endpoint when you use a
+non-default port.
+
+## Session expired / auth required
+
+If the CLI reports `Instagram session expired; run auth login first`, sign in
+to Instagram in the connected Chrome and verify:
+
+```bash
+npx tsx cli/src/bin/instagram.ts auth login
+```
+
+The session lives in the real Chrome profile; there is no separate CLI profile
+to keep in sync.
+
+## Captures flagged as not visible
+
+The action-verify loop flags captures whose target left the viewport instead
+of dropping them. The run summary prints the visibility quote; spot-check the
+flagged comments via their `commentPermalink` and the `visibleInViewport`
+field in the per-comment metadata JSON.
 
 ## No comments captured
 
@@ -22,31 +45,10 @@ Try:
 - increase `--ui-idle-rounds`
 - run with `--verbose`
 
-## Likers lower than likesCount
+## Liker profiles are empty
 
-Notes:
-- Instagram often exposes only visible/loadable likers
-- default `--max-comment-likers 0` already means all visible likers
+This is intentional. The production path currently keeps visible `likesCount` but does not open liker dialogs. Comment records contain an empty `commentLikers` array and `likersReason: "liker_collection_disabled"`. Liker-related flags are compatibility placeholders until the UI flow is reliable.
 
-Try:
-- `--liker-collection-mode strict`
-- `--verbose`
-
-## 0-like comments
-
-The CLI should not click the normal reaction button for 0-like comments.
-Deep fallback is skipped when `likesCount === 0`.
-
-## Retry missing likers
-
-To retry comments that have likes but no collected likers, resume the checkpoint with:
-
-```bash
-npx tsx cli/src/bin/instagram.ts scrape comments \
-  --url "https://www.instagram.com/p/abc/" \
-  --resume "artifacts/comments/<run>/checkpoint.json" \
-  --retry-incomplete-likers
-```
 
 ## Resume interrupted runs
 
@@ -62,7 +64,6 @@ npx tsx cli/src/bin/instagram.ts scrape comments \
 
 Typical causes:
 - comment expansion
-- liker dialog scrolling
 - multipart screenshots
 
 Try:

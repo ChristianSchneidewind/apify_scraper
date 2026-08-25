@@ -12,21 +12,32 @@ npx tsx cli/src/bin/instagram.ts <command>
 - `--json`: one JSON object to stdout.
 - `--plain`: stable line-oriented text output (`OK|ERROR`, command, summary, sorted `key=value` details).
 - Successful comment scrapes report `incompleteLikersCount` and `multipartCount` in details.
-- `--headless`: run browser without visible UI (default is headful).
+- `--headless`: deprecated no-op; CDP mode always uses the running Chrome UI.
+- `--evidence`: write `actions.ndjson` plus a SHA-256 `manifest.json` per run.
 - `--dry-run`: validate the command without opening a browser or writing artifacts.
 - `--resume <path>`: continue from a previous comments `checkpoint.json`.
-- `--retry-incomplete-likers`: retry resumed comments with likes but no collected likers.
+- liker-related flags are accepted for compatibility but currently do not collect profiles.
 - Diagnostics, warnings, and validation errors go to stderr.
 - `--no-input` disables prompts; auth login requires an interactive TTY.
 
 ## Commands
 
+### CDP connection summary
+
+Global options may appear before or after commands. This standalone lookup does not attach to Chrome:
+
+```bash
+npx tsx cli/src/bin/instagram.ts --cdp-url "http://127.0.0.1:9222" --json
+```
+
 ### Login
 
 ```bash
-npx tsx cli/src/bin/instagram.ts auth login \
-  --browser-profile "default"
+npx tsx cli/src/bin/instagram.ts auth login
 ```
+
+The command never automates the login itself: sign in manually in the
+connected Chrome; the command verifies the resulting session state.
 
 ### Scrape comments
 
@@ -44,11 +55,10 @@ Each processed comment is checkpointed to `checkpoint.json` in the run directory
 ```bash
 npx tsx cli/src/bin/instagram.ts scrape comments \
   --url "https://www.instagram.com/p/abc/" \
-  --resume "artifacts/comments/<run>/checkpoint.json" \
-  --retry-incomplete-likers
+  --resume "artifacts/comments/<run>/checkpoint.json"
 ```
 
-Default: `--max-comment-likers 0` = all visible likers. `--max-comments 0` = no limit.
+`--max-comments 0` means no limit. Liker-related options are currently inactive.
 
 ### Scrape profiles
 
@@ -88,7 +98,7 @@ The TypeScript CLI is now the only runtime in this repository.
 
 Ported and usable:
 
-- Likers extraction (`--max-comment-likers`, `--liker-collection-mode`)
+- Visible like-count extraction; liker-profile dialog collection remains disabled
 - Screenshots with red outline per comment
 - Multipart capture for long comments
 - UI tuning (`--max-ui-rounds`, `--ui-idle-rounds`)

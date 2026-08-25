@@ -1,53 +1,67 @@
 # Architecture Overview
 
-## Runtime Flow
+## Runtime flow
 
-1. `cli/src/bin/instagram.ts` is the entrypoint.
-2. `cli/src/core/app.ts` parses CLI input and dispatches commands.
-3. `cli/src/modules/auth/login.ts` handles session login.
-4. `cli/src/modules/scrape-comments/run.ts` orchestrates comment scraping.
-5. `cli/src/modules/scrape-profiles/run.ts` orchestrates profile scraping.
+1. `cli/src/bin/instagram.ts` renders the final typed result.
+2. `cli/src/core/app.ts` coordinates help/version, validation, context, and dispatch.
+3. `cli/src/core/argv.ts` matches and validates arguments through registered command descriptors.
+4. `cli/src/core/dispatch.ts` invokes the matched descriptor.
+5. Module handlers run authentication or scraping and return `CliOutput`.
 
-## Main areas
+## Small core
 
-- `cli/src/core/`
-  - argv parsing
-  - runtime context
-  - result/output rendering
+`cli/src/core/` is command-agnostic. It owns:
 
-- `cli/src/adapters/`
-  - Playwright browser/session helpers
-  - Instagram DOM/browser scripts
-  - filesystem output helpers
+- generic argv validation
+- CLI construction from descriptors
+- runtime-context construction
+- generic dispatch
+- output/result and exit-code policy
 
-- `cli/src/modules/scrape-comments/`
-  - UI loop
-  - extraction
-  - likers
-  - highlighting
-  - multipart capture
-  - artifact persistence
+Guardrails reject Instagram command literals and direct command implementation imports in core.
 
-- `cli/src/modules/scrape-profiles/`
-  - profile extraction
-  - screenshot + JSON persistence
+## Modular commands
 
-- `cli/src/schemas/`
-  - centralized TypeBox schemas/types
+Each command defines configuration, accepted flags, request construction, and execution beside its handler:
+
+- `cli/src/modules/auth/command.ts`
+- `cli/src/modules/scrape-comments/command.ts`
+- `cli/src/modules/scrape-profiles/command.ts`
+- `cli/src/modules/scrape-reposts/command.ts`
+- `cli/src/modules/profile-command.ts`
+
+`cli/src/modules/registry.ts` is the composition root. Adding a command means adding a descriptor to this registry; parsing, help, and dispatch remain generic.
+
+## Adapters and browser evaluators
+
+- `cli/src/adapters/cdp/`: CDP session lifecycle and page automation. The
+  client speaks the Chrome DevTools Protocol directly over WebSocket
+  (`Runtime.evaluate`/`callFunctionOn`, `Page.navigate`/`captureScreenshot`,
+  `Input` events) against the user's running Chrome — no Playwright, no
+  Puppeteer, no bundled browser. Playwright-style `evaluate(fn, arg)`,
+  locator and handle ports are reimplemented on top. The module also hosts
+  the action-verify helpers (visibility checks, quote tracking) and the
+  optional evidence log (NDJSON actions, SHA-256 manifest).
+- `cli/src/adapters/instagram/`: authentication, selectors, highlighting, and visual preparation
+- module-local `browser.ts` files: typed functions passed directly to CDP `evaluate`
+- `cli/src/adapters/filesystem/`: artifact persistence
+
+All runtime files are TypeScript. Dynamic `new Function`, `eval`, and untyped `.script` files are forbidden.
+
+## Central schemas and ports
+
+- Serializable data lives in TypeBox schema modules and types are inferred with `Static`.
+- Non-serializable CDP/callback contracts live in `schemas/cdp.ts`, `schemas/ports.ts` and related centralized port modules.
+- Local named or inline structural types, explicit `any`, `as never`, and chained unknown assertions are lint errors.
 
 ## Comment scraping flow
 
-1. open browser/profile
-2. navigate to target post/reel
-3. prepare comments UI
-4. loop comment candidates
-5. enrich likes/likers
-6. highlight and capture screenshots
-7. write JSON artifacts
+1. attach to the running Chrome (`--cdp-url`), preferring an open Instagram tab
+2. navigate to the post or Reel
+3. prepare and sort the comments UI
+4. discover, extract, and deduplicate candidates
+5. retain visible like counts and mark liker profiles disabled
+6. validate the exact row, highlight it, verify viewport visibility, and capture single or multipart screenshots
+7. persist metadata, checkpoints, and final JSON; end the run with the visibility quote
 
-## Extension points
-
-- selectors/browser scripts: `cli/src/adapters/instagram/`
-- comment extraction: `cli/src/modules/scrape-comments/browser-scripts/`
-- liker handling: `cli/src/modules/scrape-comments/likers/`
-- multipart behavior: `cli/src/modules/scrape-comments/multipart/`
+The dormant liker experiments remain isolated under `scrape-comments/likers/` and are unreachable from the production path.

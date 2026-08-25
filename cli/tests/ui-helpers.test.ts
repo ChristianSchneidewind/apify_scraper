@@ -33,7 +33,7 @@ describe('ui helpers', () => {
         selector.includes('ul') ? hit : null,
     });
     const result = await getCommentContainer(evaluatePage() as never);
-    expect(result).toBe(hit);
+    expect(result).toBe('div[role="dialog"] ul');
   });
 
   it('expands matching comment ui controls', async () => {
@@ -61,15 +61,22 @@ describe('ui helpers', () => {
 
   it('expands reply threads', async () => {
     let clicks = 0;
+    const attributes = new Map<string, string>();
     setDocument({
       querySelectorAll: () => [
-        { textContent: 'View 2 replies', dispatchEvent: () => { clicks += 1; } },
-        { textContent: 'Reply', dispatchEvent: () => { clicks += 10; } },
+        {
+          click: () => { clicks += 1; },
+          getAttribute: (name: string) => attributes.get(name) ?? null,
+          setAttribute: (name: string, value: string) => { attributes.set(name, value); },
+          textContent: 'View 2 replies',
+        },
+        {
+          click: () => { clicks += 10; },
+          getAttribute: () => null,
+          setAttribute: () => undefined,
+          textContent: 'Reply',
+        },
       ],
-    });
-    Object.defineProperty(globalThis, 'MouseEvent', {
-      configurable: true,
-      value: class { constructor(_name: string, _opts: unknown) {} },
     });
     const result = await expandAllReplyThreads(evaluatePage() as never, 5);
     expect(result).toBe(3);
@@ -90,7 +97,8 @@ describe('ui helpers', () => {
 
   it('scrolls the container when available', async () => {
     const container = { clientHeight: 100, scrollHeight: 400, parentElement: null, scrollTop: 0 };
-    const moved = await scrollCommentContainer(evaluatePage() as never, container as never, 1);
+    setDocument({ querySelector: () => container });
+    const moved = await scrollCommentContainer(evaluatePage() as never, '#comments', 1);
     expect(moved).toBe(true);
     expect(container.scrollTop).toBe(160);
   });
@@ -98,7 +106,8 @@ describe('ui helpers', () => {
   it('scrolls a scrollable ancestor when the container itself is not scrollable', async () => {
     const parent = { clientHeight: 100, scrollHeight: 400, parentElement: null, scrollTop: 0 };
     const container = { clientHeight: 100, scrollHeight: 100, parentElement: parent, scrollTop: 0 };
-    const moved = await scrollCommentContainer(evaluatePage() as never, container as never, 1);
+    setDocument({ querySelector: () => container });
+    const moved = await scrollCommentContainer(evaluatePage() as never, '#comments', 1);
     expect(moved).toBe(true);
     expect(parent.scrollTop).toBe(160);
   });

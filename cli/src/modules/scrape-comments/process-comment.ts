@@ -3,7 +3,7 @@ import { ensureHighlightReady } from '../../adapters/instagram/highlight.ts';
 import { prepareCommentScreenshotVisuals } from '../../adapters/instagram/visual.ts';
 import type {
   CommentRecord,
-  DebugPage,
+  ElementHandle,
   EnrichedComment,
   LikersPage,
   ProcessOptions,
@@ -38,8 +38,8 @@ const fallbackCapture = async (
   try {
     await appendTextFile(outDir, 'capture-debug.jsonl', `${JSON.stringify({ commentIndex: index, reason, stage: 'capture fallback', ts: new Date().toISOString() })}\n`);
   } catch {}
-  await dumpCommentDebugArtifacts(page as unknown as DebugPage, outDir, index, data, 30000);
-  return { lastScreenshotHash, metadataPath: null, screenshotKeys: [] as string[], screenshotPaths: [] as string[] };
+  await dumpCommentDebugArtifacts(page, outDir, index, data, 30000);
+  return { dedupedParts: null, incompleteReason: `capture_fallback:${reason}`, lastScreenshotHash, metadataPath: null, plannedParts: null, screenshotKeys: [] as string[], screenshotPaths: [] as string[] };
 };
 
 const withTimeout = async <T>(promise: Promise<T>, ms: number) => {
@@ -54,13 +54,13 @@ const appendCaptureError = async (outDir: string, index: number, reason: string)
 
 const runCapture = async (
   page: LikersPage,
-  handle: { evaluate: <T, A>(fn: (el: Element, args: A) => T, args: A) => Promise<T> },
+  handle: ElementHandle,
   data: CommentRecord,
   outDir: string,
   index: number,
   lastScreenshotHash: string | null,
 ) => withTimeout(
-  captureCommentAssets(page as never, handle as never, data, outDir, initScreenshotSession(), index, lastScreenshotHash, false),
+  captureCommentAssets(page, handle, data, outDir, initScreenshotSession(), index, lastScreenshotHash, false),
   12000,
 ).catch((error: unknown) => {
   const reason = error instanceof Error ? error.message : String(error);
@@ -91,26 +91,23 @@ const rollbackHighlightFailure = (
   return true;
 };
 
-const clearHighlightElement = (node: Element) => {
-  if (!(node instanceof HTMLElement)) return;
-  node.style.outline = '';
-  node.style.outlineOffset = '';
-  node.style.boxShadow = '';
-  node.style.backgroundColor = '';
-  node.style.backgroundClip = '';
-  node.removeAttribute('data-apify-highlight');
-};
-
 const cleanupPreviousHighlightBrowser = () => {
   document.querySelectorAll('[data-apify-highlight-overlay="1"]').forEach((node) => node.remove());
-  document.querySelectorAll('[data-apify-highlight="1"]').forEach(clearHighlightElement);
+  document.querySelectorAll<HTMLElement>('[data-apify-highlight="1"]').forEach((node) => {
+    node.style.outline = '';
+    node.style.outlineOffset = '';
+    node.style.boxShadow = '';
+    node.style.backgroundColor = '';
+    node.style.backgroundClip = '';
+    node.removeAttribute('data-apify-highlight');
+  });
   document.body.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 4, clientY: 4 }));
   return true;
 };
 
 const cleanupPreviousHighlight = async (page: LikersPage) => {
   if (typeof page.evaluate !== 'function') return;
-  await Promise.resolve(page.evaluate(cleanupPreviousHighlightBrowser, undefined as never)).catch(() => undefined);
+  await Promise.resolve(page.evaluate(cleanupPreviousHighlightBrowser, undefined)).catch(() => undefined);
 };
 
 const prepareCommentForCapture = async (
@@ -120,7 +117,7 @@ const prepareCommentForCapture = async (
   await cleanupPreviousHighlight(page);
   const currentUrl = typeof page.url === 'function' ? page.url() : '';
   if (!/\/reels?\//.test(currentUrl) && rowHandle?.evaluate) {
-    await rowHandle.evaluate((el: Element) => (el.scrollIntoView({ block: 'center', inline: 'nearest' }), true), undefined as never).catch(() => undefined);
+    await rowHandle.evaluate((el: Element) => (el.scrollIntoView({ block: 'center', inline: 'nearest' }), true), undefined).catch(() => undefined);
   }
   if (page.waitForTimeout) await Promise.allSettled([page.waitForTimeout(250)]);
 };
@@ -133,10 +130,10 @@ const captureComment = async (
   state: ProcessState,
 ) => {
   logStage(state.count, 'capture', options.quiet);
-  const capture = await runCapture(page, rowHandle as never, data, options.outDir, state.count, state.lastScreenshotHash);
+  const capture = await runCapture(page, rowHandle, data, options.outDir, state.count, state.lastScreenshotHash);
   state.lastScreenshotHash = capture.lastScreenshotHash;
   logStage(state.count, 'done', options.quiet);
-  return buildCommentOutputRecord(data, page.url(), state.count, capture.screenshotKeys, capture.screenshotPaths, capture.metadataPath) as EnrichedComment;
+  return buildCommentOutputRecord(data, page.url(), state.count, capture.screenshotKeys, capture.screenshotPaths, capture.metadataPath, capture.plannedParts, capture.incompleteReason, capture.dedupedParts) as EnrichedComment;
 };
 
 // Liker profile collection is intentionally disabled. Keep likesCount from
@@ -154,15 +151,15 @@ const highlightCandidate = async (
   locator: TimeLocator,
   data: CommentRecord,
 ) => {
-  const primary = await ensureHighlightReady(rowHandle as never, data);
+  const primary = await ensureHighlightReady(rowHandle, data);
   if (primary.ok) return { handle: rowHandle, result: primary };
-  const refound = await refindCommentRowHandle(page as never, data);
+  const refound = await refindCommentRowHandle(page, data);
   if (refound) {
-    const retried = await ensureHighlightReady(refound as never, data);
+    const retried = await ensureHighlightReady(refound, data);
     if (retried.ok) return { handle: refound, result: retried };
   }
   if (rowHandle === locator) return { handle: rowHandle, result: primary };
-  const fallback = await ensureHighlightReady(locator as never, data);
+  const fallback = await ensureHighlightReady(locator, data);
   return { handle: fallback.ok ? locator : rowHandle, result: fallback.ok ? fallback : primary };
 };
 
@@ -183,19 +180,19 @@ export const processCommentCandidate = async (
   state.newInRound += 1;
   logStage(state.count, 'extract', options.quiet);
   const rowHandle = await resolveCommentRowHandle(locator);
-  await prepareCommentForCapture(page, rowHandle as never);
+  await prepareCommentForCapture(page, rowHandle);
   const enriched = withoutLikerCollection(data);
   logStage(state.count, 'highlight', options.quiet);
-  const highlighted = await highlightCandidate(page, rowHandle as never, locator, enriched);
+  const highlighted = await highlightCandidate(page, rowHandle, locator, enriched);
   const highlight = highlighted.result;
   logStage(state.count, `highlight result ${highlight.ok ? 'ok' : highlight.reason}`, options.quiet);
   if (!highlight.ok) {
     logStage(state.count, `highlight failed ${highlight.reason ?? 'unknown'}; skipped`, options.quiet);
-    await dumpCommentDebugArtifacts(page as unknown as DebugPage, options.outDir, state.count, enriched, 30000);
+    await dumpCommentDebugArtifacts(page, options.outDir, state.count, enriched, 30000);
     state.needsLocatorRefresh = rollbackHighlightFailure(state, strictKey, looseKey, permalink || null, commentUid);
     return null;
   }
   logStage(state.count, 'visuals', options.quiet);
-  await prepareCommentScreenshotVisuals(page, highlighted.handle as never);
-  return captureComment(page, highlighted.handle as never, enriched, options, state);
+  await prepareCommentScreenshotVisuals(page, highlighted.handle);
+  return captureComment(page, highlighted.handle, enriched, options, state);
 };

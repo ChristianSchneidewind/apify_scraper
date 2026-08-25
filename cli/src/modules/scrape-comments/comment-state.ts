@@ -1,11 +1,6 @@
-export const buildCommentIdentity = (data: {
-  commentPermalink?: string | null;
-  username?: string;
-  text?: string;
-  datetime?: string | null;
-  timeText?: string;
-  isGifOnly?: boolean;
-}) => {
+import type { CommentIdentityInput, RawCommentLiker, SeenCommentState } from '../../schemas/index.ts';
+
+export const buildCommentIdentity = (data: CommentIdentityInput) => {
   const username = (data.username || '').trim().toLowerCase();
   const text = (data.text || '').trim().toLowerCase();
   const dt = (data.datetime || '').trim().toLowerCase();
@@ -20,7 +15,7 @@ export const buildCommentIdentity = (data: {
 };
 
 export const registerCommentSeen = (
-  state: { seenLoose: Set<string>; seenPermalink: Set<string>; seenStrict: Set<string>; seenUid: Set<string> },
+  state: SeenCommentState,
   strictKey: string,
   looseKey: string,
   permalink: string | null,
@@ -33,7 +28,7 @@ export const registerCommentSeen = (
 };
 
 export const rollbackCommentSeen = (
-  state: { seenLoose: Set<string>; seenPermalink: Set<string>; seenStrict: Set<string>; seenUid: Set<string> },
+  state: SeenCommentState,
   strictKey: string,
   looseKey: string,
   permalink: string | null,
@@ -46,7 +41,7 @@ export const rollbackCommentSeen = (
 };
 
 export const shouldProcessCandidate = (
-  state: { seenLoose: Set<string>; seenPermalink: Set<string>; seenStrict: Set<string>; seenUid: Set<string> },
+  state: SeenCommentState,
   strictKey: string,
   looseKey: string,
   permalink: string | null,
@@ -65,7 +60,7 @@ const profileUrlFrom = (profilePath: string, profileUrl: string) => {
 };
 
 export const normalizeCommentLikers = (
-  raw: Array<{ profilePath?: string; profileUrl?: string; username?: string }> | undefined,
+  raw: RawCommentLiker[] | undefined,
 ) => {
   const out = [];
   const seen = new Set<string>();

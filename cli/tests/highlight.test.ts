@@ -1,18 +1,10 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { browserRunPayload } from '../src/adapters/instagram/load-script.ts';
+import { highlightCommentBrowser } from '../src/adapters/instagram/highlight-browser.ts';
 import {
   buildHighlightPayload,
   ensureHighlightReady,
   highlightComment,
 } from '../src/adapters/instagram/highlight.ts';
-
-const SCRIPT = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), '../src/adapters/instagram/browser-scripts/highlight-comment.script'),
-  'utf8',
-);
 
 const sampleComment = {
   commentPermalink: '/p/abc/c/1',
@@ -94,7 +86,7 @@ describe('highlight browser script', () => {
       value: { pathname: '/p/abc/' },
     });
 
-    const result = browserRunPayload({ body: SCRIPT, payload: { ...sampleComment, el: {} } });
+    const result = highlightCommentBrowser({} as never, sampleComment);
     expect(result).toMatchObject({ ok: true, detachedFallbackUsed: true });
   });
 
@@ -112,7 +104,7 @@ describe('highlight browser script', () => {
       value: { pathname: '/p/abc/' },
     });
 
-    const result = browserRunPayload({ body: SCRIPT, payload: { ...sampleComment, el: {} } });
+    const result = highlightCommentBrowser({} as never, sampleComment);
     expect(result).toEqual({ ok: false, reason: 'detached_no_fallback', isPostPage: true });
   });
 
@@ -123,12 +115,12 @@ describe('highlight browser script', () => {
       querySelector: (selector: string) => {
         if (selector.includes('time')) return {};
         if (selector.includes('/c/')) return { getAttribute: () => '/p/abc/c/1' };
-        if (selector.includes('a[href]')) return { getAttribute: () => '/alice/' };
+        if (selector.includes('a[href')) return { getAttribute: () => '/alice/' };
         return null;
       },
       querySelectorAll: (selector: string) => {
         if (selector.includes('a[href*="/c/"]')) return [{ getAttribute: () => '/p/abc/c/1' }];
-        if (selector.includes('a[href]')) return [{ getAttribute: () => '/alice/' }];
+        if (selector.includes('a[href')) return [{ getAttribute: () => '/alice/', textContent: 'alice' }];
         if (selector === 'img') return [];
         return [];
       },
@@ -149,8 +141,21 @@ describe('highlight browser script', () => {
       value: { pathname: '/p/abc/' },
     });
 
-    const result = browserRunPayload({ body: SCRIPT, payload: { ...sampleComment, el: row } });
+    const result = highlightCommentBrowser(row, sampleComment);
     expect(result).toMatchObject({ ok: true, expandedForAvatar: false, rowTag: 'LI' });
+  });
+
+  it('rejects a visible row that belongs to another comment', () => {
+    const row = {
+      closest: () => row,
+      textContent: 'bob unrelated content',
+    } as never;
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: { body: { contains: () => true }, querySelectorAll: () => [] },
+    });
+    const result = highlightCommentBrowser(row, sampleComment);
+    expect(result).toEqual({ ok: false, reason: 'row_content_mismatch' });
   });
 
   it('expands highlight to include avatar container when present on parent', () => {
@@ -159,12 +164,12 @@ describe('highlight browser script', () => {
       getBoundingClientRect: () => ({ width: 320, height: 72 }),
       querySelector: (selector: string) => {
         if (selector.includes('time')) return {};
-        if (selector.includes('a[href]')) return { getAttribute: () => '/alice/' };
+        if (selector.includes('a[href')) return { getAttribute: () => '/alice/' };
         return null;
       },
       querySelectorAll: (selector: string) => {
         if (selector.includes('a[href*="/c/"]')) return [{ getAttribute: () => '/p/abc/c/1' }];
-        if (selector.includes('a[href]')) return [{ getAttribute: () => '/alice/' }];
+        if (selector.includes('a[href')) return [{ getAttribute: () => '/alice/', textContent: 'alice' }];
         if (selector === 'img') return [{ getAttribute: (name: string) => (name === 'alt' ? 'alice profile picture' : ''), getBoundingClientRect: () => ({ width: 32, height: 32 }) }];
         return [];
       },
@@ -179,12 +184,12 @@ describe('highlight browser script', () => {
       querySelector: (selector: string) => {
         if (selector.includes('time')) return {};
         if (selector.includes('/c/')) return { getAttribute: () => '/p/abc/c/1' };
-        if (selector.includes('a[href]')) return { getAttribute: () => '/alice/' };
+        if (selector.includes('a[href')) return { getAttribute: () => '/alice/' };
         return null;
       },
       querySelectorAll: (selector: string) => {
         if (selector.includes('a[href*="/c/"]')) return [{ getAttribute: () => '/p/abc/c/1' }];
-        if (selector.includes('a[href]')) return [{ getAttribute: () => '/alice/' }];
+        if (selector.includes('a[href')) return [{ getAttribute: () => '/alice/', textContent: 'alice' }];
         if (selector === 'img') return [];
         return [];
       },
@@ -205,7 +210,7 @@ describe('highlight browser script', () => {
       value: { pathname: '/p/abc/' },
     });
 
-    const result = browserRunPayload({ body: SCRIPT, payload: { ...sampleComment, el: row } });
+    const result = highlightCommentBrowser(row, sampleComment);
     expect(result).toMatchObject({ ok: true, expandedForAvatar: true, rowTag: 'LI', selectedTag: 'DIV' });
   });
 });

@@ -1,65 +1,76 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  existsSync: vi.fn(),
-  launch: vi.fn(),
+  connectCdp: vi.fn(),
+  fetch: vi.fn(),
 }));
 
-vi.mock('playwright', () => ({
-  chromium: { launch: mocks.launch },
-}));
-vi.mock('node:fs', () => ({ existsSync: mocks.existsSync }));
+vi.mock('../src/adapters/cdp/connection.ts', () => ({ connectCdp: mocks.connectCdp }));
+vi.stubGlobal('fetch', mocks.fetch);
 
-import { closeBrowserSession, openBrowserSession } from '../src/adapters/playwright/browser.ts';
+import { closeBrowserSession, openBrowserSession } from '../src/adapters/cdp/browser.ts';
 
 const context = {
-  browserProfile: {
-    dir: '/tmp/profile',
-    name: 'default',
-    storageStatePath: '/tmp/profile/storage-state.json',
-  },
+  cdp: { url: 'http://127.0.0.1:9222' },
   cwd: '/tmp/project',
 };
 
-describe('browser adapter', () => {
+const jsonResponse = (value: unknown) => ({
+  json: () => Promise.resolve(value),
+  ok: true,
+});
+
+const buildClient = () => ({
+  close: vi.fn().mockResolvedValue(undefined),
+  off: vi.fn(),
+  on: vi.fn(),
+  send: vi.fn().mockImplementation((method: string) => {
+    if (method === 'Target.attachToTarget') return Promise.resolve({ sessionId: 'session-1' });
+    if (method === 'Target.createTarget') return Promise.resolve({ targetId: 'target-new' });
+    return Promise.resolve({});
+  }),
+});
+
+describe('cdp browser adapter', () => {
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
   });
 
-  it('opens a session with storage state when present', async () => {
-    const page = {};
-    const newPage = vi.fn().mockResolvedValue(page);
-    const browserContext = { newPage };
-    const newContext = vi.fn().mockResolvedValue(browserContext);
-    const browser = { newContext, close: vi.fn() };
-    mocks.existsSync.mockReturnValue(true);
-    mocks.launch.mockResolvedValue(browser);
-
-    const result = await openBrowserSession(context as never, true);
-
-    expect(mocks.launch).toHaveBeenCalledWith({ headless: false });
-    expect(newContext).toHaveBeenCalledWith({
-      storageState: '/tmp/profile/storage-state.json',
+  it('attaches to an existing instagram tab', async () => {
+    const client = buildClient();
+    mocks.connectCdp.mockResolvedValue(client);
+    mocks.fetch.mockImplementation((url: string) => {
+      if (url.endsWith('/json/version')) return jsonResponse({ webSocketDebuggerUrl: 'ws://x' });
+      return jsonResponse([{ id: 't-1', type: 'page', url: 'https://www.instagram.com/' }]);
     });
-    expect(result.page).toBe(page);
+
+    const session = await openBrowserSession(context);
+
+    expect(mocks.connectCdp).toHaveBeenCalledWith('ws://x');
+    expect(client.send).toHaveBeenCalledWith('Target.attachToTarget', { flatten: true, targetId: 't-1' });
+    expect(session.page.url()).toBe('https://www.instagram.com/');
   });
 
-  it('opens a session without storage state when absent', async () => {
-    const browserContext = { newPage: vi.fn().mockResolvedValue({}) };
-    const browser = {
-      newContext: vi.fn().mockResolvedValue(browserContext),
-      close: vi.fn(),
-    };
-    mocks.existsSync.mockReturnValue(false);
-    mocks.launch.mockResolvedValue(browser);
+  it('creates a new tab when no page target exists', async () => {
+    const client = buildClient();
+    mocks.connectCdp.mockResolvedValue(client);
+    mocks.fetch.mockImplementation((url: string) => {
+      if (url.endsWith('/json/version')) return jsonResponse({ webSocketDebuggerUrl: 'ws://x' });
+      return jsonResponse([]);
+    });
 
-    await openBrowserSession(context as never, false);
+    await openBrowserSession(context);
 
-    expect(mocks.launch).toHaveBeenCalledWith({ headless: true });
-    expect(browser.newContext).toHaveBeenCalledWith({});
+    expect(client.send).toHaveBeenCalledWith('Target.createTarget', { url: 'about:blank' });
   });
 
-  it('closes the browser session', async () => {
+  it('fails with setup instructions when chrome is unreachable', async () => {
+    mocks.fetch.mockRejectedValue(new Error('ECONNREFUSED'));
+
+    await expect(openBrowserSession(context)).rejects.toThrow(/remote debugging/i);
+  }, 15_000);
+
+  it('closes the browser session without closing chrome', async () => {
     const browser = { close: vi.fn().mockResolvedValue(undefined) };
     await closeBrowserSession(browser);
     expect(browser.close).toHaveBeenCalled();

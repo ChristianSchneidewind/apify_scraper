@@ -1,9 +1,9 @@
-import type { CommentLiker, LikersPage } from '../../../schemas/index.ts';
+import type { CommentLiker, LikerCollectSession, LikerRetryConfig, LikersPage } from '../../../schemas/index.ts';
 import { normalizeCommentLikers } from '../comment-state.ts';
 import { collectLikersFromDialog, nudgeLikersDialogAtEnd, oscillateLikersDialogAtEnd, resetLikersDialogScroll, scrollLikersDialogToEnd } from './collect-dialog.ts';
 import { hasEnoughLikers, resolveLikerTarget } from './enrich-cache.ts';
 
-const collectSessions = new WeakMap<object, { abort: AbortController }>();
+const collectSessions = new WeakMap<object, LikerCollectSession>();
 
 const beginCollectSession = (page: LikersPage) => {
   const prev = collectSessions.get(page);
@@ -13,7 +13,7 @@ const beginCollectSession = (page: LikersPage) => {
   return session;
 };
 
-const endCollectSession = (page: LikersPage, session: { abort: AbortController }) => {
+const endCollectSession = (page: LikersPage, session: LikerCollectSession) => {
   if (collectSessions.get(page) === session) collectSessions.delete(page);
 };
 
@@ -23,7 +23,7 @@ const collectLikersTimed = async (
   likesCount: number,
   verbose: boolean | undefined,
   timeoutMs: number,
-  session: { abort: AbortController },
+  session: LikerCollectSession,
 ) => {
   const timeoutAbort = new AbortController();
   const onSessionAbort = () => timeoutAbort.abort();
@@ -31,7 +31,7 @@ const collectLikersTimed = async (
   const timer = setTimeout(() => timeoutAbort.abort(), timeoutMs);
   const mergedSignal = timeoutAbort.signal;
   try {
-    return await collectLikersFromDialog(page as never, maxCommentLikers, verbose, likesCount, mergedSignal);
+    return await collectLikersFromDialog(page, maxCommentLikers, verbose, likesCount, mergedSignal);
   } finally {
     clearTimeout(timer);
     session.abort.signal.removeEventListener('abort', onSessionAbort);
@@ -55,7 +55,7 @@ const resolveRetryAttempts = (
   maxCommentLikers: number,
   collected: number,
   initialTimeoutMs: number,
-  config?: { retryAttempts?: number; retryDelayMs?: number; timeoutMs?: number },
+  config?: LikerRetryConfig,
 ): Array<[number, number]> => {
   const missing = likerGap(likesCount, maxCommentLikers, collected);
   const retryTimeoutMs = Math.max(initialTimeoutMs, 8000);
@@ -83,13 +83,13 @@ const scrollDialogBrowser = () => {
   const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
   const dialog = dialogs[dialogs.length - 1];
   if (!dialog) return;
-  const candidates = Array.from(dialog.querySelectorAll('div, ul')) as Array<Element & { scrollHeight: number; clientHeight: number; scrollTop: number }>;
+  const candidates = Array.from(dialog.querySelectorAll<HTMLElement>('div, ul'));
   const target = candidates.find((candidate) => candidate.scrollHeight > candidate.clientHeight + 20);
   if (target) target.scrollTop += Math.max(300, target.clientHeight * 0.9);
 };
 
 const retryDialogScroll = async (page: LikersPage) => {
-  const tasks = [page.evaluate(scrollDialogBrowser, undefined as never), scrollLikersDialogToEnd(page as never), oscillateLikersDialogAtEnd(page as never), nudgeLikersDialogAtEnd(page as never)];
+  const tasks = [page.evaluate(scrollDialogBrowser, undefined), scrollLikersDialogToEnd(page), oscillateLikersDialogAtEnd(page), nudgeLikersDialogAtEnd(page)];
   await Promise.allSettled(tasks);
 };
 
@@ -99,12 +99,12 @@ const collectLikersAttempt = async (
   likesCount: number,
   waitMs: number,
   timeoutMs: number,
-  session: { abort: AbortController },
+  session: LikerCollectSession,
   verbose?: boolean,
   seedLikers: CommentLiker[] = [],
 ) => {
   if (waitMs > 0) await page.waitForTimeout(waitMs);
-  await Promise.allSettled([retryDialogScroll(page), resetLikersDialogScroll(page as never)]);
+  await Promise.allSettled([retryDialogScroll(page), resetLikersDialogScroll(page)]);
   await page.waitForTimeout(700);
   const result = normalizeCommentLikers(
     await collectLikersTimed(page, maxCommentLikers, likesCount, verbose, timeoutMs, session),
@@ -152,9 +152,9 @@ const collectLikersWithRetries = async (
   likesCount: number,
   likers: CommentLiker[],
   initialTimeoutMs: number,
-  session: { abort: AbortController },
+  session: LikerCollectSession,
   verbose?: boolean,
-  config?: { retryAttempts?: number; retryDelayMs?: number; timeoutMs?: number },
+  config?: LikerRetryConfig,
 ) => {
   const attempts = resolveRetryAttempts(likesCount, maxCommentLikers, likers.length, initialTimeoutMs, config);
   let out = likers;
@@ -177,7 +177,7 @@ export const collectLikers = async (
   maxCommentLikers: number,
   likesCount: number,
   verbose?: boolean,
-  config?: { retryAttempts?: number; retryDelayMs?: number; timeoutMs?: number },
+  config?: LikerRetryConfig,
 ) => {
   const session = beginCollectSession(page);
   try {
@@ -200,7 +200,7 @@ export const closeDialog = async (workedPage: LikersPage, likesCount: number, li
   // the comments panel is often the only role=dialog and Escape closes it.
   const dialogCount = (await Promise.resolve(workedPage.evaluate(
     () => document.querySelectorAll('[role="dialog"]').length,
-    undefined as never,
+    undefined,
   )).catch(() => null)) ?? 2;
   if (dialogCount > 1) {
     await Promise.allSettled([workedPage.keyboard.press('Escape'), workedPage.waitForTimeout(220)]);

@@ -5,9 +5,9 @@ import { renderPlainResult } from '../src/core/output.ts';
 vi.mock('../src/modules/auth/login.ts', () => ({
   runAuthLogin: async () => ({
     command: 'auth.login',
-    details: { browserProfile: 'work', storageStatePath: '/tmp/state.json' },
+    details: { cdpUrl: 'http://127.0.0.1:9222' },
     ok: true,
-    summary: 'auth login saved for profile work',
+    summary: 'instagram session active in the connected Chrome profile',
   }),
 }));
 vi.mock('../src/modules/scrape-comments/run.ts', () => ({
@@ -75,12 +75,46 @@ describe('runApp', () => {
       'instagram',
       'auth',
       'login',
-      '--browser-profile',
-      'work',
+      '--cdp-url',
+      'http://127.0.0.1:9222',
     ]);
     expect(result.command).toBe('auth.login');
     expect(result.ok).toBe(true);
-    expect(result.details.browserProfile).toBe('work');
+    expect(result.details.cdpUrl).toBe('http://127.0.0.1:9222');
+  });
+
+  it('shows a standalone cdp connection without opening a browser', async () => {
+    const result = await runApp([
+      'node', 'instagram', '--cdp-url', 'http://127.0.0.1:9333',
+    ]);
+    expect(result).toMatchObject({
+      command: 'profile.show',
+      details: { cdpUrl: 'http://127.0.0.1:9333' },
+      ok: true,
+      summary: 'cdp connection: http://127.0.0.1:9333',
+    });
+  });
+
+  it('rejects malformed or unknown standalone profile options', async () => {
+    const missing = await runApp(['node', 'instagram', '--cdp-url', '--json']);
+    const unknown = await runApp(['node', 'instagram', '--cdp-url', 'http://x', '--bogus']);
+    const cwd = await runApp(['node', 'instagram', '--cdp-url', 'http://x', '--cwd', '--json']);
+    const command = await runApp([
+      'node', 'instagram', 'scrape', 'comments', '--url', 'https://example.com',
+      '--dry-run', '--bogus',
+    ]);
+    expect(missing.ok).toBe(false);
+    expect(unknown.ok).toBe(false);
+    expect(cwd.ok).toBe(false);
+    expect(command.ok).toBe(false);
+  });
+
+  it('renders command help when global options lead the command', () => {
+    const output = execFileSync('node', [
+      '--import', 'tsx', 'cli/src/bin/instagram.ts',
+      '--cdp-url', 'http://127.0.0.1:9222', 'scrape', 'comments', '--help',
+    ], { encoding: 'utf8' });
+    expect(output).toContain('--max-comments');
   });
 
   it('supports dry-run without executing the command', async () => {
@@ -119,8 +153,8 @@ describe('runApp', () => {
       'node',
       '/tmp/tsx',
       'cli/src/bin/instagram.ts',
-      '--browser-profile',
-      'default',
+      '--cdp-url',
+      'http://127.0.0.1:9222',
       'scrape',
       'comments',
       '--url',

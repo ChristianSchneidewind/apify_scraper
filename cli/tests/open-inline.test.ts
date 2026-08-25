@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/adapters/instagram/load-script.ts', () => ({
-  injectHelpers: (body: string) => body,
-  runPayloadScript: vi.fn().mockReturnValue({ clicked: true, likesCount: 4, ok: true }),
-}));
-
 import { openLikesInline } from '../src/modules/scrape-comments/likers/open-inline.ts';
 
 describe('openLikesInline', () => {

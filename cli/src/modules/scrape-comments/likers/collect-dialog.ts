@@ -1,15 +1,13 @@
-import type { CommentLiker, LikersBatch, LikersDialogPage } from '../../../schemas/index.ts';
+import type { CommentLiker, LikerBatchDebug, LikersBatch, LikersDialogPage } from '../../../schemas/index.ts';
 import {
-  COLLECT_SCRIPT,
-  DIALOG_OPEN_SCRIPT,
   isLikelyUnrecoverableGap,
   isNearTarget,
   mergeBatch,
   resolveMaxRewinds,
   resolveMaxRounds,
   resolveTargetCount,
-  runIifeBody,
 } from './collect-dialog-utils.ts';
+import { collectLikersDialogBatch, isLikersDialogOpen } from './browser.ts';
 import { resetLikersDialogScroll } from './collect-dialog-scroll.ts';
 import { collectTailWithNudge, finalizeNearTarget } from './collect-dialog-tail.ts';
 
@@ -20,9 +18,7 @@ export {
   scrollLikersDialogToEnd,
 } from './collect-dialog-scroll.ts';
 
-const collectVisibleBatch = async (page: {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-}) => page.evaluate(runIifeBody<LikersBatch>, { body: COLLECT_SCRIPT });
+const collectVisibleBatch = async (page: LikersDialogPage) => page.evaluate(collectLikersDialogBatch, undefined);
 
 const logRoundDebug = (
   verbose: boolean | undefined,
@@ -32,7 +28,7 @@ const logRoundDebug = (
   total: number,
 ) => {
   if (!verbose) return;
-  const summary = batch as LikersBatch & { candidateCount?: number; targetCount?: number; targetIndex?: number; summary?: unknown };
+  const summary: LikerBatchDebug = batch;
   process.stderr.write(`[scrape.comments][likers][debug] round=${round} open=${Boolean(summary.open)} viewport=${(summary.items || []).length} added=${added} total=${total} canScroll=${Boolean(summary.canScroll)} candidates=${summary.candidateCount ?? 'n/a'} targets=${summary.targetCount ?? 'n/a'} targetIndex=${summary.targetIndex ?? 'n/a'} summary=${JSON.stringify(summary.summary ?? null)}\n`);
 };
 
@@ -99,9 +95,7 @@ export const collectLikersFromDialog = async (
   const targetCount = resolveTargetCount(maxCommentLikers, likesCount);
   const maxRounds = resolveMaxRounds(maxCommentLikers, likesCount);
   const maxStagnant = maxCommentLikers === 0 ? 8 : 3;
-  const currentUrl = typeof (page as LikersDialogPage & { url?: () => string }).url === 'function'
-    ? (page as LikersDialogPage & { url: () => string }).url()
-    : '';
+  const currentUrl = page.url();
   const isReel = /\/reels?\//.test(currentUrl);
   let stagnant = 0;
   let rewindAttempts = 0;
@@ -131,18 +125,11 @@ export const collectLikersFromDialog = async (
   return likers;
 };
 
-export const isDialogOpen = async (page: {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-}) => page.evaluate(runIifeBody<boolean>, { body: DIALOG_OPEN_SCRIPT });
+export const isDialogOpen = async (page: LikersDialogPage) => page.evaluate(isLikersDialogOpen, undefined);
 
-export const waitForDialogOpen = async (
-  page: {
-    evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-    waitForTimeout: (ms: number) => Promise<void>;
-  },
-) => {
+export const waitForDialogOpen = async (page: LikersDialogPage) => {
   for (let i = 0; i < 20; i += 1) {
-    const open = await page.evaluate(runIifeBody<boolean>, { body: DIALOG_OPEN_SCRIPT });
+    const open = await page.evaluate(isLikersDialogOpen, undefined);
     if (open) return true;
     await page.waitForTimeout(180);
   }

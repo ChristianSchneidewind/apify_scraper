@@ -17,11 +17,17 @@ storage/
 Screenshots/
 *.log
 
+# Local diagnostic scratch files (ad-hoc CDP probes at repo root)
+.diag-*
+.*.mjs
+
 # Memory
 scripts/*
+!scripts/chrome-cdp.sh
 !scripts/refactor-to-cli-loop.sh
 !scripts/refactor-cli-phase-detect.sh
 !scripts/refactor-cli-phase-validator.sh
+!scripts/refactor-cli-loop.test.sh
 !scripts/validate-cli-refactor.sh
 !.github/scripts/
 !.github/scripts/*.py

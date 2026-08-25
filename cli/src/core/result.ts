@@ -47,11 +47,7 @@ export const failFromReason = (
 export const exitCodeForResult = (result: CliOutput) => {
   if (result.ok) return 0;
   if (result.errorCode === 'USAGE_ERROR') return 2;
-  if (result.command === 'auth.login') {
-    return result.errorCode === 'BROWSER_ERROR' ? 4 : 3;
-  }
-  if (result.command === 'scrape.comments' || result.command === 'scrape.profiles' || result.command === 'scrape.reposts') {
-    return result.errorCode === 'BROWSER_ERROR' ? 4 : 5;
-  }
-  return 1;
+  if (result.errorCode === 'BROWSER_ERROR') return 4;
+  if (result.errorCode === 'AUTH_ERROR') return 3;
+  return 5;
 };

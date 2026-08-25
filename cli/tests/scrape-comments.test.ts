@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/adapters/playwright/browser.ts', () => ({
+vi.mock('../src/adapters/cdp/browser.ts', () => ({
   closeBrowserSession: vi.fn(),
   openBrowserSession: vi.fn(),
 }));
@@ -14,16 +14,12 @@ vi.mock('../src/modules/scrape-comments/scrape-loop.ts', () => ({
 }));
 
 import { ensureOutputDirectory, writeJsonFile } from '../src/adapters/filesystem/output.ts';
-import { closeBrowserSession, openBrowserSession } from '../src/adapters/playwright/browser.ts';
+import { closeBrowserSession, openBrowserSession } from '../src/adapters/cdp/browser.ts';
 import { runCommentScrapeLoop } from '../src/modules/scrape-comments/scrape-loop.ts';
 import { runScrapeComments } from '../src/modules/scrape-comments/run.ts';
 
 const context = {
-  browserProfile: {
-    dir: '/tmp/profile',
-    name: 'default',
-    storageStatePath: '/tmp/profile/storage-state.json',
-  },
+  cdp: { url: 'http://127.0.0.1:9222' },
   cwd: '/tmp/project',
 };
 
@@ -63,9 +59,10 @@ describe('runScrapeComments', () => {
     vi.mocked(writeJsonFile).mockResolvedValue('/tmp/out/comments.json');
 
     const result = await runScrapeComments(context, {
-      browserProfile: 'default',
+      cdpUrl: 'http://127.0.0.1:9222',
       cwd: '/tmp/project',
       dryRun: false,
+  evidence: false,
       headful: true,
       json: false,
       maxCommentLikers: 50,
@@ -89,7 +86,7 @@ describe('runScrapeComments', () => {
     expect(result.details.commentsPerSecond).toBeDefined();
     expect(result.details.avgCommentMs).toBeDefined();
     expect(runCommentScrapeLoop).toHaveBeenCalled();
-    expect(openBrowserSession).toHaveBeenCalledWith(context, true);
+    expect(openBrowserSession).toHaveBeenCalledWith(context);
     expect(closeBrowserSession).toHaveBeenCalled();
     expect(writeJsonFile).toHaveBeenCalled();
     expect(evaluate).toHaveBeenCalled();
@@ -111,7 +108,8 @@ describe('runScrapeComments', () => {
     vi.mocked(runCommentScrapeLoop).mockResolvedValue([]);
 
     await runScrapeComments(context, {
-      browserProfile: 'default', cwd: '/tmp/project', dryRun: false,
+      cdpUrl: 'http://127.0.0.1:9222', cwd: '/tmp/project', dryRun: false,
+  evidence: false,
       headful: true, json: false, noColor: false, noInput: false,
       outDir: 'comments', plain: false, quiet: true,
       resume: checkpoint, url: 'https://www.instagram.com/p/abc/', verbose: false,
@@ -132,7 +130,8 @@ describe('runScrapeComments', () => {
     vi.mocked(ensureOutputDirectory).mockResolvedValue('/tmp/out');
 
     await expect(runScrapeComments(context, {
-      browserProfile: 'default', cwd: '/tmp/project', dryRun: false,
+      cdpUrl: 'http://127.0.0.1:9222', cwd: '/tmp/project', dryRun: false,
+  evidence: false,
       headful: true, json: false, noColor: false, noInput: false,
       outDir: 'comments', plain: false, quiet: true,
       url: 'https://www.instagram.com/p/abc/', verbose: false,

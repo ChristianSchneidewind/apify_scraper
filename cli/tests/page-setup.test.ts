@@ -32,10 +32,14 @@ const buildPage = (loginRequired = false) => ({
 describe('prepareCommentsPage', () => {
   it('selects newest comments through the browser script', async () => {
     const page = buildPage();
-    page.evaluate.mockResolvedValue('selected_newest');
+    page.evaluate
+      .mockResolvedValueOnce('not_newest')
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce('already_newest');
 
     await expect(selectNewestCommentSort(page as never)).resolves.toBe('selected_newest');
-    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), expect.stringContaining('newest_option_not_found'));
+    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), undefined);
   });
 
   it('loads comments before capture and resets scroll to top', async () => {

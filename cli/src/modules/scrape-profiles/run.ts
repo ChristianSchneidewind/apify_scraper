@@ -1,6 +1,6 @@
 import type { CliOutput, RuntimeContext, ScrapeProfilesOptions } from '../../schemas/index.ts';
 import { isLoginRequired } from '../../adapters/instagram/auth.ts';
-import { closeBrowserSession, openBrowserSession } from '../../adapters/playwright/browser.ts';
+import { closeBrowserSession, openBrowserSession } from '../../adapters/cdp/browser.ts';
 import {
   captureProfilePage,
   persistProfileArtifacts,
@@ -19,10 +19,10 @@ export const runScrapeProfiles = async (
   options: ScrapeProfilesOptions,
 ) => {
   const startedAt = Date.now();
-  const session = await openBrowserSession(context, options.headful);
+  const session = await openBrowserSession(context);
   try {
     await session.page.goto(options.url, { waitUntil: 'domcontentloaded' });
-    if (await isLoginRequired(session.page as never)) {
+    if (await isLoginRequired(session.page)) {
     throw new Error('Instagram session expired; run auth login first');
     }
     const slug = resolveProfileSlug(options.url, options.profileSlug);

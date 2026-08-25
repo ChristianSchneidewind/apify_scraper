@@ -8,6 +8,7 @@ const buildPage = (...results: unknown[]) => ({
   evaluate: vi.fn().mockImplementation(() => Promise.resolve(results.shift())),
   waitForTimeout: vi.fn().mockResolvedValue(undefined),
   keyboard: { press: vi.fn().mockResolvedValue(undefined) },
+  url: vi.fn().mockReturnValue('https://www.instagram.com/p/test/'),
 });
 
 describe('likers dialog', () => {
@@ -130,6 +131,7 @@ describe('likers dialog', () => {
       }),
       waitForTimeout: vi.fn().mockResolvedValue(undefined),
       keyboard: { press: vi.fn().mockResolvedValue(undefined) },
+      url: vi.fn().mockReturnValue('https://www.instagram.com/p/test/'),
     };
 
     const result = await collectLikersFromDialog(page as never, 0, false, 0, controller.signal);

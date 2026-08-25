@@ -6,7 +6,9 @@ import type {
   CommentRecord,
   ElementHandle,
 } from '../../../schemas/index.ts';
-import { captureQuickCommentScreenshot, runPayloadOnElement, VERIFY_SCRIPT, writeMetadata } from './assets.ts';
+import { captureQuickCommentScreenshot, writeMetadata } from './assets.ts';
+import { verifyCaptureVisibility } from './visibility.ts';
+import { verifyMultipartBrowser } from '../multipart/browser.ts';
 import { expandCommentForCapture, planCommentMultipart } from '../multipart/planner.ts';
 import { estimateRowParts } from '../multipart/decisions.ts';
 import { logCaptureDebug } from './log.ts';
@@ -61,15 +63,15 @@ const maybeEscalateSinglePlan = async (
   payloadBase: CapturePayloadBase,
 ) => {
   if (plan.mode !== 'single' || plan.totalParts !== 1) return plan;
-  const probe = await handle.evaluate(runPayloadOnElement, {
-    body: VERIFY_SCRIPT,
-    payload: { mode: 'single', partsTotal: 1, top: 0, ...payloadBase },
+  const probe = await handle.evaluate(verifyMultipartBrowser, {
+    mode: 'single', partsTotal: 1, top: 0, ...payloadBase,
   });
-  const metrics = (probe as { metrics?: { overflow?: number; rowHeight?: number; visibleH?: number } })?.metrics;
+  const metrics = probe.metrics;
   const overflow = Math.max(0, metrics?.overflow ?? 0);
-  const clippedBottom = !!(probe as { clippedBottom?: boolean })?.clippedBottom;
-  await logCaptureDebug(outDir, commentIndex, 'capture single probe', { clippedBottom, metrics: metrics ?? null, overflow });
-  if (!clippedBottom && overflow <= 24) return plan;
+  const clippedBottom = Boolean(probe.clippedBottom);
+  const clippedTop = Boolean(probe.clippedTop);
+  await logCaptureDebug(outDir, commentIndex, 'capture single probe', { clippedBottom, clippedTop, metrics: metrics ?? null, overflow });
+  if (!clippedBottom && !clippedTop && overflow <= 24) return plan;
   const parts = estimateRowParts(metrics);
   if (parts <= 1) return plan;
   return escalatePlan(outDir, commentIndex, plan, parts, overflow);
@@ -83,9 +85,10 @@ const captureQuick = async (
   session: CaptureSession,
   commentIndex: number,
   lastHash: string | null,
+  visibleInViewport: boolean,
 ) => {
-  const quick = await captureQuickCommentScreenshot(page, handle, data, outDir, session, commentIndex, lastHash);
-  return { lastScreenshotHash: quick.lastScreenshotHash, metadataPath: quick.metadataPath, screenshotKeys: session.screenshotKeys, screenshotPaths: session.screenshotPaths };
+  const quick = await captureQuickCommentScreenshot(page, handle, data, outDir, session, commentIndex, lastHash, visibleInViewport);
+  return { dedupedParts: null, incompleteReason: null, lastScreenshotHash: quick.lastScreenshotHash, metadataPath: quick.metadataPath, plannedParts: null, screenshotKeys: session.screenshotKeys, screenshotPaths: session.screenshotPaths };
 };
 
 const capturePlanned = async (
@@ -101,6 +104,7 @@ const capturePlanned = async (
   const payloadBase = buildPayloadBase(data);
   let plan: CapturePlan = await planCommentMultipart(handle, data);
   plan = await maybeEscalateSinglePlan(handle, outDir, commentIndex, plan, payloadBase);
+  session.plannedParts = plan.totalParts;
   await logPlan(outDir, commentIndex, plan);
   if (plan.totalParts > 1) await expandCommentForCapture(handle);
   await logCaptureDebug(outDir, commentIndex, 'capture route', { clip: false, mode: plan.mode, route: 'scroll' });
@@ -117,9 +121,11 @@ export const captureCommentAssets = async (
   lastHash: string | null,
   skipHighlight = false,
 ) => {
-  if (skipHighlight) return captureQuick(page, handle, data, outDir, session, commentIndex, lastHash);
+  const visibleId = data.commentPermalink || `comment-${commentIndex}`;
+  const visibleInViewport = await verifyCaptureVisibility(handle, visibleId);
+  if (skipHighlight) return captureQuick(page, handle, data, outDir, session, commentIndex, lastHash, visibleInViewport);
   const lastScreenshotHash = await capturePlanned(page, handle, data, outDir, session, commentIndex, lastHash, skipHighlight);
-  const metadataPath = await writeMetadata(page, outDir, data, commentIndex, session);
-  await logCaptureDebug(outDir, commentIndex, 'capture done', { metadataPath, partsSaved: session.screenshotKeys.length });
-  return { lastScreenshotHash, metadataPath, screenshotKeys: session.screenshotKeys, screenshotPaths: session.screenshotPaths };
+  const metadataPath = await writeMetadata(page, outDir, data, commentIndex, session, visibleInViewport);
+  await logCaptureDebug(outDir, commentIndex, 'capture done', { metadataPath, partsSaved: session.screenshotKeys.length, visibleInViewport });
+  return { dedupedParts: session.dedupedParts ?? null, incompleteReason: session.incompleteReason ?? null, lastScreenshotHash, metadataPath, plannedParts: session.plannedParts ?? null, screenshotKeys: session.screenshotKeys, screenshotPaths: session.screenshotPaths };
 };

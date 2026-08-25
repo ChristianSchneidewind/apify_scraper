@@ -1,13 +1,9 @@
 import { Type } from '@sinclair/typebox';
 import type { Static } from '@sinclair/typebox';
+import type { CdpPage } from './cdp.ts';
 
 export const authPageShapeSchema = Type.Object({});
 
-export type AuthPage = {
-  evaluate: <T, A>(fn: (args: A) => T, args: A) => Promise<T>;
-  goto: (url: string, options: { waitUntil: string }) => Promise<unknown>;
-  locator: (selector: string) => { count: () => Promise<number> };
-  waitForTimeout: (ms: number) => Promise<void>;
-};
-
+export type AuthPage = Pick<CdpPage, 'evaluate' | 'locator' | 'waitForTimeout'>;
+export type VisualPage = Pick<CdpPage, 'evaluate' | 'waitForTimeout'>;
 export type AuthPageShape = Static<typeof authPageShapeSchema>;

@@ -133,25 +133,20 @@ describe('runCommentScrapeLoop', () => {
     expect(vi.mocked(listCommentRowLocators).mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('retries incomplete likers and replaces the checkpoint record', async () => {
-    const incomplete = { ...sampleComment, likesCount: 5, commentLikers: [] };
-    const enriched = { ...incomplete, commentLikers: [{ profileUrl: 'https://www.instagram.com/bob/', username: 'bob' }] };
-    vi.mocked(listCommentRowLocators).mockResolvedValue([{} as never]);
-    vi.mocked(extractCommentFromItem).mockResolvedValue(incomplete);
-    vi.mocked(computeCommentUid).mockResolvedValue('uid-1');
-    vi.mocked(processCommentCandidate).mockImplementation(async (_page, _locator, state) => {
-      state.newInRound = 1;
-      return enriched as never;
-    });
-    vi.mocked(getCommentContainer).mockResolvedValue({} as never);
-    vi.mocked(scrollCommentContainer).mockResolvedValue(false);
-
+  it('keeps liker collection disabled for resumed checkpoints and retry flags', async () => {
+    const resumed = {
+      ...sampleComment,
+      commentLikers: [{ profileUrl: 'https://www.instagram.com/bob/', username: 'bob' }],
+      likesCount: 5,
+    };
+    vi.mocked(listCommentRowLocators).mockResolvedValue([]);
     const comments = await runCommentScrapeLoop(buildPage() as never, {
-      initialComments: [incomplete], maxUiRounds: 1, outDir: '/tmp/out',
+      initialComments: [resumed], maxUiRounds: 1, outDir: '/tmp/out',
       retryIncompleteLikers: true, uiIdleRounds: 1,
     });
-    expect(comments).toHaveLength(1);
-    expect(comments[0]?.commentLikers).toHaveLength(1);
+    expect(comments[0]?.commentLikers).toEqual([]);
+    expect(comments[0]?.likersReason).toBe('liker_collection_disabled');
+    expect(processCommentCandidate).not.toHaveBeenCalled();
   });
 
   it('respects maxComments limit', async () => {

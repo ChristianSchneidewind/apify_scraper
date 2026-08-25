@@ -1,4 +1,4 @@
-import type { CommentRecord, LikersPage, ScrapeLoopOptions } from '../../schemas/index.ts';
+import type { CheckpointProcessOptions, CommentRecord, LikersPage, ProcessOptions, ProcessState, ScrapeLoopOptions } from '../../schemas/index.ts';
 import { writeJsonFile } from '../../adapters/filesystem/output.ts';
 import { listCommentRowLocators, listTimeLocators } from './extract-from-locator.ts';
 import { processCommentCandidate } from './process-comment.ts';
@@ -16,8 +16,12 @@ const saveCheckpoint = async (outDir: string, comments: CommentRecord[], sourceU
   await writeJsonFile(outDir, 'checkpoint.json', { comments, sourceUrl: sourceUrl || '' }).catch(() => undefined);
 };
 
-const hasIncompleteLikers = (comment: CommentRecord) =>
-  (comment.likesCount || 0) > 0 && (comment.commentLikers || []).length === 0;
+const withoutLikerProfiles = (comment: CommentRecord): CommentRecord => ({
+  ...comment,
+  commentLikers: [],
+  likersComplete: false,
+  likersReason: 'liker_collection_disabled',
+});
 
 const upsertComment = (comments: CommentRecord[], item: CommentRecord) => {
   const identity = buildCommentIdentity(item);
@@ -35,7 +39,7 @@ const persistCandidate = async (
   item: CommentRecord | null,
   comments: CommentRecord[],
   maxComments: number,
-  processOpts: { outDir: string; sourceUrl?: string },
+  processOpts: CheckpointProcessOptions,
 ) => {
   if (!item) return 'none';
   const previousCount = comments.length;
@@ -61,7 +65,7 @@ const logRound = (round: number, maxUiRounds: number, stage: string, quiet?: boo
   process.stderr.write(`[scrape.comments] round ${round}/${maxUiRounds}: ${stage}\n`);
 };
 
-const consumeLocatorRefresh = (state: ReturnType<typeof buildProcessState>) => {
+const consumeLocatorRefresh = (state: ProcessState) => {
   const refresh = Boolean(state.needsLocatorRefresh);
   state.needsLocatorRefresh = false;
   return refresh;
@@ -71,16 +75,15 @@ const processRound = async (
   page: LikersPage,
   round: number,
   maxUiRounds: number,
-  state: ReturnType<typeof buildProcessState>,
+  state: ProcessState,
   comments: CommentRecord[],
   maxComments: number,
-  processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; likerRetryAttempts?: number; likerRetryDelayMs?: number; likerTimeoutMs?: number; outDir: string; quiet?: boolean; retryIncompleteLikers?: boolean; sourceUrl?: string; verbose?: boolean },
+  processOpts: ProcessOptions,
   passLabel = 'top-level',
 ) => {
   state.newInRound = 0;
-  const commentPage = page as unknown as Parameters<typeof listCommentRowLocators>[0];
-  const rowLocators = (await listCommentRowLocators(commentPage)) || [];
-  const fallbackLocators = (await listTimeLocators(commentPage)) || [];
+  const rowLocators = (await listCommentRowLocators(page)) || [];
+  const fallbackLocators = (await listTimeLocators(page)) || [];
   const locators = rowLocators.length ? [...rowLocators, ...fallbackLocators] : fallbackLocators;
   logRound(round, maxUiRounds, `${passLabel} locators ${locators.length}`, processOpts.quiet);
   for (const locator of locators) {
@@ -97,20 +100,20 @@ const processRound = async (
 };
 
 const maybeRescanComments = async (
-  page: Parameters<typeof listTimeLocators>[0] & LikersPage,
+  page: LikersPage,
   needsRescan: boolean,
 ) => {
   if (!needsRescan) return;
-  await rescanComments(page as never).catch(() => undefined);
+  await rescanComments(page).catch(() => undefined);
   await Promise.resolve(page.waitForTimeout?.(1000)).catch(() => undefined);
 };
 
 const runPass = async (
-  page: Parameters<typeof listTimeLocators>[0] & LikersPage,
+  page: LikersPage,
   options: ScrapeLoopOptions,
-  state: ReturnType<typeof buildProcessState>,
+  state: ProcessState,
   comments: CommentRecord[],
-  processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; likerRetryAttempts?: number; likerRetryDelayMs?: number; likerTimeoutMs?: number; outDir: string; quiet?: boolean; retryIncompleteLikers?: boolean; sourceUrl?: string; verbose?: boolean },
+  processOpts: ProcessOptions,
   passLabel: string,
   expandCommentsClicks: number,
   expandRepliesClicks: number,
@@ -123,9 +126,9 @@ const runPass = async (
   let idleRounds = 0;
 
   for (let round = 0; round < maxUiRounds; round += 1) {
-    await openCommentsPanel(page as never).catch(() => undefined);
-    if (expandCommentsClicks > 0) await expandComments(page as never, expandCommentsClicks).catch(() => 0);
-    if (expandRepliesClicks > 0) await expandAllReplyThreads(page as never, expandRepliesClicks).catch(() => 0);
+    await openCommentsPanel(page).catch(() => undefined);
+    if (expandCommentsClicks > 0) await expandComments(page, expandCommentsClicks).catch(() => 0);
+    if (expandRepliesClicks > 0) await expandAllReplyThreads(page, expandRepliesClicks).catch(() => 0);
 
     if (await processRound(page, round + 1, maxUiRounds, state, comments, maxComments, processOpts, passLabel)) return true;
 
@@ -142,28 +145,20 @@ const runPass = async (
 };
 
 export const runCommentScrapeLoop = async (
-  page: Parameters<typeof listTimeLocators>[0] & LikersPage,
+  page: LikersPage,
   options: ScrapeLoopOptions,
 ) => {
-  const comments: CommentRecord[] = [...(options.initialComments || [])];
+  const comments = (options.initialComments || []).map(withoutLikerProfiles);
   const state = buildProcessState();
-  const seedComments = options.retryIncompleteLikers
-    ? comments.filter((comment) => !hasIncompleteLikers(comment))
-    : comments;
-  for (const comment of seedComments) {
+  for (const comment of comments) {
     const identity = buildCommentIdentity(comment);
     registerCommentSeen(state, identity.strictKey, identity.looseKey, identity.permalink || null, null);
   }
-  const processOpts: { likerCollectionMode?: 'best_effort' | 'strict'; maxCommentLikers: number; likerRetryAttempts?: number; likerRetryDelayMs?: number; likerTimeoutMs?: number; outDir: string; quiet?: boolean; retryIncompleteLikers?: boolean; sourceUrl?: string; verbose?: boolean } = {
-    maxCommentLikers: options.maxCommentLikers ?? 0,
-    ...(options.likerRetryAttempts !== undefined ? { likerRetryAttempts: options.likerRetryAttempts } : {}),
-    ...(options.likerRetryDelayMs !== undefined ? { likerRetryDelayMs: options.likerRetryDelayMs } : {}),
-    ...(options.likerTimeoutMs !== undefined ? { likerTimeoutMs: options.likerTimeoutMs } : {}),
+  const processOpts: ProcessOptions = {
+    maxCommentLikers: 0,
     outDir: options.outDir,
-    ...(options.retryIncompleteLikers ? { retryIncompleteLikers: true } : {}),
     ...(options.sourceUrl ? { sourceUrl: options.sourceUrl } : {}),
   };
-  if (options.likerCollectionMode !== undefined) processOpts.likerCollectionMode = options.likerCollectionMode;
   if (options.quiet !== undefined) processOpts.quiet = options.quiet;
   if (options.verbose !== undefined) processOpts.verbose = options.verbose;
 
@@ -172,7 +167,7 @@ export const runCommentScrapeLoop = async (
   const doneTopLevel = await runPass(page, options, state, comments, processOpts, 'top-level', 0, 0, undefined, 2);
   if (doneTopLevel) return comments;
 
-  await resetCommentsToTop(page as never).catch(() => undefined);
+  await resetCommentsToTop(page).catch(() => undefined);
   await Promise.resolve(page.waitForTimeout?.(1500)).catch(() => undefined);
 
   await runPass(page, options, state, comments, processOpts, 'rescan', 0, 0, 2, 2);

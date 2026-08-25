@@ -1,16 +1,10 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { writeBinaryFile, writeJsonFile } from '../../../adapters/filesystem/output.ts';
 import type { CommentRecord, DebugPage } from '../../../schemas/index.ts';
+import { readDebugRows } from './browser.ts';
 
-const dir = dirname(fileURLToPath(import.meta.url));
-const DEBUG_DOM_SCRIPT = readFileSync(join(dir, 'browser-scripts/debug-dom.script'), 'utf8');
 const encoder = new TextEncoder();
 
 const prefixFor = (index: number) => `debug-skip-${index}`;
-const runScript = (args: { body: string; payload: Record<string, unknown> }) =>
-  new Function(args.body)()({ ...args.payload });
 
 const dumpScreenshot = async (page: DebugPage, dir: string, prefix: string, timeout: number) => {
   const buffer = await page.screenshot({ fullPage: false, timeout });
@@ -29,10 +23,7 @@ const dumpDom = async (
   index: number,
   data: CommentRecord,
 ) => {
-  const rows = await page.evaluate(runScript, {
-    body: DEBUG_DOM_SCRIPT,
-    payload: {},
-  });
+  const rows = await page.evaluate(readDebugRows, undefined);
   return writeJsonFile(dir, `${prefix}.json`, {
     candidate: data,
     index,

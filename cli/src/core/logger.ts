@@ -1,14 +1,12 @@
+import type { LogDetails, LoggerOptions } from '../schemas/index.ts';
+
 const renderText = (level: string, message: string) => `[${level}] ${message}\n`;
 
-export const createLogger = (options: {
-  json?: boolean;
-  quiet?: boolean;
-  verbose?: boolean;
-}) => {
+export const createLogger = (options: LoggerOptions) => {
   const emit = (
     level: 'debug' | 'info' | 'warn' | 'error',
     message: string,
-    details: Record<string, string | number | boolean> = {},
+    details: LogDetails = {},
   ) => {
     if (options.quiet && level !== 'error') return;
     if (level === 'debug' && !options.verbose) return;
@@ -20,9 +18,9 @@ export const createLogger = (options: {
   };
 
   return {
-    debug: (message: string, details?: Record<string, string | number | boolean>) => emit('debug', message, details),
-    error: (message: string, details?: Record<string, string | number | boolean>) => emit('error', message, details),
-    info: (message: string, details?: Record<string, string | number | boolean>) => emit('info', message, details),
-    warn: (message: string, details?: Record<string, string | number | boolean>) => emit('warn', message, details),
+    debug: (message: string, details?: LogDetails) => emit('debug', message, details),
+    error: (message: string, details?: LogDetails) => emit('error', message, details),
+    info: (message: string, details?: LogDetails) => emit('info', message, details),
+    warn: (message: string, details?: LogDetails) => emit('warn', message, details),
   };
 };

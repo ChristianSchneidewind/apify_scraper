@@ -70,9 +70,10 @@ describe('captureProfilePage', () => {
     expect(result.profile.username).toBe('nasa');
     expect(result.profile.sourceUrl).toBe('https://www.instagram.com/nasa/');
     expect(result.screenshot).toEqual(new Uint8Array([9]));
-    expect(evaluate).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({
-      text: expect.stringContaining('| profile |'),
-    }));
+    expect(evaluate).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.stringContaining('| profile |'),
+    );
   });
 });
 

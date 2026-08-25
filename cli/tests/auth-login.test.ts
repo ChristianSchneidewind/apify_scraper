@@ -1,25 +1,51 @@
-import { mkdir } from 'node:fs/promises';
 import { createInterface } from 'node:readline/promises';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('node:fs/promises', () => ({ mkdir: vi.fn() }));
-vi.mock('node:readline/promises', () => ({ createInterface: vi.fn() }));
-vi.mock('playwright', () => ({
-  chromium: {
-    launch: vi.fn(),
-  },
+const mocks = vi.hoisted(() => ({
+  closeBrowserSession: vi.fn(),
+  openBrowserSession: vi.fn(),
 }));
 
-import { chromium } from 'playwright';
+vi.mock('node:readline/promises', () => ({ createInterface: vi.fn() }));
+vi.mock('../src/adapters/cdp/browser.ts', () => ({
+  closeBrowserSession: mocks.closeBrowserSession,
+  openBrowserSession: mocks.openBrowserSession,
+}));
+
 import { canPromptLogin, runAuthLogin } from '../src/modules/auth/login.ts';
 
 const context = {
-  browserProfile: {
-    dir: '/tmp/profile',
-    name: 'work',
-    storageStatePath: '/tmp/profile/storage-state.json',
-  },
+  cdp: { url: 'http://127.0.0.1:9222' },
   cwd: '/tmp',
+};
+
+const options = {
+  cdpUrl: 'http://127.0.0.1:9222',
+  cwd: '/tmp',
+  dryRun: false,
+  evidence: false,
+  headful: true,
+  json: false,
+  noColor: false,
+  noInput: false,
+  plain: false,
+  quiet: false,
+  verbose: false,
+};
+
+const buildPage = (count: ReturnType<typeof vi.fn>) => ({
+  evaluate: vi.fn().mockResolvedValue(undefined),
+  goto: vi.fn().mockResolvedValue(undefined),
+  locator: vi.fn().mockReturnValue({ count }),
+  waitForTimeout: vi.fn().mockResolvedValue(undefined),
+});
+
+const mockSession = (page: unknown) => {
+  mocks.openBrowserSession.mockResolvedValue({
+    browser: { close: vi.fn() },
+    browserContext: { newPage: vi.fn() },
+    page,
+  });
 };
 
 beforeEach(() => {
@@ -27,107 +53,65 @@ beforeEach(() => {
 });
 
 describe('runAuthLogin', () => {
-  it('saves storage state for the selected profile', async () => {
-    const storageState = vi.fn();
-    const close = vi.fn();
-    const goto = vi.fn();
-    const evaluate = vi.fn().mockResolvedValue(undefined);
-    const waitForTimeout = vi.fn().mockResolvedValue(undefined);
+  it('confirms an active session after a manual login', async () => {
     const count = vi.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(1);
-    const locator = vi.fn().mockReturnValue({ count });
-    const newPage = vi.fn().mockResolvedValue({ evaluate, goto, locator, waitForTimeout });
-    const newContext = vi.fn().mockResolvedValue({ newPage, storageState });
-    const launch = vi.fn().mockResolvedValue({ close, newContext });
+    const page = buildPage(count);
     const question = vi.fn();
     const rlClose = vi.fn();
-
-    vi.mocked(chromium.launch).mockImplementation(launch);
+    mockSession(page);
     vi.mocked(createInterface).mockReturnValue({ close: rlClose, question } as never);
 
-    const result = await runAuthLogin(context, {
-      browserProfile: 'work',
-      cwd: '/tmp',
-      dryRun: false,
-      headful: true,
-      json: false,
-      noColor: false,
-      noInput: false,
-      plain: false,
-      quiet: false,
-      verbose: false,
-    }, { isTTY: true } as never);
+    const result = await runAuthLogin(context, options, { isTTY: true } as never);
 
     expect(result.ok).toBe(true);
-    expect(mkdir).toHaveBeenCalledWith('/tmp/profile', { recursive: true });
-    expect(storageState).toHaveBeenCalledWith({ path: '/tmp/profile/storage-state.json' });
-    expect(evaluate).toHaveBeenCalled();
+    expect(result.details?.cdpUrl).toBe('http://127.0.0.1:9222');
+    expect(page.evaluate).toHaveBeenCalled();
     expect(question).toHaveBeenCalledOnce();
+    expect(mocks.closeBrowserSession).toHaveBeenCalled();
   });
 
-  it('skips prompt when already logged in', async () => {
-    const storageState = vi.fn();
-    const close = vi.fn();
-    const goto = vi.fn();
-    const evaluate = vi.fn().mockResolvedValue(undefined);
-    const waitForTimeout = vi.fn().mockResolvedValue(undefined);
+  it('skips the prompt when already logged in', async () => {
     const count = vi.fn().mockResolvedValue(1);
-    const locator = vi.fn().mockReturnValue({ count });
-    const newPage = vi.fn().mockResolvedValue({ evaluate, goto, locator, waitForTimeout });
-    const newContext = vi.fn().mockResolvedValue({ newPage, storageState });
-    const launch = vi.fn().mockResolvedValue({ close, newContext });
+    const page = buildPage(count);
     const question = vi.fn();
-    const rlClose = vi.fn();
+    mockSession(page);
+    vi.mocked(createInterface).mockReturnValue({ close: vi.fn(), question } as never);
 
-    vi.mocked(chromium.launch).mockImplementation(launch);
-    vi.mocked(createInterface).mockReturnValue({ close: rlClose, question } as never);
-
-    const result = await runAuthLogin(context, {
-      browserProfile: 'work',
-      cwd: '/tmp',
-      dryRun: false,
-      headful: true,
-      json: false,
-      noColor: false,
-      noInput: false,
-      plain: false,
-      quiet: false,
-      verbose: false,
-    });
+    const result = await runAuthLogin(context, options);
 
     expect(result.ok).toBe(true);
-    expect(storageState).toHaveBeenCalledWith({ path: '/tmp/profile/storage-state.json' });
-    expect(evaluate).toHaveBeenCalled();
+    expect(page.evaluate).toHaveBeenCalled();
     expect(question).not.toHaveBeenCalled();
   });
 
-  it('fails in no-input mode', async () => {
-    const storageState = vi.fn();
-    const close = vi.fn();
-    const goto = vi.fn();
-    const evaluate = vi.fn().mockResolvedValue(undefined);
-    const waitForTimeout = vi.fn().mockResolvedValue(undefined);
+  it('fails in no-input mode when logged out', async () => {
     const count = vi.fn().mockResolvedValue(0);
-    const locator = vi.fn().mockReturnValue({ count });
-    const newPage = vi.fn().mockResolvedValue({ evaluate, goto, locator, waitForTimeout });
-    const newContext = vi.fn().mockResolvedValue({ newPage, storageState });
-    const launch = vi.fn().mockResolvedValue({ close, newContext });
+    const page = buildPage(count);
+    mockSession(page);
 
-    vi.mocked(chromium.launch).mockImplementation(launch);
-
-    const result = await runAuthLogin(context, {
-      browserProfile: 'work',
-      cwd: '/tmp',
-      dryRun: false,
-      headful: true,
-      json: false,
-      noColor: false,
-      noInput: true,
-      plain: false,
-      quiet: false,
-      verbose: false,
-    }, { isTTY: true } as never);
+    const result = await runAuthLogin(
+      context,
+      { ...options, noInput: true },
+      { isTTY: true } as never,
+    );
 
     expect(result.ok).toBe(false);
+    expect(result.summary).toContain('auth login required');
+  });
+
+  it('fails when the login was not completed', async () => {
+    const count = vi.fn().mockResolvedValue(0);
+    const page = buildPage(count);
+    mockSession(page);
+    vi.mocked(createInterface).mockReturnValue({
+      close: vi.fn(),
+      question: vi.fn(),
+    } as never);
+
+    const result = await runAuthLogin(context, options, { isTTY: true } as never);
+
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('not completed');
   });
 
   it('detects interactive terminals', () => {

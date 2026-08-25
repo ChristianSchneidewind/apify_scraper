@@ -14,8 +14,8 @@ A successful comment scrape includes details such as:
   "details": {
     "commentsCount": "182",
     "likesCount": "1234",
-    "likersCount": "1041",
-    "incompleteLikersCount": "49",
+    "likersCount": "0",
+    "incompleteLikersCount": "0",
     "multipartCount": "6",
     "durationMs": "125000",
     "commentsPerSecond": "1.46",
@@ -37,16 +37,33 @@ Failed results include an `errorCode`, for example `AUTH_ERROR`, `BROWSER_ERROR`
 | `username` | Comment author |
 | `text` | Extracted comment text |
 | `likesCount` | Likes visible to the scraper |
-| `commentLikers` | Collected liker profiles |
-| `likersComplete` | Whether collected likers reached the visible likes target |
-| `likersReason` | Reason for incomplete collection, if applicable |
+| `commentLikers` | Empty while liker-profile collection is disabled |
+| `likersComplete` | `false` while collection is disabled |
+| `likersReason` | `liker_collection_disabled` in the current production path |
 | `screenshotPaths` | One or more screenshot files |
 | `partsTotal` | Number of screenshot parts |
-| `multipartNeedsReview` | Whether the capture has more than two parts |
+| `multipartNeedsReview` | Capture needs a manual spot check |
+| `multipartFlagReason` | Why: `more_than_2_parts`, `incomplete_multipart`, `verify_failed:<reason>`, or `capture_fallback:<reason>` |
 | `commentPermalink` | Relative Instagram comment link |
 | `commentUrl` | Absolute comment URL when available |
 
-A comment with `likesCount > 0` and no visible liker links is not treated as a successful complete collection. It is marked with `likersComplete: false` and a diagnostic `likersReason`.
+The review flag fires when a capture saved fewer parts than planned (after
+counting deduplicated no-op parts as covered), when a part verify or the
+whole capture failed, or when a comment legitimately needed more than two
+parts. Flagged comments should be spot-checked via their `commentPermalink`.
+
+Liker-profile collection is intentionally disabled until the Instagram dialog flow is reliable. Visible `likesCount` is retained, `commentLikers` is empty, and `likersReason` is `liker_collection_disabled`.
+
+Per-comment metadata JSON files next to the screenshots additionally carry
+`visibleInViewport`: the action-verify result stating whether the capture
+target was inside the viewport at screenshot time.
+
+## Evidence artifacts
+
+With `--evidence`, each run directory additionally contains `actions.ndjson`
+(structured action log with run ID and UTC timestamps) and `manifest.json`
+(SHA-256 hash and size of every artifact), so the integrity of a run can be
+verified later.
 
 ## Profile artifacts
 
