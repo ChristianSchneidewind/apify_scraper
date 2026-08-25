@@ -135,6 +135,9 @@ export const captureScrollPart = async (
   const saved = await saveScrollPart(page, outDir, session, partIdx, lastHash, hashClip);
   await cleanupHighlightArtifacts(page);
   if (saved.duplicated) {
+    // A deduped part added no new pixels (scroll no-op): count it as
+    // covered, not as missing, so the review flag stays quiet.
+    session.dedupedParts = (session.dedupedParts ?? 0) + 1;
     await log(outDir, commentIndex, 'capture scroll part:duplicate_hash', { mode, part: partIdx + 1, partsTotal, top });
     return { done: false, lastHash: saved.lastHash };
   }

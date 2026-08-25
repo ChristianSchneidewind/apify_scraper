@@ -123,14 +123,21 @@ export const refindCommentRowBrowser = (payload: RefindCommentPayload) => {
     if (anchor) return findRow(anchor);
   }
   if (!payload.userProfilePath) return null;
-  const anchors = Array.from(document.querySelectorAll(
-    `a[href="${payload.userProfilePath}"]`,
-  ));
-  const target = anchors.find((anchor) => {
-    const row = findRow(anchor);
-    const content = (row?.textContent || '').toLowerCase();
-    return content.includes(payload.username.toLowerCase())
-    && content.includes(payload.text.slice(0, 80).toLowerCase());
-  });
-  return target ? findRow(target) : null;
+  // Captions and pinned comments can lack a /c/ permalink, so the anchor
+  // lookup misses them. Walk up from each author anchor to the smallest
+  // block that still holds the comment itself (timestamp + text prefix);
+  // closest() alone lands on a wrapper too tight to contain the text.
+  const expected = payload.text.replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 80);
+  const anchors = Array.from(document.querySelectorAll<HTMLAnchorElement>(`a[href="${payload.userProfilePath}"]`));
+  for (const anchor of anchors) {
+    let row: Element | null = anchor;
+    for (let depth = 0; row && row !== document.body && depth < 24; depth += 1) {
+    const content = (row.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const holds = row.querySelector('time') && row.querySelectorAll('a[href*="/c/"]').length <= 1
+    && content.includes(payload.username.toLowerCase()) && (!expected || content.includes(expected));
+    if (holds) return row;
+    row = row.parentElement;
+    }
+  }
+  return null;
 };

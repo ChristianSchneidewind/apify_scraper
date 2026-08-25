@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { prepareAuthPage } from '../src/adapters/instagram/auth.ts';
-import { extractCommentFromTime } from '../src/modules/scrape-comments/extract-from-locator.ts';
+import { extractCommentFromTime, refindCommentRowHandle } from '../src/modules/scrape-comments/extract-from-locator.ts';
 import { captureCommentAssets } from '../src/modules/scrape-comments/capture/capture.ts';
 import { initScreenshotSession } from '../src/modules/scrape-comments/capture/screenshot-session.ts';
 import { planMultipartBrowser } from '../src/modules/scrape-comments/multipart/browser.ts';
@@ -97,6 +97,32 @@ describe.skipIf(!findChromeBinary())('local cdp browser fixtures', () => {
     `);
     const data = await extractCommentFromTime(page.locator('time') as never);
     expect(data).toMatchObject({ text: 'Eigentliche Antwort', username: 'alice' });
+    await page.close();
+  });
+
+  it('refinds a caption row that has no /c/ permalink', async () => {
+    const page = await newFixturePage();
+    await setFixtureContent(page, `
+      <article>
+        <div>
+          <a href="/fixture_user/"><img alt="fixture_users Profilbild"></a>
+          <a href="/fixture_user/">fixture_user</a>
+          <span>Was sie an uns lieben: Deutsche Autos als ultimatives Statussymbol und mehr Caption-Text</span>
+          <time datetime="2026-07-30T10:00:00Z">30. Juli</time>
+        </div>
+        <ul><li><a href="/bob/">bob</a><span>ein kommentar</span><time>1h</time><a href="/p/abc/c/42">permalink</a></li></ul>
+      </article>
+    `);
+    const handle = await refindCommentRowHandle(page as never, {
+      commentPermalink: null,
+      text: 'Was sie an uns lieben: Deutsche Autos als ultimatives Statussymbol und mehr Caption-Text',
+      userProfilePath: '/fixture_user/',
+      username: 'fixture_user',
+    });
+    expect(handle).toBeTruthy();
+    const text = await handle?.evaluate((el: Element) => (el.textContent || '').replace(/\s+/g, ' ').trim(), undefined);
+    expect(text).toContain('Was sie an uns lieben');
+    expect(text).not.toContain('ein kommentar');
     await page.close();
   });
 

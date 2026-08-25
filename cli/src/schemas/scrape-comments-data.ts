@@ -86,6 +86,7 @@ export const enrichedCommentSchema = Type.Intersect([
   Type.Object({ screenshotPaths: Type.Array(Type.String()) }),
 ]);
 export const captureSessionSchema = Type.Object({
+  dedupedParts: Type.Optional(Type.Number()),
   incompleteReason: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   plannedParts: Type.Optional(Type.Number()),
   screenshotKeys: Type.Array(Type.String()),

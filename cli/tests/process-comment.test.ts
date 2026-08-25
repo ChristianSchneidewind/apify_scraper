@@ -127,11 +127,10 @@ describe('processCommentCandidate', () => {
       .mockResolvedValueOnce({ ok: false, reason: 'detached_no_fallback' })
       .mockResolvedValueOnce({ ok: true });
     vi.mocked(captureCommentAssets).mockResolvedValue({
-      incompleteReason: null,
+      dedupedParts: null, incompleteReason: null,
       lastScreenshotHash: 'hash-1',
       metadataPath: '/tmp/out/uuid-1.json',
-      plannedParts: null,
-      screenshotKeys: ['uuid-1.png'],
+      plannedParts: null, screenshotKeys: ['uuid-1.png'],
       screenshotPaths: ['uuid-1.png'],
     });
 
@@ -170,11 +169,10 @@ describe('processCommentCandidate', () => {
     vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: true });
     vi.mocked(prepareCommentScreenshotVisuals).mockResolvedValue(undefined);
     vi.mocked(captureCommentAssets).mockResolvedValue({
-      incompleteReason: null,
+      dedupedParts: null, incompleteReason: null,
       lastScreenshotHash: 'hash-1',
       metadataPath: '/tmp/out/uuid-1.json',
-      plannedParts: null,
-      screenshotKeys: ['uuid-1.png'],
+      plannedParts: null, screenshotKeys: ['uuid-1.png'],
       screenshotPaths: ['/tmp/out/uuid-1.png'],
     });
 

@@ -92,4 +92,33 @@ describe('buildCommentOutputRecord', () => {
       partsTotal: 1,
     });
   });
+
+  it('treats deduped parts as covered, not missing', () => {
+    expect(
+      buildCommentOutputRecord(
+        {
+          commentPermalink: '/p/abc/c/1',
+          datetime: null,
+          text: 'hello',
+          timeText: '1h',
+          username: 'alice',
+          userProfilePath: '/alice/',
+          commentLikers: [],
+          likesCount: 0,
+        },
+        'https://www.instagram.com/p/abc/',
+        3,
+        ['uuid-1.png'],
+        ['/tmp/out/uuid-1.png'],
+        '/tmp/out/uuid-1.json',
+        2,
+        null,
+        1,
+      ),
+    ).toMatchObject({
+      multipartFlagReason: null,
+      multipartNeedsReview: false,
+      partsTotal: 1,
+    });
+  });
 });

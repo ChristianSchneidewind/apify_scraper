@@ -40,7 +40,7 @@ export const writeMetadata = async (
 ) => {
   const firstKey = session.screenshotKeys[0];
   if (!firstKey) return null;
-  const metadataPayload = buildCommentMetadataPayload(data, commentIndex, page.url(), session.screenshotUuid, session.screenshotUtc, session.screenshotKeys, visibleInViewport, session.plannedParts ?? null, session.incompleteReason ?? null);
+  const metadataPayload = buildCommentMetadataPayload(data, commentIndex, page.url(), session.screenshotUuid, session.screenshotUtc, session.screenshotKeys, visibleInViewport, session.plannedParts ?? null, session.incompleteReason ?? null, session.dedupedParts ?? null);
   const metadataName = `${firstKey.replace(/\.png$/, '')}.json`;
   return writeJsonFile(outDir, metadataName, metadataPayload);
 };

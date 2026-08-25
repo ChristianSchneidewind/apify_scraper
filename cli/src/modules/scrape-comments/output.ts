@@ -10,10 +10,12 @@ export const buildCommentOutputRecord = (
   metadataPath: string | null,
   plannedParts?: number | null,
   incompleteReason?: string | null,
+  dedupedParts?: number | null,
 ) => {
   const links = buildCommentLinks(comment.commentPermalink, sourceUrl);
   const partsTotal = screenshotKeys.length;
-  const incomplete = Boolean(incompleteReason) || (plannedParts != null && partsTotal < plannedParts);
+  const covered = partsTotal + (dedupedParts ?? 0);
+  const incomplete = Boolean(incompleteReason) || (plannedParts != null && covered < plannedParts);
   const needsReview = incomplete || partsTotal > 2;
   const flagReason = incomplete ? incompleteReason || 'incomplete_multipart' : 'more_than_2_parts';
   return {

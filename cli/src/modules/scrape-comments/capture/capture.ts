@@ -88,7 +88,7 @@ const captureQuick = async (
   visibleInViewport: boolean,
 ) => {
   const quick = await captureQuickCommentScreenshot(page, handle, data, outDir, session, commentIndex, lastHash, visibleInViewport);
-  return { incompleteReason: null, lastScreenshotHash: quick.lastScreenshotHash, metadataPath: quick.metadataPath, plannedParts: null, screenshotKeys: session.screenshotKeys, screenshotPaths: session.screenshotPaths };
+  return { dedupedParts: null, incompleteReason: null, lastScreenshotHash: quick.lastScreenshotHash, metadataPath: quick.metadataPath, plannedParts: null, screenshotKeys: session.screenshotKeys, screenshotPaths: session.screenshotPaths };
 };
 
 const capturePlanned = async (
@@ -127,5 +127,5 @@ export const captureCommentAssets = async (
   const lastScreenshotHash = await capturePlanned(page, handle, data, outDir, session, commentIndex, lastHash, skipHighlight);
   const metadataPath = await writeMetadata(page, outDir, data, commentIndex, session, visibleInViewport);
   await logCaptureDebug(outDir, commentIndex, 'capture done', { metadataPath, partsSaved: session.screenshotKeys.length, visibleInViewport });
-  return { incompleteReason: session.incompleteReason ?? null, lastScreenshotHash, metadataPath, plannedParts: session.plannedParts ?? null, screenshotKeys: session.screenshotKeys, screenshotPaths: session.screenshotPaths };
+  return { dedupedParts: session.dedupedParts ?? null, incompleteReason: session.incompleteReason ?? null, lastScreenshotHash, metadataPath, plannedParts: session.plannedParts ?? null, screenshotKeys: session.screenshotKeys, screenshotPaths: session.screenshotPaths };
 };
