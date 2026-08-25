@@ -52,16 +52,18 @@ const verifyScrollPart = async (
   });
 };
 
+// Re-apply the highlight after the verify scroll: scrollport nudges can make
+// Instagram replace the row node between parts, which drops the outline.
+// A failed highlight is flagged in the debug log but never aborts the
+// sequence — a part without frame beats a missing comment end.
 const prepareScrollHighlight = async (
   handle: ElementHandle,
   data: CommentRecord,
-  partIdx: number,
-  lastHash: string | null,
 ) => {
   const hl = await ensureHighlightReady(handle, data);
-  if (!hl.ok && partIdx > 0) return { done: true, lastHash };
+  if (!hl.ok) return { highlighted: false, reason: hl.reason ?? 'unknown' };
   await reinforceHighlightStyles(handle);
-  return { done: false, lastHash };
+  return { highlighted: true };
 };
 
 const cleanupHighlightBrowser = () => {
@@ -121,10 +123,8 @@ export const captureScrollPart = async (
   }
   await logVerify(log, outDir, commentIndex, partIdx, partsTotal, top, mode, verify);
   await page.waitForTimeout(180);
-  if (!skipHighlight && partsTotal <= 1) {
-    const highlight = await prepareScrollHighlight(handle, data, partIdx, lastHash);
-    if (highlight.done) return { done: false, lastHash: highlight.lastHash };
-  }
+  const highlight = skipHighlight ? null : await prepareScrollHighlight(handle, data);
+  if (highlight && !highlight.highlighted) await log(outDir, commentIndex, 'capture scroll part:highlight_failed', { mode, part: partIdx + 1, partsTotal, reason: highlight.reason ?? null, top });
   await page.evaluate(setScreenshotBanner, { text: bannerText(session, page.url(), commentIndex, partIdx + 1, partsTotal) });
   const hashClip = partsTotal > 1 ? verify.clip : undefined;
   const saved = await saveScrollPart(page, outDir, session, partIdx, lastHash, hashClip);

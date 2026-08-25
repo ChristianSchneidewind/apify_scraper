@@ -71,9 +71,13 @@ describe('captureCommentAssets multipart captures', () => {
     } as never);
     vi.mocked(ensureHighlightReady).mockResolvedValue({ ok: true });
     const page = buildPage([1, 2, 3], [7, 7, 7], [4, 5, 6], [8, 8, 8]);
+    // Per part the handle sees two evaluates: verifyMultipartBrowser first,
+    // then reinforceHighlightStyles after the re-applied highlight.
     const handle = buildHandle(
       { ok: true, clip: { height: 100, width: 200, x: 10, y: 20 } },
+      { ok: true },
       { ok: true, clip: { height: 100, width: 200, x: 10, y: 120 } },
+      { ok: true },
     );
     const session = baseSession();
 

@@ -115,12 +115,12 @@ describe('highlight browser script', () => {
       querySelector: (selector: string) => {
         if (selector.includes('time')) return {};
         if (selector.includes('/c/')) return { getAttribute: () => '/p/abc/c/1' };
-        if (selector.includes('a[href]')) return { getAttribute: () => '/alice/' };
+        if (selector.includes('a[href')) return { getAttribute: () => '/alice/' };
         return null;
       },
       querySelectorAll: (selector: string) => {
         if (selector.includes('a[href*="/c/"]')) return [{ getAttribute: () => '/p/abc/c/1' }];
-        if (selector.includes('a[href]')) return [{ getAttribute: () => '/alice/' }];
+        if (selector.includes('a[href')) return [{ getAttribute: () => '/alice/', textContent: 'alice' }];
         if (selector === 'img') return [];
         return [];
       },
@@ -164,12 +164,12 @@ describe('highlight browser script', () => {
       getBoundingClientRect: () => ({ width: 320, height: 72 }),
       querySelector: (selector: string) => {
         if (selector.includes('time')) return {};
-        if (selector.includes('a[href]')) return { getAttribute: () => '/alice/' };
+        if (selector.includes('a[href')) return { getAttribute: () => '/alice/' };
         return null;
       },
       querySelectorAll: (selector: string) => {
         if (selector.includes('a[href*="/c/"]')) return [{ getAttribute: () => '/p/abc/c/1' }];
-        if (selector.includes('a[href]')) return [{ getAttribute: () => '/alice/' }];
+        if (selector.includes('a[href')) return [{ getAttribute: () => '/alice/', textContent: 'alice' }];
         if (selector === 'img') return [{ getAttribute: (name: string) => (name === 'alt' ? 'alice profile picture' : ''), getBoundingClientRect: () => ({ width: 32, height: 32 }) }];
         return [];
       },
@@ -184,12 +184,12 @@ describe('highlight browser script', () => {
       querySelector: (selector: string) => {
         if (selector.includes('time')) return {};
         if (selector.includes('/c/')) return { getAttribute: () => '/p/abc/c/1' };
-        if (selector.includes('a[href]')) return { getAttribute: () => '/alice/' };
+        if (selector.includes('a[href')) return { getAttribute: () => '/alice/' };
         return null;
       },
       querySelectorAll: (selector: string) => {
         if (selector.includes('a[href*="/c/"]')) return [{ getAttribute: () => '/p/abc/c/1' }];
-        if (selector.includes('a[href]')) return [{ getAttribute: () => '/alice/' }];
+        if (selector.includes('a[href')) return [{ getAttribute: () => '/alice/', textContent: 'alice' }];
         if (selector === 'img') return [];
         return [];
       },

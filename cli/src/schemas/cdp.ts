@@ -141,6 +141,8 @@ export type EvidenceLog = {
   writeManifest: () => Promise<string>;
 };
 
+export type CdpScrollOffset = { x: number; y: number };
+
 export type CdpPageDeps = {
   client: CdpClient;
   sessionId: string;

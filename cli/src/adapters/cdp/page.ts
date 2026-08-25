@@ -1,4 +1,4 @@
-import type { CdpBrowserContext, CdpClient, CdpFrameInfo, CdpGotoOptions, CdpKeyboard, CdpLocator, CdpPage, CdpPageDeps } from '../../schemas/index.ts';
+import type { CdpBrowserContext, CdpClient, CdpFrameInfo, CdpGotoOptions, CdpKeyboard, CdpLocator, CdpPage, CdpPageDeps, CdpScreenshotOptions, CdpScrollOffset } from '../../schemas/index.ts';
 import { evaluatePage, evaluatePageHandle } from './evaluate.ts';
 import { createCdpHandle } from './handle.ts';
 import { pressKey } from './input.ts';
@@ -45,6 +45,20 @@ const gotoPage = async (
   await wait;
 };
 
+const readScrollOffset = (deps: CdpPageDeps) =>
+  evaluatePage<undefined, CdpScrollOffset>(deps.client, deps.sessionId, () => ({ x: window.scrollX, y: window.scrollY }), undefined)
+    .catch(() => ({ x: 0, y: 0 }));
+
+// Planner clips are viewport-relative; CDP captureScreenshot expects page
+// coordinates, so translate by the current scroll offset.
+const createPageScreenshot = (deps: CdpPageDeps) =>
+  async (options: CdpScreenshotOptions = {}) => {
+    if (!options.clip) return captureScreenshot(deps.client, deps.sessionId, options);
+    const scroll = await readScrollOffset(deps);
+    const clip = { ...options.clip, x: options.clip.x + scroll.x, y: options.clip.y + scroll.y };
+    return captureScreenshot(deps.client, deps.sessionId, { ...options, clip });
+  };
+
 export const createCdpPage = (
   deps: CdpPageDeps,
   initialUrl: string,
@@ -81,7 +95,7 @@ export const createCdpPage = (
     goto: gotoUrl,
     keyboard,
     locator: (selector: string): CdpLocator => createCdpLocator(deps, selector),
-    screenshot: (options = {}) => captureScreenshot(deps.client, deps.sessionId, options),
+    screenshot: createPageScreenshot(deps),
     url: () => currentUrl,
     waitForTimeout: (ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms); }),
   };

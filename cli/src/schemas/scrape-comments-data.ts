@@ -109,6 +109,7 @@ export const screenshotClipSchema = Type.Object({
 export const multipartVerifyResultSchema = Type.Object({
   clip: Type.Optional(screenshotClipSchema),
   clippedBottom: Type.Optional(Type.Boolean()),
+  clippedTop: Type.Optional(Type.Boolean()),
   maxBottom: Type.Optional(Type.Number()),
   metrics: Type.Optional(multipartMetricsSchema),
   ok: Type.Boolean(),

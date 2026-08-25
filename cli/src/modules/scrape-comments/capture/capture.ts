@@ -69,8 +69,9 @@ const maybeEscalateSinglePlan = async (
   const metrics = probe.metrics;
   const overflow = Math.max(0, metrics?.overflow ?? 0);
   const clippedBottom = Boolean(probe.clippedBottom);
-  await logCaptureDebug(outDir, commentIndex, 'capture single probe', { clippedBottom, metrics: metrics ?? null, overflow });
-  if (!clippedBottom && overflow <= 24) return plan;
+  const clippedTop = Boolean(probe.clippedTop);
+  await logCaptureDebug(outDir, commentIndex, 'capture single probe', { clippedBottom, clippedTop, metrics: metrics ?? null, overflow });
+  if (!clippedBottom && !clippedTop && overflow <= 24) return plan;
   const parts = estimateRowParts(metrics);
   if (parts <= 1) return plan;
   return escalatePlan(outDir, commentIndex, plan, parts, overflow);
