@@ -27,9 +27,18 @@ export const reinforceHighlight = (element: Element) => {
     node.style.outline = '4px solid red';
     node.style.outlineOffset = '2px';
     node.style.boxShadow = '0 0 0 4px red inset';
+    // The fixed overlay is not clipped by the scrollport like the element
+    // outline is, so clamp it to the scrollport band that clips the row.
+    const clips = (port: Element) => !['visible', 'clip'].includes(getComputedStyle(port).overflowY) && port.scrollHeight - port.clientHeight > 20;
+    let port: Element | null = node.parentElement;
+    while (port && port !== document.body && port !== document.documentElement && !clips(port)) port = port.parentElement;
+    if (port === document.body || port === document.documentElement) port = null;
+    const portRect = port?.getBoundingClientRect();
+    const portTop = portRect && portRect.bottom > 0 ? Math.max(0, portRect.top) : 0;
+    const portBottom = portRect && portRect.top < window.innerHeight ? Math.min(window.innerHeight, portRect.bottom) : window.innerHeight;
     const rect = node.getBoundingClientRect();
-    const top = Math.max(20, rect.top);
-    const bottom = Math.min(maxBottom, rect.bottom);
+    const top = Math.max(20, rect.top, portTop);
+    const bottom = Math.min(maxBottom, rect.bottom, portBottom);
     if (bottom <= top) return;
     const overlay = document.createElement('div');
     overlay.setAttribute('data-apify-highlight-overlay', '1');

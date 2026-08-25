@@ -39,7 +39,7 @@ const fallbackCapture = async (
     await appendTextFile(outDir, 'capture-debug.jsonl', `${JSON.stringify({ commentIndex: index, reason, stage: 'capture fallback', ts: new Date().toISOString() })}\n`);
   } catch {}
   await dumpCommentDebugArtifacts(page, outDir, index, data, 30000);
-  return { lastScreenshotHash, metadataPath: null, screenshotKeys: [] as string[], screenshotPaths: [] as string[] };
+  return { incompleteReason: `capture_fallback:${reason}`, lastScreenshotHash, metadataPath: null, plannedParts: null, screenshotKeys: [] as string[], screenshotPaths: [] as string[] };
 };
 
 const withTimeout = async <T>(promise: Promise<T>, ms: number) => {
@@ -133,7 +133,7 @@ const captureComment = async (
   const capture = await runCapture(page, rowHandle, data, options.outDir, state.count, state.lastScreenshotHash);
   state.lastScreenshotHash = capture.lastScreenshotHash;
   logStage(state.count, 'done', options.quiet);
-  return buildCommentOutputRecord(data, page.url(), state.count, capture.screenshotKeys, capture.screenshotPaths, capture.metadataPath) as EnrichedComment;
+  return buildCommentOutputRecord(data, page.url(), state.count, capture.screenshotKeys, capture.screenshotPaths, capture.metadataPath, capture.plannedParts, capture.incompleteReason) as EnrichedComment;
 };
 
 // Liker profile collection is intentionally disabled. Keep likesCount from

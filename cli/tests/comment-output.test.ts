@@ -36,4 +36,60 @@ describe('buildCommentOutputRecord', () => {
       sourceUrl: 'https://www.instagram.com/p/abc/',
     });
   });
+
+  it('flags incomplete multipart captures for review', () => {
+    expect(
+      buildCommentOutputRecord(
+        {
+          commentPermalink: '/p/abc/c/1',
+          datetime: null,
+          text: 'hello',
+          timeText: '1h',
+          username: 'alice',
+          userProfilePath: '/alice/',
+          commentLikers: [],
+          likesCount: 0,
+        },
+        'https://www.instagram.com/p/abc/',
+        3,
+        ['uuid-1.png'],
+        ['/tmp/out/uuid-1.png'],
+        '/tmp/out/uuid-1.json',
+        2,
+        'verify_failed:row_not_found',
+      ),
+    ).toMatchObject({
+      multipartFlagReason: 'verify_failed:row_not_found',
+      multipartNeedsReview: true,
+      partsTotal: 1,
+    });
+  });
+
+  it('flags saved parts below the plan even without a reason', () => {
+    expect(
+      buildCommentOutputRecord(
+        {
+          commentPermalink: '/p/abc/c/1',
+          datetime: null,
+          text: 'hello',
+          timeText: '1h',
+          username: 'alice',
+          userProfilePath: '/alice/',
+          commentLikers: [],
+          likesCount: 0,
+        },
+        'https://www.instagram.com/p/abc/',
+        3,
+        ['uuid-1.png'],
+        ['/tmp/out/uuid-1.png'],
+        '/tmp/out/uuid-1.json',
+        3,
+        null,
+      ),
+    ).toMatchObject({
+      multipartFlagReason: 'incomplete_multipart',
+      multipartNeedsReview: true,
+      partsTotal: 1,
+    });
+  });
 });

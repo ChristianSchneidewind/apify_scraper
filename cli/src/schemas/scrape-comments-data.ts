@@ -86,6 +86,8 @@ export const enrichedCommentSchema = Type.Intersect([
   Type.Object({ screenshotPaths: Type.Array(Type.String()) }),
 ]);
 export const captureSessionSchema = Type.Object({
+  incompleteReason: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  plannedParts: Type.Optional(Type.Number()),
   screenshotKeys: Type.Array(Type.String()),
   screenshotPaths: Type.Array(Type.String()),
   screenshotUtc: Type.String(),
@@ -102,6 +104,7 @@ export const capturePlanSchema = Type.Object({
 export const capturePartResultSchema = Type.Object({
   done: Type.Boolean(),
   lastHash: Type.Union([Type.String(), Type.Null()]),
+  retryable: Type.Optional(Type.Boolean()),
 });
 export const screenshotClipSchema = Type.Object({
   height: Type.Number(), width: Type.Number(), x: Type.Number(), y: Type.Number(),

@@ -9,9 +9,13 @@ export const buildCommentMetadataPayload = (
   screenshotUtc: string,
   screenshotKeys: string[],
   visibleInViewport?: boolean,
+  plannedParts?: number | null,
+  incompleteReason?: string | null,
 ) => {
   const links = buildCommentLinks(data.commentPermalink, sourceUrl);
-  const needsReview = screenshotKeys.length > 2;
+  const incomplete = Boolean(incompleteReason) || (plannedParts != null && screenshotKeys.length < plannedParts);
+  const needsReview = incomplete || screenshotKeys.length > 2;
+  const flagReason = incomplete ? incompleteReason || 'incomplete_multipart' : 'more_than_2_parts';
   return {
     capturedAtUtc: screenshotUtc,
     commentDeepLink: links.commentDeepLink,
@@ -23,7 +27,7 @@ export const buildCommentMetadataPayload = (
     index,
     isGifOnly: Boolean(data.isGifOnly),
     likesCount: Number(data.likesCount || 0),
-    multipartFlagReason: needsReview ? 'more_than_2_parts' : null,
+    multipartFlagReason: needsReview ? flagReason : null,
     multipartNeedsReview: needsReview,
     partsTotal: screenshotKeys.length,
     screenshotKeys,

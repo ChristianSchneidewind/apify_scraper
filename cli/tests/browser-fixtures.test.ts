@@ -84,6 +84,22 @@ describe.skipIf(!findChromeBinary())('local cdp browser fixtures', () => {
     await page.close();
   });
 
+  it('does not treat the hide-replies toggle as the reply text', async () => {
+    const page = await newFixturePage();
+    await setFixtureContent(page, `
+      <article><a href="/parent/c/10">parent</a>
+        <ul><li>
+          <a href="/alice/">alice</a><span>Alle Antworten verbergen</span>
+          <span>Eigentliche Antwort</span><time datetime="2026-08-11T11:00:00Z">3 Wo.</time>
+          <a href="/post/c/11">reply</a>
+        </li></ul>
+      </article>
+    `);
+    const data = await extractCommentFromTime(page.locator('time') as never);
+    expect(data).toMatchObject({ text: 'Eigentliche Antwort', username: 'alice' });
+    await page.close();
+  });
+
   it('plans multipart capture for an inner-scroll comment', async () => {
     const page = await newFixturePage();
     await setFixtureContent(page, `

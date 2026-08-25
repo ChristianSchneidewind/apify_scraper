@@ -14,7 +14,7 @@ export const extractCommentBrowser = (
     const profileSlug = (user?.getAttribute('href') || '').replaceAll('/', '').toLowerCase();
     const time = row.querySelector('time');
     const timeText = (time?.textContent || '').replace(/\s+/g, ' ').trim();
-    const metadata = /^(?:.*(?:edited|bearbeitet)|reply|replies|antwort(?:en)?|view.*repl|.*antworten?\s+ansehen|ansehen|anzeigen|gefällt.*|\d+\s*(?:likes?|std\.?|min\.?|sek\.?|[hdwms]))$/i;
+    const metadata = /^(?:.*(?:edited|bearbeitet)|reply|replies|antwort(?:en)?|view.*repl|hide.*repl|.*antworten?\s+(?:ansehen|verbergen)|ansehen|anzeigen|verbergen|gefällt.*|\d+\s*(?:likes?|std\.?|min\.?|sek\.?|[hdwms]))$/i;
     const texts = Array.from(row.querySelectorAll('span'))
     .map((span) => (span.textContent || '').trim())
     .filter((text) => text && text !== username && text !== rawUsername && text !== timeText

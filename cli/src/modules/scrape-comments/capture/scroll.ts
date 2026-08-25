@@ -13,6 +13,7 @@ import type {
 } from '../../../schemas/index.ts';
 import { verifyMultipartBrowser } from '../multipart/browser.ts';
 import { expandCommentForCapture } from '../multipart/planner.ts';
+import { refindCommentRowHandle } from '../extract-from-locator.ts';
 import { bannerText, setScreenshotBanner } from './banner.ts';
 import { hashBuffer, savePart, takeScreenshot } from './assets.ts';
 import { reinforceHighlightStyles } from './highlight-style.ts';
@@ -118,8 +119,12 @@ export const captureScrollPart = async (
   await log(outDir, commentIndex, 'capture scroll part:start', { mode, part: partIdx + 1, partsTotal, top });
   const verify = await verifyScrollPart(handle, mode, partsTotal, top, payloadBase);
   if (!verify.ok) {
-    await log(outDir, commentIndex, 'capture scroll part:verify_failed', { mode, part: partIdx + 1, partsTotal, reason: verify.reason ?? null, top });
-    return { done: true, lastHash };
+    const reason = verify.reason ?? 'unknown';
+    await log(outDir, commentIndex, 'capture scroll part:verify_failed', { mode, part: partIdx + 1, partsTotal, reason, top });
+    session.incompleteReason = `verify_failed:${reason}`;
+    // A detached row (Instagram re-renders the list on scroll) is worth a
+    // refind+retry; other failures end the sequence.
+    return { done: true, lastHash, retryable: reason === 'row_not_found' };
   }
   await logVerify(log, outDir, commentIndex, partIdx, partsTotal, top, mode, verify);
   await page.waitForTimeout(180);
@@ -152,9 +157,15 @@ export const captureScrollSequence = async (
 ) => {
   let hash = lastHash;
   let partIdx = 0;
+  let rowHandle = handle;
+  let refinds = 0;
   while (partIdx < plan.scrollParts.length) {
     const top = plan.scrollParts[partIdx] ?? 0;
-    const result = await captureScrollPart(page, handle, data, outDir, session, plan.mode, commentIndex, partIdx, plan.scrollParts.length, top, payloadBase, hash, skipHighlight, log);
+    const result = await captureScrollPart(page, rowHandle, data, outDir, session, plan.mode, commentIndex, partIdx, plan.scrollParts.length, top, payloadBase, hash, skipHighlight, log);
+    const canRefind = Boolean(result.done && result.retryable && refinds < 2 && !skipHighlight);
+    const refound = canRefind ? await refindCommentRowHandle(page, payloadBase).catch(() => null) : null;
+    if (canRefind && !refound) await log(outDir, commentIndex, 'capture scroll part:refind_failed', { mode: plan.mode, part: partIdx + 1, partsTotal: plan.scrollParts.length, top });
+    if (refound) { refinds += 1; rowHandle = refound; session.incompleteReason = null; await log(outDir, commentIndex, 'capture scroll part:refound', { mode: plan.mode, part: partIdx + 1, partsTotal: plan.scrollParts.length, refinds, top }); continue; }
     if (result.done) return hash;
     hash = result.lastHash;
     partIdx += 1;
