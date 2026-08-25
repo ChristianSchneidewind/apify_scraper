@@ -27,8 +27,15 @@ the Chrome DevTools Protocol (CDP) — no Playwright, no bundled browser.
 npm install
 ```
 
-Enable remote debugging in your Chrome (`chrome://inspect/#remote-debugging`),
-start Chrome with `--remote-debugging-port=9222`, or run `chrome-agent launch`.
+Start your Chrome with remote debugging via the dedicated scraping profile:
+
+```bash
+scripts/chrome-cdp.sh
+```
+
+Chrome >= 136 ignores `--remote-debugging-port` for the default data
+directory, so the script launches Chrome with a separate profile
+(`~/.chrome-cdp`). Sign in to Instagram once there; the session persists.
 
 ## Usage
 
@@ -57,7 +64,7 @@ npx tsx cli/src/bin/instagram.ts scrape reposts \
 
 Defaults:
 
-- browser runs **headful** (visible UI); use `--headless` to override
+- the CLI drives the **visible** running Chrome UI; `--headless` is a deprecated no-op in CDP mode
 - `--dry-run` validates the command without opening a browser or writing artifacts
 - `--max-comments 0` = unlimited
 - liker-related flags are retained for compatibility but currently have no effect

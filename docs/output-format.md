@@ -42,9 +42,15 @@ Failed results include an `errorCode`, for example `AUTH_ERROR`, `BROWSER_ERROR`
 | `likersReason` | `liker_collection_disabled` in the current production path |
 | `screenshotPaths` | One or more screenshot files |
 | `partsTotal` | Number of screenshot parts |
-| `multipartNeedsReview` | Whether the capture has more than two parts |
+| `multipartNeedsReview` | Capture needs a manual spot check |
+| `multipartFlagReason` | Why: `more_than_2_parts`, `incomplete_multipart`, `verify_failed:<reason>`, or `capture_fallback:<reason>` |
 | `commentPermalink` | Relative Instagram comment link |
 | `commentUrl` | Absolute comment URL when available |
+
+The review flag fires when a capture saved fewer parts than planned (after
+counting deduplicated no-op parts as covered), when a part verify or the
+whole capture failed, or when a comment legitimately needed more than two
+parts. Flagged comments should be spot-checked via their `commentPermalink`.
 
 Liker-profile collection is intentionally disabled until the Instagram dialog flow is reliable. Visible `likesCount` is retained, `commentLikers` is empty, and `likersReason` is `liker_collection_disabled`.
 

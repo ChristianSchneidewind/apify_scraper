@@ -4,14 +4,23 @@
 
 ### Added
 - Direct CDP browser automation against the user's running Chrome (`--cdp-url`), replacing Playwright: real profile, existing logins, no browser download.
+- `scripts/chrome-cdp.sh`: idempotent launcher for Chrome with remote debugging in a dedicated scraping profile (`~/.chrome-cdp`); required because Chrome >= 136 ignores the debug port for the default data directory.
 - Action-verify capture loop: viewport visibility is verified before screenshots, outliers are flagged instead of dropped, and each run ends with a visibility quote.
 - `--evidence` flag writing `actions.ndjson` and a SHA-256 `manifest.json` per run directory.
 - CDP integration test fixture that launches the system Chrome headless.
+- Review flagging for incomplete captures: `multipartNeedsReview` + `multipartFlagReason` mark comments whose saved parts fall short of the plan (verify failures, capture fallbacks); deduplicated scroll-no-op parts count as covered.
+- Automatic row refind and part retry when Instagram detaches a comment row between multipart screenshots; captions and pinned comments without a `/c/` permalink are refound via author anchor plus text prefix.
 
 ### Changed
 - `auth login` no longer persists storage state; it verifies the session in the connected Chrome (logins are never automated).
 - `--browser-profile` was replaced by `--cdp-url`; `--headless` is a deprecated no-op.
 - Playwright dependency removed; the Docker image is a plain Node runtime that expects an external Chrome endpoint.
+- Comment highlight and multipart planning now resolve the full comment row (avatar and likes row included) instead of the bare text block; the red frame is re-applied before every part screenshot, and the overlay is clamped to the comment scrollport.
+
+### Fixed
+- Multipart clips follow the actual scrollport and reach the comment end (likes row) on the final part; single captures escalate on top clipping as well.
+- Multipart is only planned when content actually overflows the visible strip, removing redundant near-duplicate parts.
+- Comment extraction no longer mistakes the hide-replies toggle ("Alle Antworten verbergen" / "hide all replies") for the reply text.
 
 ### Added (previously)
 - TypeScript-only Instagram CLI for authentication, comment scraping, and profile scraping.
